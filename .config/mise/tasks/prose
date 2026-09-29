@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#MISE description="Lint the Markdown prose with Vale"
+set -euo pipefail
+
+# Vale exits nonzero only on errors. Warnings fail here too, and suggestions
+# stay advice.
+vale sync >/dev/null
+alerts=$(
+  git ls-files -z --cached --others --exclude-standard '*.md' |
+    xargs -0 vale --output=line --minAlertLevel=warning || true
+)
+if [[ -n $alerts ]]; then
+  echo "$alerts"
+  exit 1
+fi

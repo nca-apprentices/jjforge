@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "jjforge.fullname" . }}-vcsd
+  labels:
+    {{- include "jjforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vcsd
+spec:
+  replicas: {{ .Values.vcsd.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: vcsd
+  template:
+    metadata:
+      labels:
+        {{- include "jjforge.labels" . | nindent 8 }}
+        app.kubernetes.io/component: vcsd
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: vcsd
+          image: {{ .Values.vcsd.image.repository }}:{{ .Values.vcsd.image.tag | default .Chart.AppVersion }}
+          env:
+            - name: VCSD_ADDR
+              value: 0.0.0.0:50052
+          ports:
+            - name: grpc
+              containerPort: 50052
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+          resources:
+            {{- toYaml .Values.vcsd.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "jjforge.fullname" . }}-vcsd
+  labels:
+    {{- include "jjforge.labels" . | nindent 4 }}
+  annotations:
+    # vcsd speaks cleartext HTTP/2; Traefik has to know before it forwards gRPC.
+    traefik.ingress.kubernetes.io/service.serversscheme: h2c
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: vcsd
+  ports:
+    - name: grpc
+      port: 50052
+      targetPort: grpc

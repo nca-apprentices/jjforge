@@ -1,0 +1,90 @@
+name: CI
+
+# Nothing here deploys: the infra repository pins a released chart version.
+# Lint and test run the same mise tasks as a laptop does, at the root and in
+# rust/.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  proto:
+    name: Proto
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: bufbuild/buf-action@v1
+        with:
+          input: proto
+          # The client is installed by people and updated when they feel like
+          # it, so the wire contract may only grow.
+          breaking_against: "https://github.com/${{ github.repository }}.git#branch=main,subdir=proto"
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+      - name: Lint
+        run: mise run lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: gradle-${{ hashFiles('server/*.gradle.kts') }}
+
+      - name: Test
+        run: mise run test
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+        with:
+          working_directory: rust
+          # Only the tools rust/mise.toml adds. The root toolchain isn't needed.
+          install_args: rust protoc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Lint
+        run: mise run lint
+      - name: Test
+        run: mise run test
+
+  images:
+    name: Images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [server, vcsd]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.component }}/Dockerfile
+          push: false

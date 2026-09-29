@@ -1,0 +1,45 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":pinAllExceptPeerDependencies",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
+  "timezone": "Europe/Zurich",
+  "schedule": ["* 0-5 1,15 * *"],
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-5 1,15 * *"]
+  },
+  "packageRules": [
+    {
+      "description": "Cargo.toml names the exact version in use, and Cargo.lock pins it.",
+      "matchManagers": ["cargo"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "rust-toolchain.toml, rust/mise.toml, and the vcsd image must agree.",
+      "matchDepNames": ["rust"],
+      "groupName": "Rust toolchain"
+    },
+    {
+      "description": "mise.toml, web/mise.toml, and packageManager in web/package.json must agree.",
+      "matchDepNames": ["node", "pnpm"],
+      "groupName": "Node.js toolchain"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "dprint plugins from npm. The exec plugin carries a checksum, so `dprint config update` updates it instead.",
+      "managerFilePatterns": ["/^\\.config/dprint\\.json$/"],
+      "matchStrings": [
+        "\"npm:(?<depName>(@[^/\"]+/)?[^@\"]+)@(?<currentValue>[^\"/@]+)\""
+      ],
+      "datasourceTemplate": "npm"
+    }
+  ]
+}

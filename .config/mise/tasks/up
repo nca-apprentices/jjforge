@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Build the images and run server and vcsd with podman"
+set -euo pipefail
+
+# podman builds the images itself. Compose's own builder goes through the
+# Docker API, which needs BuildKit and Docker's credential helpers. Compose then
+# finds the images locally under the names in compose.yaml and pulls nothing.
+podman build --tag ghcr.io/nca-apprentices/jjforge-server:latest --file server/Dockerfile .
+podman build --tag ghcr.io/nca-apprentices/jjforge-vcsd:latest --file rust/vcsd/Dockerfile .
+
+# docker-compose talks to the podman machine's Docker-compatible socket
+# directly. `podman compose` would only wrap the same binary.
+socket=$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')
+
+# JJFORGE_PORT moves the server off 8080 when something else holds it.
+DOCKER_HOST=unix://$socket exec docker-compose up

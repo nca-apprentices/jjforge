@@ -1,0 +1,14 @@
+# Local state, never committed
+.env
+.claude-notes/
+.DS_Store
+
+# Build output
+target/
+build/
+.gradle/
+node_modules/
+web/dist/
+
+# Generated: the release copies the web build into the server jar
+server/src/main/resources/static/

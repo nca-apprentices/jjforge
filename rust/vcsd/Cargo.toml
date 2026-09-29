@@ -1,0 +1,13 @@
+[package]
+name = "vcsd"
+description = "The jjforge data core, reduced to an echo service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+jjforge-proto.workspace = true
+anyhow.workspace = true
+tokio = { workspace = true, features = ["signal"] }
+tonic.workspace = true

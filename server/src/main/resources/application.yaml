@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: jjforge
+  threads:
+    virtual:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+jjforge:
+  vcsd:
+    target: ${JJFORGE_VCSD_TARGET:localhost:50052}

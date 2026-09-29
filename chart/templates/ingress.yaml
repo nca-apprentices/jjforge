@@ -1,0 +1,38 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "jjforge.fullname" . }}
+  labels:
+    {{- include "jjforge.labels" . | nindent 4 }}
+  annotations:
+    # The Rust client speaks gRPC to vcsd on the same hostname and port as the
+    # web app, so an installation needs one DNS name and one certificate.
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /echo.v1.EchoService
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "jjforge.fullname" . }}-vcsd
+                port:
+                  name: grpc
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "jjforge.fullname" . }}
+                port:
+                  name: http
+{{- end }}

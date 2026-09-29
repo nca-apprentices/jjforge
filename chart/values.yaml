@@ -1,0 +1,28 @@
+# Secrets for pulling the server and vcsd images, such as [{ name: ghcr }].
+imagePullSecrets: []
+
+server:
+  image:
+    repository: ghcr.io/nca-apprentices/jjforge-server
+    tag: ""
+  replicas: 1
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { memory: 1Gi }
+
+vcsd:
+  image:
+    repository: ghcr.io/nca-apprentices/jjforge-vcsd
+    tag: ""
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits: { memory: 128Mi }
+
+ingress:
+  enabled: true
+  className: traefik
+  host: jjforge.example.com
+  tls:
+    enabled: true
+    secretName: jjforge-tls

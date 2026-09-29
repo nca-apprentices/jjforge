@@ -1,0 +1,7 @@
+apiVersion: v2
+name: jjforge
+description: jjforge -- a forge for Jujutsu repositories
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/nca-apprentices/jjforge

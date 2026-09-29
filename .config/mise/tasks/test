@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Run the tests and builds outside rust/"
+set -euo pipefail
+
+gradle -p server build
+
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web test
+pnpm --dir web build

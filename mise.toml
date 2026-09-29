@@ -1,0 +1,27 @@
+# The app toolchain. `mise install` in this directory provides all of it, except
+# for rust/, which has its own mise.toml.
+[tools]
+java = "25.0.2"
+gradle = "9.7.1"
+node = "24.21.0"
+pnpm = "11.24.0"
+# Contract and chart linting, as CI runs it.
+buf = "1.73.0"
+helm = "4.3.0"
+# `mise run up` drives podman through its Docker-compatible socket.
+docker-compose = "2.40.3"
+# `mise run smoke` runs the requests in http/.
+hurl = "8.0.1"
+# `mise run fmt` formats every file. `mise run lint` checks the formatting
+# and the prose.
+dprint = "0.57.4"
+ktlint = "1.8.0"
+rumdl = "0.2.73"
+shfmt = "3.13.1"
+vale = "3.21.0"
+
+# Tool configuration lives under .config. mise finds its tasks in
+# .config/mise/tasks without help, and rumdl finds .config/rumdl.toml.
+# `mise run fmt`, `lint`, `test`, `up` and `smoke`. CI runs lint and test.
+[env]
+VALE_CONFIG_PATH = "{{config_root}}/.config/vale/vale.ini"

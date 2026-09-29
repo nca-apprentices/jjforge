@@ -1,0 +1,7 @@
+CLI
+hostname
+jjforge
+Jujutsu
+podman
+toolchains?
+vcsd

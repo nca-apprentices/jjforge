@@ -1,0 +1,28 @@
+# Evaluation tier: one command, one machine, no Kubernetes. Same images and the
+# same configuration surface as the Helm chart. `--build` builds them from this
+# directory instead of pulling a release.
+name: jjforge
+
+services:
+  server:
+    image: ghcr.io/nca-apprentices/jjforge-server:${JJFORGE_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    depends_on:
+      - vcsd
+    environment:
+      JJFORGE_VCSD_TARGET: vcsd:50052
+    ports:
+      - "${JJFORGE_PORT:-8080}:8080"
+
+  vcsd:
+    image: ghcr.io/nca-apprentices/jjforge-vcsd:${JJFORGE_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: rust/vcsd/Dockerfile
+    environment:
+      VCSD_ADDR: 0.0.0.0:50052
+    # The client calls vcsd directly.
+    ports:
+      - "50052:50052"

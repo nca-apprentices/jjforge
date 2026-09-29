@@ -1,0 +1,8 @@
+# Aligned tables, however wide: a table can't wrap, so the line-length limit
+# doesn't apply to it.
+[MD013]
+tables = false
+
+[MD060]
+enabled = true
+style = "aligned"

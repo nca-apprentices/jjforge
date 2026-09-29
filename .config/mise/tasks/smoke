@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Send one echo through every component of a running `mise run up`"
+set -euo pipefail
+
+# Web and REST: the requests in http/, with their asserts.
+hurl --test --variable server="http://localhost:${JJFORGE_PORT:-8080}" http/*.hurl
+
+# gRPC, which hurl cannot send: the jjforge CLI against vcsd, built with the
+# toolchain in rust/.
+answer=$(JJFORGE_ENDPOINT=http://localhost:50052 mise -C rust exec -- cargo run -q --bin jjforge -- echo smoke)
+if [[ $answer != smoke ]]; then
+  echo "cli: got '$answer'" >&2
+  exit 1
+fi
+
+echo "web, server, vcsd and cli answered"
