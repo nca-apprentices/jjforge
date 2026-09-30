@@ -27,7 +27,9 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     implementation("org.springframework.boot:spring-boot-starter-grpc-client")
-    implementation("com.google.protobuf:protobuf-java")
+    // The runtime must be at least the protoc that generated the stubs, and the
+    // Spring Boot BOM alone pins an older one.
+    implementation("com.google.protobuf:protobuf-java:$protobufVersion")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
