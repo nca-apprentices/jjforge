@@ -25,7 +25,12 @@ class VcsdClientTest {
 
     @Test
     fun `returns what vcsd answers`() {
-        val server = ServerBuilder.forPort(0).addService(Echo()).build().start()
+        val server =
+            ServerBuilder
+                .forPort(0)
+                .addService(Echo())
+                .build()
+                .start()
         val client = VcsdClient("localhost:${server.port}")
 
         try {
