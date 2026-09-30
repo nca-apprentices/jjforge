@@ -105,10 +105,17 @@ jobs:
     needs: [server-image, vcsd-image, client, chart]
     runs-on: ubuntu-latest
     steps:
+      # Only this workflow's own artifacts: the image jobs also upload
+      # .dockerbuild records, which don't belong in the release.
       - uses: actions/download-artifact@v4
         with:
+          pattern: jjforge-*
           path: dist
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: chart
+          path: dist
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
