@@ -1,8 +1,8 @@
 import org.springframework.boot.gradle.plugin.SpringBootPlugin
 
 plugins {
-    kotlin("jvm") version "2.4.10"
-    kotlin("plugin.spring") version "2.4.10"
+    kotlin("jvm") version "2.4.20"
+    kotlin("plugin.spring") version "2.4.20"
     id("org.springframework.boot") version "4.1.1"
     id("com.google.protobuf") version "0.10.0"
     id("org.openapi.generator") version "7.25.0"
@@ -12,8 +12,8 @@ group = "dev.nca"
 version = "0.1.0"
 description = "jjforge server, reduced to an echo endpoint"
 
-val protobufVersion = "4.36.0"
-val grpcVersion = "1.83.1"
+val protobufVersion = "4.36.2"
+val grpcVersion = "1.84.0"
 
 repositories {
     mavenCentral()

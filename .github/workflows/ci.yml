@@ -22,7 +22,7 @@ jobs:
     name: Proto
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: bufbuild/buf-action@v1
         with:
           input: shared/proto
@@ -34,7 +34,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
       - name: Lint
         run: mise run lint
@@ -43,9 +43,9 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.gradle/caches
           key: gradle-${{ hashFiles('server/*.gradle.kts') }}
@@ -57,7 +57,7 @@ jobs:
     name: Rust
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
         with:
           # Only the Rust tools. The rest of the toolchain isn't needed.
@@ -81,8 +81,8 @@ jobs:
           - component: vcsd
             dockerfile: rust/vcsd/Dockerfile
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/build-push-action@v6
+      - uses: actions/checkout@v7
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
