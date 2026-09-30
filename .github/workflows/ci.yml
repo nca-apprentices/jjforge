@@ -80,11 +80,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        component: [server, vcsd]
+        include:
+          - component: server
+            dockerfile: server/Dockerfile
+          - component: vcsd
+            dockerfile: rust/vcsd/Dockerfile
     steps:
       - uses: actions/checkout@v5
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.component }}/Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: false
