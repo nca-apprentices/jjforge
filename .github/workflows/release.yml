@@ -83,7 +83,7 @@ jobs:
       - name: Package
         run: |
           helm registry login ${{ env.REGISTRY }} --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"
-          helm package chart --version "${GITHUB_REF_NAME#v}" --app-version "${GITHUB_REF_NAME#v}"
+          helm package chart --version "${GITHUB_REF_NAME#v}" --app-version "$GITHUB_REF_NAME"
           helm push jjforge-"${GITHUB_REF_NAME#v}".tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
         env:
           GITHUB_TOKEN: ${{ github.token }}
