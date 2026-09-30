@@ -1,9 +1,9 @@
-package org.nca.jjforge.echo
+package dev.nca.jjforge.echo
 
+import dev.nca.jjforge.echo.v1.EchoRequest
+import dev.nca.jjforge.echo.v1.EchoServiceGrpc
 import io.grpc.ManagedChannelBuilder
 import jakarta.annotation.PreDestroy
-import org.nca.jjforge.echo.v1.EchoRequest
-import org.nca.jjforge.echo.v1.EchoServiceGrpc
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 

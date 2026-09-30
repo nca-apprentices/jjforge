@@ -1,4 +1,4 @@
-package org.nca.jjforge.echo
+package dev.nca.jjforge.echo
 
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock

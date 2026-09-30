@@ -1,7 +1,7 @@
-package org.nca.jjforge.echo
+package dev.nca.jjforge.echo
 
-import org.nca.jjforge.api.EchoApi
-import org.nca.jjforge.api.model.Echo
+import dev.nca.jjforge.api.EchoApi
+import dev.nca.jjforge.api.model.Echo
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 

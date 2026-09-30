@@ -1,11 +1,11 @@
-package org.nca.jjforge.echo
+package dev.nca.jjforge.echo
 
+import dev.nca.jjforge.echo.v1.EchoRequest
+import dev.nca.jjforge.echo.v1.EchoResponse
+import dev.nca.jjforge.echo.v1.EchoServiceGrpc
 import io.grpc.ServerBuilder
 import io.grpc.stub.StreamObserver
 import org.junit.jupiter.api.Test
-import org.nca.jjforge.echo.v1.EchoRequest
-import org.nca.jjforge.echo.v1.EchoResponse
-import org.nca.jjforge.echo.v1.EchoServiceGrpc
 import kotlin.test.assertEquals
 
 /**

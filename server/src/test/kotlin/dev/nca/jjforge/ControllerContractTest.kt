@@ -1,4 +1,4 @@
-package org.nca.jjforge
+package dev.nca.jjforge
 
 import org.junit.jupiter.api.Test
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider
@@ -8,13 +8,13 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import kotlin.test.assertEquals
 
-private const val APP_PACKAGE = "org.nca.jjforge"
+private const val APP_PACKAGE = "dev.nca.jjforge"
 
 /**
  * The package openapi-generator writes the interfaces from /shared/openapi.yaml
  * to.
  */
-private const val API_PACKAGE = "org.nca.jjforge.api"
+private const val API_PACKAGE = "dev.nca.jjforge.api"
 
 /**
  * Keeps the REST surface equal to /shared/openapi.yaml. A controller must

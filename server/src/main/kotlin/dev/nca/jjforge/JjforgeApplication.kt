@@ -1,4 +1,4 @@
-package org.nca.jjforge
+package dev.nca.jjforge
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication

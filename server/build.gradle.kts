@@ -8,7 +8,7 @@ plugins {
     id("org.openapi.generator") version "7.25.0"
 }
 
-group = "org.nca"
+group = "dev.nca"
 version = "0.1.0"
 description = "jjforge server, reduced to an echo endpoint"
 
@@ -77,8 +77,8 @@ openApiGenerate {
     generatorName = "kotlin-spring"
     inputSpec = layout.projectDirectory.file("../shared/openapi.yaml")
     outputDir = openApiOutput
-    apiPackage = "org.nca.jjforge.api"
-    modelPackage = "org.nca.jjforge.api.model"
+    apiPackage = "dev.nca.jjforge.api"
+    modelPackage = "dev.nca.jjforge.api.model"
     globalProperties = mapOf("apis" to "", "models" to "")
     configOptions =
         mapOf(
