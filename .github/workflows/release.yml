@@ -69,10 +69,14 @@ jobs:
       - name: Build
         working-directory: rust
         run: cargo build --release --bin jjforge
+      # Each binary is named after its target, so the release lists one per
+      # platform.
+      - name: Name
+        run: cp rust/target/release/jjforge jjforge-${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
           name: jjforge-${{ matrix.target }}
-          path: rust/target/release/jjforge
+          path: jjforge-${{ matrix.target }}
 
   chart:
     name: Helm chart and OpenAPI
@@ -87,8 +91,25 @@ jobs:
           helm push jjforge-"${GITHUB_REF_NAME#v}".tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: chart
+          path: |
             openapi.yaml
             jjforge-*.tgz
+
+  # One GitHub release per tag, created once everything has shipped, with the
+  # client binaries, the chart, and the OpenAPI document attached.
+  release:
+    name: GitHub release
+    needs: [server-image, vcsd-image, client, chart]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*
