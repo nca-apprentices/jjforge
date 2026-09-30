@@ -1,5 +1,6 @@
-# Built from the repository root: the server compiles the stubs from proto/ and openapi.yaml
-# and serves the web build, so the context has to include all three.
+# Built from the repository root: the server compiles the stubs from shared/proto/
+# and shared/openapi.yaml and serves the web build, so the context has to include
+# all three.
 
 # The SPA is served by the server, so it is built into the jar rather than
 # deployed as a second thing to keep in sync.
@@ -13,8 +14,8 @@ RUN pnpm build
 
 FROM gradle:9-jdk25 AS build
 WORKDIR /src
-COPY proto proto
-COPY openapi.yaml openapi.yaml
+COPY shared/proto shared/proto
+COPY shared/openapi.yaml shared/openapi.yaml
 COPY server server
 COPY --from=web /src/web/dist server/src/main/resources/static
 RUN --mount=type=cache,target=/cache/gradle \

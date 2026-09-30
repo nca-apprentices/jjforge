@@ -10,13 +10,16 @@ import kotlin.test.assertEquals
 
 private const val APP_PACKAGE = "org.nca.jjforge"
 
-/** The package openapi-generator writes the interfaces from /openapi.yaml to. */
+/**
+ * The package openapi-generator writes the interfaces from /shared/openapi.yaml
+ * to.
+ */
 private const val API_PACKAGE = "org.nca.jjforge.api"
 
 /**
- * Keeps the REST surface equal to /openapi.yaml. A controller must implement a
- * generated interface and must not map any route of its own, since a route
- * outside the interfaces is a route outside the contract.
+ * Keeps the REST surface equal to /shared/openapi.yaml. A controller must
+ * implement a generated interface and must not map any route of its own, since
+ * a route outside the interfaces is a route outside the contract.
  */
 class ControllerContractTest {
     @Test
@@ -35,7 +38,7 @@ class ControllerContractTest {
         val ownRoutes =
             (listOf(controller) + controller.declaredMethods)
                 .filter { MergedAnnotations.from(it).isPresent(RequestMapping::class.java) }
-                .map { "${controller.name}: $it maps a route outside /openapi.yaml" }
+                .map { "${controller.name}: $it maps a route outside /shared/openapi.yaml" }
 
         if (implementsContract) {
             return ownRoutes

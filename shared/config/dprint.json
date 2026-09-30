@@ -1,10 +1,10 @@
 // `mise run fmt` formats with this file, and `mise run lint` checks with it.
-// The Rust code in rust/ is formatted by its own `mise run fmt`.
+// The Rust code in rust/ is formatted by `mise run rust:fmt`.
 {
   "excludes": [
     "**/node_modules",
     "**/target",
-    "chart/templates/**",
+    "shared/deploy/chart/templates/**",
     "web/pnpm-lock.yaml"
   ],
   // Keep the Cargo.toml keys in the order they were written.
@@ -14,7 +14,7 @@
   "exec": {
     "associations": [
       "**/*.{kt,kts,md,proto}",
-      ".config/mise/tasks/*",
+      "shared/config/mise/tasks/**/*",
       "web/**/*.{ts,tsx,json}"
     ],
     "commands": [
@@ -23,7 +23,7 @@
         "associations": ["**/*.{kt,kts}"]
       },
       {
-        "command": "rumdl fmt --stdin --stdin-filename {{file_path}} --silent",
+        "command": "rumdl fmt --config shared/config/rumdl.toml --stdin --stdin-filename {{file_path}} --silent",
         "associations": ["**/*.md"]
       },
       {
@@ -34,7 +34,7 @@
       },
       {
         "command": "shfmt --indent=2 --filename {{file_path}}",
-        "associations": [".config/mise/tasks/*"]
+        "associations": ["shared/config/mise/tasks/**/*"]
       },
       {
         // The Biome that web/ installs, so web/biome.json stays its only config.

@@ -1,13 +1,13 @@
 # Evaluation tier: one command, one machine, no Kubernetes. Same images and the
-# same configuration surface as the Helm chart. `--build` builds them from this
-# directory instead of pulling a release.
+# same configuration surface as the Helm chart. `--build` builds them from the
+# repository root instead of pulling a release.
 name: jjforge
 
 services:
   server:
     image: ghcr.io/nca-apprentices/jjforge-server:${JJFORGE_VERSION:-latest}
     build:
-      context: .
+      context: ../..
       dockerfile: server/Dockerfile
     depends_on:
       - vcsd
@@ -19,7 +19,7 @@ services:
   vcsd:
     image: ghcr.io/nca-apprentices/jjforge-vcsd:${JJFORGE_VERSION:-latest}
     build:
-      context: .
+      context: ../..
       dockerfile: rust/vcsd/Dockerfile
     environment:
       VCSD_ADDR: 0.0.0.0:50052

@@ -1,16 +1,19 @@
-# The app toolchain. `mise install` in this directory provides all of it, except
-# for rust/, which has its own mise.toml.
+# The whole toolchain. `mise install` in this directory provides all of it.
 [tools]
 java = "25.0.2"
 gradle = "9.7.1"
 node = "24.21.0"
 pnpm = "11.24.0"
+# mise sets RUSTUP_TOOLCHAIN, which overrides rust/rust-toolchain.toml, so the
+# components are listed here too.
+rust = { version = "1.94.1", components = "clippy,rustfmt" }
+protoc = "36.1"
 # Contract and chart linting, as CI runs it.
 buf = "1.73.0"
 helm = "4.3.0"
 # `mise run up` drives podman through its Docker-compatible socket.
 docker-compose = "2.40.3"
-# `mise run smoke` runs the requests in http/.
+# `mise run smoke` runs the requests in shared/http/.
 hurl = "8.0.1"
 # `mise run fmt` formats every file. `mise run lint` checks the formatting
 # and the prose.
@@ -20,8 +23,10 @@ rumdl = "0.2.73"
 shfmt = "3.13.1"
 vale = "3.21.0"
 
-# Tool configuration lives under .config. mise finds its tasks in
-# .config/mise/tasks without help, and rumdl finds .config/rumdl.toml.
-# `mise run fmt`, `lint`, `test`, `up` and `smoke`. CI runs lint and test.
+# Tool configuration and the tasks live under shared/config. `mise tasks` lists
+# the tasks. CI runs lint, test, rust:lint, and rust:test.
+[task_config]
+includes = ["shared/config/mise/tasks"]
+
 [env]
-VALE_CONFIG_PATH = "{{config_root}}/.config/vale/vale.ini"
+VALE_CONFIG_PATH = "{{config_root}}/shared/config/vale/vale.ini"

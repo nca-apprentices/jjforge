@@ -2,14 +2,14 @@
 #MISE description="Check formatting, lints, and types in every component outside rust/"
 set -euo pipefail
 
-buf lint proto
-helm lint chart
-helm template jjforge chart >/dev/null
+buf lint shared/proto
+helm lint shared/deploy/chart
+helm template jjforge shared/deploy/chart >/dev/null
 
 pnpm --dir web install --frozen-lockfile
 pnpm --dir web typecheck
 pnpm --dir web exec biome ci --error-on-warnings
 
 # Last, because the web formatter needs the packages installed above.
-dprint check --config .config/dprint.json
+dprint check --config shared/config/dprint.json
 mise run prose

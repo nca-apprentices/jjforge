@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Format the Rust code"
+#MISE dir="{{config_root}}/rust"
+set -euo pipefail
+
+cargo fmt --all

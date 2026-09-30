@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Check the Rust formatting and clippy lints"
+#MISE dir="{{config_root}}/rust"
+set -euo pipefail
+
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings

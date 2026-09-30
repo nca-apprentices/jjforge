@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Format every file with the formatters in shared/config/dprint.json"
+set -euo pipefail
+
+dprint fmt --config shared/config/dprint.json

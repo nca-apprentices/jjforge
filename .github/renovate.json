@@ -21,12 +21,12 @@
       "rangeStrategy": "bump"
     },
     {
-      "description": "rust-toolchain.toml, rust/mise.toml, and the vcsd image must agree.",
+      "description": "rust-toolchain.toml, mise.toml, and the vcsd image must agree.",
       "matchDepNames": ["rust"],
       "groupName": "Rust toolchain"
     },
     {
-      "description": "mise.toml, web/mise.toml, and packageManager in web/package.json must agree.",
+      "description": "mise.toml and packageManager in web/package.json must agree.",
       "matchDepNames": ["node", "pnpm"],
       "groupName": "Node.js toolchain"
     }
@@ -35,7 +35,7 @@
     {
       "customType": "regex",
       "description": "dprint plugins from npm. The exec plugin carries a checksum, so `dprint config update` updates it instead.",
-      "managerFilePatterns": ["/^\\.config/dprint\\.json$/"],
+      "managerFilePatterns": ["/^shared/config/dprint\\.json$/"],
       "matchStrings": [
         "\"npm:(?<depName>(@[^/\"]+/)?[^@\"]+)@(?<currentValue>[^\"/@]+)\""
       ],

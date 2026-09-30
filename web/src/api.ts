@@ -1,4 +1,4 @@
-/** Calls `POST /api/echo`, the one operation in /openapi.yaml. */
+/** Calls `POST /api/echo`, the one operation in /shared/openapi.yaml. */
 export async function echo(message: string): Promise<string> {
   const response = await fetch("/api/echo", {
     method: "POST",

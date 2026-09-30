@@ -87,8 +87,10 @@ jobs:
       - name: Package
         run: |
           helm registry login ${{ env.REGISTRY }} --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"
-          helm package chart --version "${GITHUB_REF_NAME#v}" --app-version "$GITHUB_REF_NAME"
+          helm package shared/deploy/chart --version "${GITHUB_REF_NAME#v}" --app-version "$GITHUB_REF_NAME"
           helm push jjforge-"${GITHUB_REF_NAME#v}".tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+          # At the root, so the release lists it by its own name.
+          cp shared/openapi.yaml .
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - uses: actions/upload-artifact@v4

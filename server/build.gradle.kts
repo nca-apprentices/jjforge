@@ -43,11 +43,11 @@ kotlin {
     }
 }
 
-// The .proto files under /proto are the contract. Stubs are generated, never
-// checked in.
+// The .proto files under /shared/proto are the contract. Stubs are generated,
+// never checked in.
 sourceSets.main {
     proto {
-        srcDir("../proto")
+        srcDir("../shared/proto")
     }
 }
 
@@ -69,13 +69,13 @@ protobuf {
     }
 }
 
-// /openapi.yaml is the REST contract. Every controller implements an interface
-// generated from it, and ControllerContractTest enforces that.
+// /shared/openapi.yaml is the REST contract. Every controller implements an
+// interface generated from it, and ControllerContractTest enforces that.
 val openApiOutput = layout.buildDirectory.dir("generated/openapi")
 
 openApiGenerate {
     generatorName = "kotlin-spring"
-    inputSpec = layout.projectDirectory.file("../openapi.yaml")
+    inputSpec = layout.projectDirectory.file("../shared/openapi.yaml")
     outputDir = openApiOutput
     apiPackage = "org.nca.jjforge.api"
     modelPackage = "org.nca.jjforge.api.model"

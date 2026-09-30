@@ -1,5 +1,5 @@
 # Built from the repository root: the stubs crate in rust/ compiles the contract
-# in proto/.
+# in shared/proto/.
 FROM rust:1.94-slim AS build
 
 RUN apt-get update \
@@ -7,7 +7,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
-COPY proto proto
+COPY shared/proto shared/proto
 COPY rust rust
 
 WORKDIR /src/rust
