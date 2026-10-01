@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+#MISE description="Check that every OpenAPI operation cites Requirement issues"
+set -euo pipefail
+
+# One line per operation: its operationId, then the issues it cites, such as
+# "listChanges #35 #38". The echo skeleton is exempt until it is removed.
+repo=${GITHUB_REPOSITORY:-nca-apprentices/jjforge}
+citations=$(yq -r '
+  .paths[][] | select(has("operationId")) | select(.tags[0] != "echo")
+  | .operationId + " " + ((.["x-requirements"] // []) | join(" "))
+' shared/openapi.yaml)
+
+failed=0
+while read -r operation issues; do
+  if [[ -z $issues ]]; then
+    echo "$operation: no x-requirements" >&2
+    failed=1
+  fi
+done <<<"$citations"
+
+# Each cited issue once, however many operations cite it.
+for issue in $(cut -s -d' ' -f2- <<<"$citations" | tr ' ' '\n' | sort -u); do
+  if ! type=$(gh api "repos/$repo/issues/${issue#\#}" --jq '.type.name // "untyped"' 2>/dev/null); then
+    type=missing
+  fi
+
+  if [[ $type != Requirement ]]; then
+    operations=$(grep -w -- "$issue" <<<"$citations" | cut -d' ' -f1 | xargs)
+    echo "$issue is $type, not a Requirement, cited by $operations" >&2
+    failed=1
+  fi
+done
+
+exit $failed

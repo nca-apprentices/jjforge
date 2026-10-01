@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-#MISE description="Check formatting, lints, and types in every component outside rust/"
+#MISE description="Check formatting, lints, types, and links in every component outside rust/"
 set -euo pipefail
 
 buf lint shared/proto
+mise run spec:lint
 helm lint shared/deploy/chart
 helm template jjforge shared/deploy/chart >/dev/null
 
@@ -13,3 +14,8 @@ pnpm --dir web exec biome ci --error-on-warnings
 # Last, because the web formatter needs the packages installed above.
 dprint check --config shared/config/dprint.json
 mise run prose
+
+# Every relative link and anchor in the Markdown. Offline, so a remote site
+# that is down never fails the check.
+git ls-files -z --cached --others --exclude-standard '*.md' |
+  xargs -0 lychee --offline --include-fragments --no-progress

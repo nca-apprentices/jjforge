@@ -1,0 +1,16 @@
+{
+  "name": "jjforge-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "node scripts/sync-docs.mjs",
+    "build": "pnpm sync && astro build",
+    "dev": "pnpm sync && astro dev"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "catalog:",
+    "astro": "catalog:",
+    "starlight-links-validator": "catalog:"
+  },
+  "packageManager": "pnpm@12.6.0"
+}

@@ -19,5 +19,5 @@
     "types": [],
     "verbatimModuleSyntax": true
   },
-  "include": ["src"]
+  "include": ["apps/*/src", "features/*/src", "shared/*/src"]
 }

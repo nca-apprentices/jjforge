@@ -8,7 +8,7 @@ toolchain, and `mise trust` once lets mise read `mise.toml`. The tasks live in
 
 ```text
 mise run fmt     # format every file, as shared/config/dprint.json configures
-mise run lint    # formatting, prose, buf, helm, tsc, biome
+mise run lint    # formatting, prose, links, buf, helm, spec, tsc, biome
 mise run test    # gradle build, vitest, web build
 ```
 
@@ -38,7 +38,7 @@ Without containers:
 ```text
 (cd rust && cargo run --bin vcsd)
 gradle -p server bootRun
-(cd rust && cargo run --bin jjforge -- echo hi)
+(cd rust && cargo run --bin jf -- echo hi)
 curl -X POST localhost:8080/api/echo -H 'content-type: application/json' -d '{"message":"hi"}'
 ```
 
@@ -55,17 +55,35 @@ against any other server too:
 hurl --test --variable server=https://jjforge.example.com shared/http/*.hurl
 ```
 
-Hurl cannot send gRPC, so vcsd is exercised through the `jjforge` CLI.
+Hurl cannot send gRPC, so vcsd is exercised through the `jf` CLI.
+
+`mise run lint` also checks every relative link and anchor in the Markdown
+with lychee. `mise run site:build` builds the docs site in `shared/site/` from
+these documents.
 
 ## Changing a contract
 
-- `shared/proto/`: the CLI is installed by people and updated when they feel
-  like it, so the gRPC contract may only grow. CI runs `buf breaking` against
-  `main`.
-- `shared/openapi.yaml`: written by hand. The server build generates Kotlin
-  interfaces and models from it, and every controller implements one of those
-  interfaces. `ControllerContractTest` fails on a controller that implements
-  none or maps a route of its own.
+A contract changes before its implementation, and every operation cites the
+requirements it serves. [Planning](planning.md) has the rules.
+
+- `shared/openapi.yaml`: the public API, written by hand. Every operation lists
+  its requirement issues in `x-requirements`.
+  - `mise run spec:lint` lints it with Redocly and is part of
+    `mise run lint`.
+  - `mise run spec:trace` checks that every operation cites only issues of
+    type Requirement. The echo operation is exempt until it is removed.
+  - `mise run spec:breaking` compares it with `main` using oasdiff. CI accepts
+    a breaking change only when the PR title marks it with `!`, as in
+    `feat!: rename the org field`.
+  - The server build generates Kotlin interfaces and models from it, and one
+    stub controller per tag implements them. An operation that isn't built
+    yet answers 501. `ControllerContractTest` fails on a controller that
+    implements no interface or maps a route of its own, and on an interface
+    without a controller. See
+    [ADR 0011](adr/0011-controllers-implement-contracts.md).
+- `shared/proto/`: the internal contract the server uses to call vcsd. CI runs
+  `buf breaking` against `main`, because the server and vcsd run different
+  versions during a rolling deploy.
 
 ## Releasing
 

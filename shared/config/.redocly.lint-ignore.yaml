@@ -1,0 +1,9 @@
+# Deliberate exceptions to shared/config/redocly.yaml.
+../openapi.yaml:
+  # A browser sign-in only ever redirects.
+  operation-2xx-response:
+    - "#/paths/~1oauth~1authorize/get/responses"
+  # The activity stream's events, named by x-event-schema, which OpenAPI 3.1
+  # can't reference from a text/event-stream response.
+  no-unused-components:
+    - "#/components/schemas/Activity"

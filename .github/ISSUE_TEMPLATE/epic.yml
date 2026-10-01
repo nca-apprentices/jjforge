@@ -1,0 +1,26 @@
+name: Epic
+description: What can be demonstrated when it is done. Add it as a sub-issue of its initiative.
+title: "E"
+type: Epic
+body:
+  - type: markdown
+    attributes:
+      value: Start the title with the next free epic ID, such as `E36`. [Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the IDs.
+  - type: textarea
+    id: demo
+    attributes:
+      label: Demo
+      description: What to show when the epic is done.
+    validations:
+      required: true
+  - type: textarea
+    id: exit
+    attributes:
+      label: Exit criteria
+    validations:
+      required: true
+  - type: input
+    id: design
+    attributes:
+      label: Design
+      description: A link to the design, if there is one.

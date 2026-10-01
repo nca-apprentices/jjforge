@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Lint shared/openapi.yaml with Redocly"
+set -euo pipefail
+
+# Redocly reports usage and checks for updates unless told not to.
+export REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true
+redocly lint shared/openapi.yaml --config shared/config/redocly.yaml

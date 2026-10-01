@@ -7,17 +7,18 @@
 FROM node:24-slim AS web
 WORKDIR /src/web
 RUN corepack enable
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+# The install generates the API client from the contract, so the contract
+# comes first.
+COPY shared/openapi.yaml /src/shared/openapi.yaml
 COPY web ./
-RUN pnpm build
+RUN pnpm install --frozen-lockfile && pnpm build
 
 FROM gradle:9-jdk25 AS build
 WORKDIR /src
 COPY shared/proto shared/proto
 COPY shared/openapi.yaml shared/openapi.yaml
 COPY server server
-COPY --from=web /src/web/dist server/src/main/resources/static
+COPY --from=web /src/web/apps/web/dist server/src/main/resources/static
 RUN --mount=type=cache,target=/cache/gradle \
     GRADLE_USER_HOME=/cache/gradle gradle --no-daemon -p server bootJar
 

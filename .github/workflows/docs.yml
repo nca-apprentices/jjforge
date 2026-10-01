@@ -1,0 +1,50 @@
+name: Docs
+
+# Publishes shared/docs to GitHub Pages as the site in shared/site.
+on:
+  push:
+    branches: [main]
+    paths:
+      - shared/docs/**
+      - shared/site/**
+  workflow_dispatch:
+
+# One deploy at a time, and a running one finishes.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: node pnpm
+      - name: Build
+        run: mise run site:build
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: shared/site/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

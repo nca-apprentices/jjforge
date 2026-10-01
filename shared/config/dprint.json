@@ -5,7 +5,9 @@
     "**/node_modules",
     "**/target",
     "shared/deploy/chart/templates/**",
-    "web/pnpm-lock.yaml"
+    "shared/site/pnpm-lock.yaml",
+    "web/pnpm-lock.yaml",
+    "web/shared/api/src/contract.gen.ts"
   ],
   // Keep the Cargo.toml keys in the order they were written.
   "toml": {

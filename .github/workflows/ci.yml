@@ -26,8 +26,9 @@ jobs:
       - uses: bufbuild/buf-action@v1
         with:
           input: shared/proto
-          # The client is installed by people and updated when they feel like
-          # it, so the wire contract may only grow.
+          # The server and vcsd run different versions during a rolling deploy,
+          # and the CLI calls echo/v1 until it goes, so the contract may only
+          # grow.
           breaking_against: "https://github.com/${{ github.repository }}.git#branch=main,subdir=shared/proto"
 
   lint:
@@ -69,6 +70,17 @@ jobs:
         run: mise run rust:lint
       - name: Test
         run: mise run rust:test
+
+  site:
+    name: Docs site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: node pnpm
+      - name: Build
+        run: mise run site:build
 
   images:
     name: Images

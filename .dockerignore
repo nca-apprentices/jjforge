@@ -1,6 +1,5 @@
 # Build output and dependencies are rebuilt inside the image.
 **/target
 **/node_modules
-web/dist
-web/apps
+web/apps/*/dist
 server/src/main/resources/static

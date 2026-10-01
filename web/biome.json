@@ -2,10 +2,11 @@
   "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
   "files": {
     "includes": [
-      "src/**",
+      "apps/**",
+      "features/**",
+      "shared/**",
       "*.json",
-      "*.yaml",
-      "*.md",
+      "*.ts",
       "!**/dist",
       "!**/node_modules"
     ]
@@ -21,25 +22,197 @@
       "trailingCommas": "all"
     }
   },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "a11y": {
-        "recommended": true
-      },
-      "complexity": {
-        "recommended": true
-      },
-      "correctness": {
-        "noUnresolvedImports": "off",
-        "recommended": true
-      },
-      "style": {
-        "recommended": true
-      },
-      "suspicious": {
-        "recommended": true
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
       }
     }
-  }
+  },
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "project": "recommended",
+      "react": "recommended",
+      "test": "recommended"
+    },
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "noUnresolvedImports": "off",
+        "noPrivateImports": {
+          "level": "error",
+          "options": {
+            "defaultVisibility": "package"
+          }
+        }
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "react": {
+                "importNames": ["useState", "useEffect"],
+                "message": "Every kind of browser state belongs to the library that owns it: TanStack Form owns a form, TanStack Query owns what a source answered, and TanStack Router owns what the address selects. A lazy singleton, such as a router, is constructed outside the component."
+              }
+            },
+            "patterns": [
+              {
+                "group": ["../**"],
+                "message": "Use the package name (@jjforge/*) instead of a parent-relative import. A relative path escapes the package boundary."
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["shared/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": {
+                    "importNames": ["useState", "useEffect"],
+                    "message": "Every kind of browser state belongs to the library that owns it: TanStack Form owns a form, TanStack Query owns what a source answered, and TanStack Router owns what the address selects. A lazy singleton, such as a router, is constructed outside the component."
+                  }
+                },
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Use the package name (@jjforge/*) instead of a parent-relative import. A relative path escapes the package boundary."
+                  },
+                  {
+                    "group": [
+                      "@jjforge/web",
+                      "@jjforge/web/**",
+                      "@jjforge/feature-*",
+                      "@jjforge/feature-*/**"
+                    ],
+                    "message": "Prohibited dependency: a shared package depends on neither the application nor a feature."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["shared/ui/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Use the package name (@jjforge/*) instead of a parent-relative import. A relative path escapes the package boundary."
+                  },
+                  {
+                    "group": [
+                      "@jjforge/web",
+                      "@jjforge/web/**",
+                      "@jjforge/feature-*",
+                      "@jjforge/feature-*/**"
+                    ],
+                    "message": "Prohibited dependency: a shared package depends on neither the application nor a feature."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["features/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": {
+                    "importNames": ["useState", "useEffect"],
+                    "message": "Every kind of browser state belongs to the library that owns it: TanStack Form owns a form, TanStack Query owns what a source answered, and TanStack Router owns what the address selects. A lazy singleton, such as a router, is constructed outside the component."
+                  }
+                },
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Use the package name (@jjforge/*) instead of a parent-relative import. A relative path escapes the package boundary."
+                  },
+                  {
+                    "group": [
+                      "@jjforge/web",
+                      "@jjforge/web/**",
+                      "@jjforge/feature-*",
+                      "@jjforge/feature-*/**"
+                    ],
+                    "message": "Prohibited dependency: a feature depends on neither the application nor another feature."
+                  },
+                  {
+                    "group": [
+                      "@tanstack/react-router",
+                      "@tanstack/react-router/**"
+                    ],
+                    "message": "Prohibited dependency: the application owns routing. A feature exposes a page instead."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/**", "features/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "fetch": "Use the @jjforge/api client instead of fetch."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["shared/api/src/contract.gen.ts"],
+      "assist": {
+        "enabled": false
+      },
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
+      "includes": ["**/*.test.{ts,tsx}"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noPrivateImports": "off"
+          }
+        }
+      }
+    }
+  ]
 }

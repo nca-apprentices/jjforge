@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Fail on a breaking change to shared/openapi.yaml against a git ref, origin/main by default"
+#USAGE arg "[base]" default="origin/main"
+set -euo pipefail
+
+base=$(mktemp)
+trap 'rm -f "$base"' EXIT
+git show "${usage_base:?}:shared/openapi.yaml" >"$base"
+
+oasdiff breaking "$base" shared/openapi.yaml --fail-on ERR

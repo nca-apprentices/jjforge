@@ -1,0 +1,28 @@
+name: Requirement
+description: What must be true, tested from the outside. Add it as a sub-issue of its epic.
+title: "R"
+type: Requirement
+body:
+  - type: markdown
+    attributes:
+      value: Start the title with the next free requirement ID, such as `R039`. A requirement names no endpoint, command, or technology. [Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the rules.
+  - type: textarea
+    id: statement
+    attributes:
+      label: Statement
+      description: What a person can do, in one or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      description: One bullet per check that a test can make.
+      value: "- "
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec
+      description: Filled in by the PR that adds the operation or command citing this issue.

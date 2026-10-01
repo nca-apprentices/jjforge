@@ -15,6 +15,12 @@ helm = "4.3.0"
 docker-compose = "5.5.1"
 # `mise run smoke` runs the requests in shared/http/.
 hurl = "8.0.1"
+# The OpenAPI checks: `mise run spec:lint`, `spec:breaking`, and `spec:trace`.
+"npm:@redocly/cli" = "2.54.2"
+"github:oasdiff/oasdiff" = "1.32.1"
+yq = "4.53.6"
+# `mise run lint` checks every Markdown link.
+lychee = "0.24.2"
 # `mise run fmt` formats every file. `mise run lint` checks the formatting
 # and the prose.
 dprint = "0.57.4"

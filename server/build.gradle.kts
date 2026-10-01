@@ -40,6 +40,10 @@ kotlin {
     jvmToolchain(25)
     compilerOptions {
         freeCompilerArgs.add("-Xjsr305=strict")
+        // A controller inherits the generated interfaces' default methods as
+        // they are. The compatibility modes copy each one, with its route, into
+        // the controller.
+        jvmDefault = org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY
     }
 }
 
@@ -83,12 +87,15 @@ openApiGenerate {
     configOptions =
         mapOf(
             "interfaceOnly" to "true",
-            "skipDefaultInterface" to "true",
+            "skipDefaultInterface" to "false",
             "useSpringBoot3" to "true",
             "useTags" to "true",
             "documentationProvider" to "none",
             "annotationLibrary" to "none",
             "useBeanValidation" to "false",
+            // Kotlin style, and it keeps a value such as `context`, a soft keyword,
+            // from being read as Kotlin syntax.
+            "enumPropertyNaming" to "UPPERCASE",
         )
 }
 

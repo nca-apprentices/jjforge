@@ -1,0 +1,10 @@
+allowBuilds:
+  esbuild: true
+
+# Every version lives here, and package.json names "catalog:". Strict mode
+# makes `pnpm add` write new versions here too.
+catalogMode: strict
+catalog:
+  "@astrojs/starlight": 0.42.3
+  astro: 7.3.4
+  starlight-links-validator: 0.26.0

@@ -68,15 +68,15 @@ jobs:
           repo-token: ${{ github.token }}
       - name: Build
         working-directory: rust
-        run: cargo build --release --bin jjforge
+        run: cargo build --release --bin jf
       # Each binary is named after its target, so the release lists one per
       # platform.
       - name: Name
-        run: cp rust/target/release/jjforge jjforge-${{ matrix.target }}
+        run: cp rust/target/release/jf jf-${{ matrix.target }}
       - uses: actions/upload-artifact@v7
         with:
-          name: jjforge-${{ matrix.target }}
-          path: jjforge-${{ matrix.target }}
+          name: jf-${{ matrix.target }}
+          path: jf-${{ matrix.target }}
 
   chart:
     name: Helm chart and OpenAPI
@@ -111,7 +111,7 @@ jobs:
       # .dockerbuild records, which don't belong in the release.
       - uses: actions/download-artifact@v8
         with:
-          pattern: jjforge-*
+          pattern: jf-*
           path: dist
           merge-multiple: true
       - uses: actions/download-artifact@v8

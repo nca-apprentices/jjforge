@@ -6,6 +6,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+# The command is `jf`, as ADR 0009 decides.
+[[bin]]
+name = "jf"
+path = "src/main.rs"
+
 [dependencies]
 jjforge-proto.workspace = true
 anyhow.workspace = true

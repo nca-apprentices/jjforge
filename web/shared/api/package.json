@@ -1,0 +1,20 @@
+{
+  "name": "@jjforge/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../../shared/openapi.yaml --output src/contract.gen.ts",
+    "prepare": "pnpm generate"
+  },
+  "dependencies": {
+    "openapi-fetch": "catalog:"
+  },
+  "devDependencies": {
+    "openapi-typescript": "catalog:",
+    "typescript": "catalog:openapi-typescript"
+  }
+}

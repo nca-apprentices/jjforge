@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Build the docs site from shared/docs into shared/site/dist"
+set -euo pipefail
+
+# The build fails on a link to a page or heading that doesn't exist.
+pnpm --dir shared/site install --frozen-lockfile
+pnpm --dir shared/site build

@@ -1,4 +1,4 @@
-//! `jjforge echo <message>` sends the message to vcsd and prints the answer.
+//! `jf echo <message>` sends the message to vcsd and prints the answer.
 //! It proves the client can reach vcsd over `echo/v1` and nothing more.
 
 use anyhow::bail;
@@ -13,7 +13,7 @@ const DEFAULT_ENDPOINT: &str = "http://localhost:50052";
 async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(("echo", words)) = args.split_first().map(|(c, w)| (c.as_str(), w)) else {
-        bail!("usage: jjforge echo <message>");
+        bail!("usage: jf echo <message>");
     };
 
     let endpoint =

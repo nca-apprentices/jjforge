@@ -1,0 +1,43 @@
+name: Spec
+
+# Checks shared/openapi.yaml against the issues and against main. Its own
+# workflow, because a title edit reruns it and should rerun nothing else.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: read
+
+env:
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  spec:
+    name: Spec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: yq github:oasdiff/oasdiff
+      - name: Every operation cites a requirement
+        run: mise run spec:trace
+        env:
+          GH_TOKEN: ${{ github.token }}
+      # A breaking change passes only when the PR title marks it, as in
+      # "feat!: drop the echo operation".
+      - name: No unmarked breaking change
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.title, '!:')
+        run: mise run spec:breaking "origin/$BASE"
+        env:
+          BASE: ${{ github.base_ref }}
