@@ -27,8 +27,8 @@ content lives in this repository.
    `satisfies #35`.
 3. **The issue number is the reference.** Specs, tests, and commits cite `#35`.
    The title prefix shows the type and the order: `I0` for an initiative, `E01`
-   for an epic, and `R001` for a requirement. A new issue takes the next free
-   ID of its type by hand.
+   for an epic, `R001` for a requirement, and `T001` for a task. A new issue
+   takes the next free ID of its type by hand.
 4. **The contract comes first.** A spec may merge before its implementation. An
    operation that isn't built yet answers 501, as
    [ADR 0011](adr/0011-controllers-implement-contracts.md) decides.
@@ -47,9 +47,14 @@ content lives in this repository.
 
 ## Issue types and tracking
 
-Issues use the types Initiative, Epic, Requirement, and Bug, and no labels. A
-requirement is a sub-issue of its epic, and an epic is a sub-issue of its
-initiative. The issue forms set the type.
+Issues use the types Initiative, Epic, Requirement, Task, and Bug. A task is
+engineering work that no requirement states, such as moving the web app into
+its own image. A requirement or a task is a sub-issue of its epic, and an epic
+is a sub-issue of its initiative. The issue forms set the type.
+
+The only label is `good first issue`, which GitHub lists on the repository's
+contribute page. It marks a task or a requirement with clear steps and a
+small scope.
 
 The Project has two fields:
 

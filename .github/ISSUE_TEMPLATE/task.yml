@@ -1,0 +1,28 @@
+name: Task
+description: Engineering work that no requirement states. Add it as a sub-issue of its epic.
+title: "T"
+type: Task
+body:
+  - type: markdown
+    attributes:
+      value: Start the title with the next free task ID, such as `T002`. [Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the IDs.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What changes, and why.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: Numbered, so a newcomer can follow them.
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: One bullet per check that shows the task is done.
+      value: "- "
+    validations:
+      required: true
