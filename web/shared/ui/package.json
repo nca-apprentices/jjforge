@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "catalog:",
+    "clsx": "catalog:",
     "react": "catalog:",
+    "tailwind-merge": "catalog:",
     "tailwindcss": "catalog:"
   }
 }
