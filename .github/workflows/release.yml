@@ -66,9 +66,12 @@ jobs:
       - uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ github.token }}
+      # The tag is the version, so `jf --version` reports the release.
       - name: Build
         working-directory: rust
-        run: cargo build --release --bin jf
+        run: |
+          sed -i.bak "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" Cargo.toml
+          cargo build --release --bin jf
       # Each binary is named after its target, so the release lists one per
       # platform.
       - name: Name
