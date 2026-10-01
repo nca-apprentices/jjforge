@@ -6,6 +6,8 @@ plugins {
     id("org.springframework.boot") version "4.1.1"
     id("com.google.protobuf") version "0.10.0"
     id("org.openapi.generator") version "7.25.0"
+    id("dev.detekt") version "2.0.0-alpha.6"
+    id("org.jetbrains.kotlinx.kover") version "0.9.11"
 }
 
 group = "dev.nca"
@@ -21,8 +23,10 @@ repositories {
 
 dependencies {
     implementation(platform(SpringBootPlugin.BOM_COORDINATES))
+    implementation(platform("org.springframework.modulith:spring-modulith-bom:2.1.1"))
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
@@ -33,6 +37,8 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation("org.springframework.modulith:spring-modulith-starter-test")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -40,6 +46,7 @@ kotlin {
     jvmToolchain(25)
     compilerOptions {
         freeCompilerArgs.add("-Xjsr305=strict")
+        allWarningsAsErrors = true
         // A controller inherits the generated interfaces' default methods as
         // they are. The compatibility modes copy each one, with its route, into
         // the controller.
@@ -114,4 +121,30 @@ tasks.test {
 // Only the executable jar ships.
 tasks.jar {
     enabled = false
+}
+
+// detekt checks the hand-written code. ktlint formats it, so detekt's own
+// formatting rules stay off. Every finding fails the build, with no baseline.
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom("detekt.yml")
+}
+
+// The coverage floor counts hand-written code only: the stubs generated from
+// the contracts and the application class with its main function are
+// excluded.
+kover {
+    reports {
+        filters {
+            excludes {
+                packages("dev.nca.jjforge.api", "dev.nca.jjforge.api.model", "dev.nca.jjforge.echo.v1", "dev.nca.jjforge.vcsd.v1")
+                classes("dev.nca.jjforge.JjforgeApplication", "dev.nca.jjforge.JjforgeApplicationKt")
+            }
+        }
+        verify {
+            rule {
+                minBound(80)
+            }
+        }
+    }
 }

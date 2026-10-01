@@ -1,0 +1,16 @@
+# Overrides on top of detekt's defaults, each from the team's style guide.
+style:
+  # Braces on every `if`, even on one line.
+  BracesOnIfStatements:
+    active: true
+    singleLine: always
+    multiLine: always
+  # Guard clauses return early, so a function may return more than twice.
+  ReturnCount:
+    active: false
+naming:
+  # Function names stay under 30 characters. A test name is a sentence.
+  FunctionNameMaxLength:
+    active: true
+    maximumFunctionNameLength: 30
+    excludes: ["**/test/**"]

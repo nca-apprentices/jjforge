@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-#MISE description="Check the Rust formatting and clippy lints"
+#MISE description="Check the Rust formatting, lints, docs, and dependencies"
 #MISE dir="{{config_root}}/rust"
 set -euo pipefail
 
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace
+
+# Unused dependencies, then licenses, advisories, and sources per deny.toml.
+cargo machete
+cargo deny check

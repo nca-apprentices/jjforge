@@ -19,5 +19,6 @@ COPY --from=build /src/rust/target/release/vcsd /usr/local/bin/vcsd
 
 ENV VCSD_ADDR=0.0.0.0:50052
 EXPOSE 50052
-USER nonroot
+# distroless's nonroot user, by ID so a runtime can check it without a passwd file.
+USER 65532
 ENTRYPOINT ["/usr/local/bin/vcsd"]

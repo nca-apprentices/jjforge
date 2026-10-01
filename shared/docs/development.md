@@ -8,19 +8,23 @@ toolchain, and `mise trust` once lets mise read `mise.toml`. The tasks live in
 
 ```text
 mise run fmt     # format every file, as shared/config/dprint.json configures
-mise run lint    # formatting, prose, links, buf, helm, spec, tsc, biome
-mise run test    # gradle build, vitest, web build
+mise run lint    # formatting, prose, links, buf, spec, workflows, Dockerfiles,
+                 # task scripts, helm, tsc, biome
+mise run test    # gradle build (tests, detekt, architecture, coverage), vitest,
+                 # web build
 ```
 
 The `rust:` tasks cover the Rust code:
 
 ```text
 mise run rust:fmt     # cargo fmt
-mise run rust:lint    # cargo fmt --check, clippy
+mise run rust:lint    # cargo fmt --check, clippy, rustdoc, machete, deny
 mise run rust:test    # cargo test
 ```
 
 CI runs lint, test, rust:lint, and rust:test.
+[ADR 0015](adr/0015-checked-code-rules.md) lists the rules they enforce.
+[ADR 0015](adr/0015-checked-code-rules.md) lists the rules they enforce.
 
 ## Running
 

@@ -4,6 +4,12 @@ set -euo pipefail
 
 buf lint shared/proto
 mise run spec:lint
+
+# Workflows, Dockerfiles, and the task scripts.
+actionlint
+hadolint --config shared/config/hadolint.yaml server/Dockerfile rust/vcsd/Dockerfile
+find shared/config/mise/tasks -type f -exec shellcheck {} +
+
 helm lint shared/deploy/chart
 helm template jjforge shared/deploy/chart >/dev/null
 

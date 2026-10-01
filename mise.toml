@@ -21,6 +21,12 @@ hurl = "8.0.1"
 yq = "4.53.6"
 # `mise run lint` checks every Markdown link.
 lychee = "0.24.2"
+# Static checks in `mise run lint` and `rust:lint`.
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
+hadolint = "2.15.1"
+cargo-deny = "0.20.2"
+"github:bnjbvr/cargo-machete" = "0.9.2"
 # `mise run fmt` formats every file. `mise run lint` checks the formatting
 # and the prose.
 dprint = "0.57.4"

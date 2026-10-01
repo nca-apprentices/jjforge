@@ -31,7 +31,7 @@ class VcsdClientTest {
                 .addService(Echo())
                 .build()
                 .start()
-        val client = VcsdClient("localhost:${server.port}")
+        val client = VcsdClient(VcsdProperties("localhost:${server.port}"))
 
         try {
             assertEquals("hello", client.echo("hello"))

@@ -4,15 +4,14 @@ import dev.nca.jjforge.echo.v1.EchoRequest
 import dev.nca.jjforge.echo.v1.EchoServiceGrpc
 import io.grpc.ManagedChannelBuilder
 import jakarta.annotation.PreDestroy
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 
 /** Calls vcsd over `echo/v1`. Plaintext, because vcsd is only reachable in-cluster. */
 @Component
 class VcsdClient(
-    @Value("\${jjforge.vcsd.target}") target: String,
+    properties: VcsdProperties,
 ) {
-    private val channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build()
+    private val channel = ManagedChannelBuilder.forTarget(properties.target).usePlaintext().build()
 
     private val stub = EchoServiceGrpc.newBlockingStub(channel)
 

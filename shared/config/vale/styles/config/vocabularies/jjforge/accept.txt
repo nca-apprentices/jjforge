@@ -1,8 +1,13 @@
+actionlint
 ADRs
 Biome
 CLI
+clippy
 [Cc]olocated
+detekt
+Dockerfiles
 gh
+hadolint
 hostname
 JFrog
 jj
@@ -10,6 +15,9 @@ jj-cli
 jjforge
 Jujutsu
 JWTs
+Konsist
+Kover
+ktlint
 Mantine
 Modulith
 Nx
@@ -26,7 +34,9 @@ Redpanda
 [Rr]eflog
 repos?
 [Rr]evsets?
+rustdoc
 sharded
+shellcheck
 stderr
 stdout
 subcharts

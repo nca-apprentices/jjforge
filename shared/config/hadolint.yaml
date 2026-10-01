@@ -1,0 +1,5 @@
+# `mise run lint` checks the Dockerfiles with hadolint and this file.
+ignored:
+  # A pinned apt version breaks the build as soon as Debian ships an update.
+  # Renovate pins the base images instead.
+  - DL3008

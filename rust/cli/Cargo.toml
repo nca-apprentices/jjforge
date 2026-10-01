@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+publish.workspace = true
 
 # The command is `jf`, as ADR 0009 decides.
 [[bin]]
@@ -14,5 +15,9 @@ path = "src/main.rs"
 [dependencies]
 jjforge-proto.workspace = true
 anyhow.workspace = true
+clap.workspace = true
 tokio.workspace = true
 tonic = { workspace = true, features = ["tls-ring", "tls-native-roots"] }
+
+[lints]
+workspace = true
