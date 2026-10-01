@@ -7,7 +7,7 @@ set -euo pipefail
 vale sync >/dev/null
 alerts=$(
   git ls-files -z --cached --others --exclude-standard '*.md' |
-    xargs -0 vale --output=line --minAlertLevel=warning || true
+    xargs -0 vale --no-global --output=line --minAlertLevel=warning || true
 )
 if [[ -n $alerts ]]; then
   echo "$alerts"

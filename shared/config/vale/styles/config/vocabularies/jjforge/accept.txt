@@ -1,8 +1,12 @@
 ADRs
 Biome
 CLI
+[Cc]olocated
+gh
 hostname
 JFrog
+jj
+jj-cli
 jjforge
 Jujutsu
 JWTs
@@ -19,6 +23,8 @@ rebases
 Redocly
 Redpanda
 [Rr]eflog
+repos?
+[Rr]evsets?
 sharded
 stderr
 stdout

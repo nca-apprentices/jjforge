@@ -20,14 +20,14 @@ The conventions follow [clig.dev](https://clig.dev).
 - Without a terminal, `jf` never prompts. A command that needs an answer fails
   and names the missing input
   ([#56](https://github.com/nca-apprentices/jjforge/issues/56)).
-- A setting comes from a flag first, then the environment, then the config
-  file. `JJFORGE_ENDPOINT` names the forge to talk to.
+- A setting comes from a flag first, then the environment, then the
+  configuration file. `JJFORGE_ENDPOINT` names the forge to talk to.
 
 ## Exit codes
 
 Each kind of failure has its own exit code, so a script never parses text
 ([#54](https://github.com/nca-apprentices/jjforge/issues/54)). The problem
-codes come from the API's `application/problem+json` answers.
+codes come from the `application/problem+json` answers of the API.
 
 | Exit code | Meaning            | Problem codes                                   |
 | --------- | ------------------ | ----------------------------------------------- |

@@ -21,7 +21,7 @@ the name: `jjforge`, `jjf`, `forge`, or `jf`.
 - `jf` talks to the forge only through the public API, as
   [ADR 0002](0002-public-api-is-http.md) decides.
 - The CLI is specified in four layers:
-  1. Conventions, in [cli.md](../cli.md).
+  1. Conventions, in [`cli.md`](../cli.md).
   2. Reference, which CI generates from clap and checks for drift.
   3. Behavior, as trycmd scenarios that each cite their requirement.
   4. JSON, which is exactly the OpenAPI schema for the same data.
