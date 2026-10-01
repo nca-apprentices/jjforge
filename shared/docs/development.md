@@ -95,3 +95,10 @@ A `v*` tag publishes the server and vcsd images, the CLI binaries, and the
 chart to `oci://ghcr.io/nca-apprentices/charts/jjforge`, all with the same
 version. Deploying it is a separate change in
 [nca-apprentices/infra](https://github.com/nca-apprentices/infra).
+
+The release also writes `Formula/jf.rb` in
+[nca-apprentices/homebrew-tap](https://github.com/nca-apprentices/homebrew-tap),
+so `brew install nca-apprentices/tap/jf` installs the new `jf` on macOS
+(Apple silicon) and Linux. `mise run release:formula <tag> <dir>` prints the
+same formula from a directory of `jf-<target>` binaries. The tap's deploy key,
+stored as the secret `HOMEBREW_TAP_DEPLOY_KEY`, lets the release push to it.

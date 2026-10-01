@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#MISE description="Print the Homebrew formula for jf from a release's binaries"
+#USAGE arg "<version>" help="The release tag, such as v0.2.0"
+#USAGE arg "<dir>" help="The directory that holds the jf-<target> binaries"
+set -euo pipefail
+
+version=${usage_version:?}
+dir=${usage_dir:?}
+url="https://github.com/nca-apprentices/jjforge/releases/download/$version"
+sha() { shasum -a 256 "$dir/jf-$1" | cut -d' ' -f1; }
+
+cat <<EOF
+# Written by jjforge's release workflow for $version. Edits here are lost.
+class Jf < Formula
+  desc "Command-line client for jjforge, a forge for Jujutsu repositories"
+  homepage "https://jjforge-docs.nca-apprentices.dev"
+  version "${version#v}"
+  license "Apache-2.0"
+
+  on_macos do
+    on_arm do
+      url "$url/jf-aarch64-apple-darwin"
+      sha256 "$(sha aarch64-apple-darwin)"
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "$url/jf-aarch64-unknown-linux-gnu"
+      sha256 "$(sha aarch64-unknown-linux-gnu)"
+    end
+    on_intel do
+      url "$url/jf-x86_64-unknown-linux-gnu"
+      sha256 "$(sha x86_64-unknown-linux-gnu)"
+    end
+  end
+
+  conflicts_with "jfrog-cli", because: "both install a \`jf\` binary"
+
+  def install
+    bin.install Dir["jf-*"].first => "jf"
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/jf --version")
+  end
+end
+EOF
