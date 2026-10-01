@@ -20,3 +20,4 @@ never edited, and a newer one supersedes it. New records start from
 | [0011](0011-controllers-implement-contracts.md) | Controllers implement contracts                               | Accepted |
 | [0012](0012-web-packages.md)                    | The web app is split into apps, features, and shared packages | Accepted |
 | [0013](0013-browser-state-in-libraries.md)      | Browser state belongs to a library                            | Accepted |
+| [0014](0014-markup-and-styles-in-shared-ui.md)  | Only shared/ui renders markup and styles                      | Accepted |

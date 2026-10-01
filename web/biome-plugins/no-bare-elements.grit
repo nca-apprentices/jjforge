@@ -1,0 +1,14 @@
+// An HTML element such as <div> or <input>. Outside shared/ui, use a component
+// from @jjforge/ui instead.
+language js
+
+or {
+  JsxOpeningElement(name = $name) as $element,
+  JsxSelfClosingElement(name = $name) as $element
+} where {
+  $name <: r"[a-z][a-zA-Z0-9]*",
+  register_diagnostic(
+    span = $element,
+    message = "Only @jjforge/ui renders HTML elements. Use or add a component there (ADR 0014)."
+  )
+}

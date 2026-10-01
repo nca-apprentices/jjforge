@@ -1,0 +1,11 @@
+// A className or style prop. Outside shared/ui, a component's look comes from
+// @jjforge/ui alone.
+language js
+
+JsxAttribute(name = $name) as $attribute where {
+  $name <: or { `className`, `style` },
+  register_diagnostic(
+    span = $attribute,
+    message = "Only @jjforge/ui styles. Use or add a component there (ADR 0014)."
+  )
+}

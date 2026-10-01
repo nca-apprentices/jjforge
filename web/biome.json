@@ -61,6 +61,19 @@
               {
                 "group": ["../**"],
                 "message": "Use the package name (@jjforge/*) instead of a parent-relative import. A relative path escapes the package boundary."
+              },
+              {
+                "group": ["**/*.css"],
+                "message": "Only @jjforge/ui writes styles. Use or add a component there (ADR 0014)."
+              },
+              {
+                "group": [
+                  "tailwindcss",
+                  "tailwindcss/**",
+                  "@tailwindcss/*",
+                  "@tailwindcss/*/**"
+                ],
+                "message": "Only @jjforge/ui uses Tailwind. Use or add a component there (ADR 0014)."
               }
             ]
           }
@@ -96,6 +109,19 @@
                       "@jjforge/feature-*/**"
                     ],
                     "message": "Prohibited dependency: a shared package depends on neither the application nor a feature."
+                  },
+                  {
+                    "group": ["**/*.css"],
+                    "message": "Only @jjforge/ui writes styles. Use or add a component there (ADR 0014)."
+                  },
+                  {
+                    "group": [
+                      "tailwindcss",
+                      "tailwindcss/**",
+                      "@tailwindcss/*",
+                      "@tailwindcss/*/**"
+                    ],
+                    "message": "Only @jjforge/ui uses Tailwind. Use or add a component there (ADR 0014)."
                   }
                 ]
               }
@@ -167,6 +193,19 @@
                       "@tanstack/react-router/**"
                     ],
                     "message": "Prohibited dependency: the application owns routing. A feature exposes a page instead."
+                  },
+                  {
+                    "group": ["**/*.css"],
+                    "message": "Only @jjforge/ui writes styles. Use or add a component there (ADR 0014)."
+                  },
+                  {
+                    "group": [
+                      "tailwindcss",
+                      "tailwindcss/**",
+                      "@tailwindcss/*",
+                      "@tailwindcss/*/**"
+                    ],
+                    "message": "Only @jjforge/ui uses Tailwind. Use or add a component there (ADR 0014)."
                   }
                 ]
               }
@@ -190,7 +229,11 @@
             }
           }
         }
-      }
+      },
+      "plugins": [
+        "./biome-plugins/no-bare-elements.grit",
+        "./biome-plugins/no-styling-props.grit"
+      ]
     },
     {
       "includes": ["shared/api/src/contract.gen.ts"],
@@ -214,5 +257,10 @@
         }
       }
     }
-  ]
+  ],
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
 }

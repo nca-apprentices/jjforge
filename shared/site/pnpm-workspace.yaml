@@ -5,6 +5,6 @@ allowBuilds:
 # makes `pnpm add` write new versions here too.
 catalogMode: strict
 catalog:
-  "@astrojs/starlight": 0.42.3
-  astro: 7.3.4
+  "@astrojs/starlight": 0.42.4
+  astro: 7.3.5
   starlight-links-validator: 0.26.0

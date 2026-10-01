@@ -1,4 +1,5 @@
 import { echo } from "@jjforge/api";
+import { Button, Form, Output, Page, TextField } from "@jjforge/ui";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 
@@ -14,26 +15,20 @@ export function EchoPage() {
   });
 
   return (
-    <main>
-      <h1>jjforge</h1>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void form.handleSubmit();
-        }}
-      >
+    <Page title="jjforge">
+      <Form onSubmit={() => void form.handleSubmit()}>
         <form.Field name="message">
           {(field) => (
-            <input
-              aria-label="Message"
+            <TextField
+              label="Message"
               value={field.state.value}
-              onChange={(event) => field.handleChange(event.target.value)}
+              onChange={field.handleChange}
             />
           )}
         </form.Field>
-        <button type="submit">Echo</button>
-      </form>
-      <output>{send.isError ? String(send.error) : send.data}</output>
-    </main>
+        <Button type="submit">Echo</Button>
+      </Form>
+      <Output>{send.isError ? String(send.error) : send.data}</Output>
+    </Page>
   );
 }

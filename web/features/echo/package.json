@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@jjforge/api": "workspace:*",
+    "@jjforge/ui": "workspace:*",
     "@tanstack/react-form": "catalog:",
     "@tanstack/react-query": "catalog:",
     "react": "catalog:"

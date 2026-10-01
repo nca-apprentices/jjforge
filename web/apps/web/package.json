@@ -15,6 +15,7 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@jjforge/ui": "workspace:*",
     "@vitejs/plugin-react": "catalog:",
     "vite": "catalog:"
   }

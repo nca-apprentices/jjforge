@@ -10,6 +10,7 @@ jj-cli
 jjforge
 Jujutsu
 JWTs
+Mantine
 Modulith
 Nx
 oasdiff
@@ -35,3 +36,4 @@ trycmd
 unbuilt
 UUIDs
 vcsd
+Vite
