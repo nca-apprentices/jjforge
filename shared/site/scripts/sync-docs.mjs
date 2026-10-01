@@ -4,13 +4,12 @@
 // - turns the H1 into the `title` front matter Starlight needs,
 // - renames README.md to index.md, the page for its directory,
 // - points a link to another doc at its site route, such as
-//   adr/0001-x.md#context -> /jjforge/adr/0001-x/#context,
+//   adr/0001-x.md#context -> /adr/0001-x/#context,
 // - points any other relative link at the file on GitHub, such as
 //   ../openapi.yaml -> https://github.com/nca-apprentices/jjforge/blob/main/shared/openapi.yaml.
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const BASE = "/jjforge";
 const GITHUB = "https://github.com/nca-apprentices/jjforge";
 const site = path.resolve(import.meta.dirname, "..");
 const repo = path.resolve(site, "../..");
@@ -63,7 +62,7 @@ function resolve(link, file) {
   const inDocs = path.posix.normalize(path.posix.join(path.posix.dirname(file), target));
   if (!inDocs.startsWith("../") && inDocs.endsWith(".md")) {
     const route = inDocs.replace(/(^|\/)README\.md$/, "$1").replace(/\.md$/, "/");
-    return `${BASE}/${route}${hash}`;
+    return `/${route}${hash}`;
   }
 
   const inRepo = path.posix.join("shared/docs", inDocs);

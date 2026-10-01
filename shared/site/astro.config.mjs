@@ -12,8 +12,7 @@ const pages = readdirSync(new URL("../docs", import.meta.url))
   .map((file) => file.replace(/\.md$/, ""));
 
 export default defineConfig({
-  site: "https://nca-apprentices.github.io",
-  base: "/jjforge",
+  site: "https://jjforge-docs.nca-apprentices.dev",
   integrations: [
     starlight({
       title: "jjforge",
