@@ -21,8 +21,3 @@ body:
       value: "- "
     validations:
       required: true
-  - type: input
-    id: spec
-    attributes:
-      label: Spec
-      description: Filled in by the PR that adds the operation or command citing this issue.
