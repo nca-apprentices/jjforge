@@ -33,7 +33,8 @@ operation in the contract answers 501.
 
 | Path                         | What it is                                                              |
 | ---------------------------- | ----------------------------------------------------------------------- |
-| `shared/openapi.yaml`        | The public REST contract                                                |
+| `shared/api/`                | The public REST contract in TypeSpec                                    |
+| `shared/openapi.yaml`        | The REST contract compiled to OpenAPI, for the generators               |
 | `shared/proto/echo/v1/`      | The echo contract, removed once a real operation runs                   |
 | `shared/proto/vcsd/v1/`      | The internal contract between the server and vcsd                       |
 | `shared/http/`               | Hurl requests against the REST contract                                 |

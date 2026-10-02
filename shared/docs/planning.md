@@ -13,7 +13,7 @@ content lives in this repository.
 | Requirement  | What must be true, tested from the outside      | Issue of type Requirement, under an epic   | Acceptance tests           |
 | ADR          | Which decision was made, and why                | [adr/](adr/README.md)                      | Review                     |
 | Architecture | How the parts fit together                      | [architecture.md](architecture.md)         | Review                     |
-| Spec         | Exactly how each interface behaves              | `openapi.yaml`, `proto/`, [cli.md](cli.md) | Lint, contract tests, Hurl |
+| Spec         | Exactly how each interface behaves              | `api/`, `proto/`, [cli.md](cli.md)         | Lint, contract tests, Hurl |
 | Concepts     | jj compared with git, and the UI consequences   | [concepts.md](concepts.md)                 | Review                     |
 | Surfaces     | Where each capability appears on each interface | [surfaces.md](surfaces.md)                 | Review                     |
 
@@ -22,10 +22,11 @@ content lives in this repository.
 1. **A requirement names no interface.** It says what a person can do and how
    that is tested. It never names an endpoint, a command, or a technology.
    Limits such as latency or size are allowed.
-2. **A spec is exact and cites its requirements.** Each OpenAPI operation
-   carries `x-requirements: ["#35"]`. Every other test file, such as a CLI
-   test or a Hurl file, starts with `satisfies #35`. `mise run spec:trace`
-   shows which requirements are cited, and fails on a closed one that isn't.
+2. **A spec is exact and cites its requirements.** Each operation in
+   `shared/api/` carries `@extension("x-requirements", #["#35"])`. Every test
+   file, such as a CLI test or a Hurl file, starts with `satisfies #35`.
+   `mise run spec:trace` shows which requirements are cited, and fails on a
+   closed one that isn't.
 3. **The issue number is the reference.** Specs, tests, and commits cite `#35`.
    The title prefix shows the type and the order: `I0` for an initiative, `E01`
    for an epic, `R001` for a requirement, and `T001` for a task. A new issue

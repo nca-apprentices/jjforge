@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
-#MISE description="Lint shared/openapi.yaml with Redocly"
+#MISE description="Check the TypeSpec in shared/api and lint shared/openapi.yaml with Redocly"
 set -euo pipefail
+
+# shared/openapi.yaml is compiled from shared/api and committed, so the
+# generators and reviewers read it. It must match a fresh compile.
+compiled=$(mktemp -d)
+trap 'rm -rf "$compiled"' EXIT
+pnpm --dir shared/api install --frozen-lockfile
+pnpm --dir shared/api exec tsp format --check "**/*.tsp"
+pnpm --dir shared/api exec tsp compile . --option "@typespec/openapi3.emitter-output-dir=$compiled"
+if ! cmp -s "$compiled/openapi.yaml" shared/openapi.yaml; then
+  echo "error: shared/openapi.yaml is stale. Run mise run spec:build." >&2
+  exit 1
+fi
 
 # Redocly reports usage and checks for updates unless told not to.
 export REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true

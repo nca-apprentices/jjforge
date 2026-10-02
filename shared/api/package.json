@@ -1,0 +1,13 @@
+{
+  "name": "jjforge-api",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "devDependencies": {
+    "@typespec/compiler": "catalog:",
+    "@typespec/http": "catalog:",
+    "@typespec/openapi": "catalog:",
+    "@typespec/openapi3": "catalog:"
+  },
+  "packageManager": "pnpm@12.6.0"
+}

@@ -22,3 +22,4 @@ never edited, and a newer one supersedes it. New records start from
 | [0013](0013-browser-state-in-libraries.md)      | Browser state belongs to a library                            | Accepted |
 | [0014](0014-markup-and-styles-in-shared-ui.md)  | Only shared/ui renders markup and styles                      | Accepted |
 | [0015](0015-checked-code-rules.md)              | Code rules are checked, not reviewed                          | Accepted |
+| [0016](0016-contract-in-typespec.md)            | The REST contract is written in TypeSpec                      | Accepted |

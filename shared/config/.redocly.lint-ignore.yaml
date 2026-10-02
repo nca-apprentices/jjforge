@@ -3,7 +3,7 @@
   # A browser sign-in only ever redirects.
   operation-2xx-response:
     - "#/paths/~1oauth~1authorize/get/responses"
-  # The activity stream's events, named by x-event-schema, which OpenAPI 3.1
-  # can't reference from a text/event-stream response.
+  # The activity stream's events. OpenAPI 3.1 can't reference a schema from a
+  # text/event-stream response, so only the operation's description names it.
   no-unused-components:
     - "#/components/schemas/Activity"

@@ -70,10 +70,13 @@ these documents.
 A contract changes before its implementation, and every operation cites the
 requirements it serves. [Planning](planning.md) has the rules.
 
-- `shared/openapi.yaml`: the public API, written by hand. Every operation lists
-  its requirement issues in `x-requirements`.
-  - `mise run spec:lint` lints it with Redocly and is part of
-    `mise run lint`.
+- `shared/api/`: the public API in TypeSpec. Every operation lists its
+  requirement issues in `x-requirements`. See
+  [ADR 0016](adr/0016-contract-in-typespec.md).
+- `shared/openapi.yaml`: compiled from `shared/api/` by `mise run spec:build`
+  and committed with it. Don't edit it.
+  - `mise run spec:lint` fails when the file doesn't match a fresh compile,
+    then lints it with Redocly. It is part of `mise run lint`.
   - `mise run spec:trace` writes each requirement with the operations and
     tests that cite it to `build/trace.yaml`. It fails when an operation
     cites nothing, when a citation isn't a Requirement, or when a closed

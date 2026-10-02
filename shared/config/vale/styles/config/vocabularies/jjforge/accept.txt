@@ -20,6 +20,7 @@ Kover
 ktlint
 Mantine
 Modulith
+namespaces?
 Nx
 oasdiff
 OAuth
@@ -43,6 +44,7 @@ subcharts
 Todo
 toolchains?
 trycmd
+TypeSpec
 unbuilt
 UUIDs
 vcsd

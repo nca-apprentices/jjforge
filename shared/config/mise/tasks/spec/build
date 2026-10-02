@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Compile the TypeSpec in shared/api to shared/openapi.yaml"
+set -euo pipefail
+
+pnpm --dir shared/api install --frozen-lockfile
+pnpm --dir shared/api exec tsp compile .

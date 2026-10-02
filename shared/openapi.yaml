@@ -1,27 +1,16 @@
-# The REST contract. The server generates its controller interfaces and models
-# from this file at build time, and the web app generates its client from it.
-#
-# Every operation names the requirement issues it serves in x-requirements, and
-# `mise run spec:trace` checks that each one is a Requirement. An operation that
-# isn't built yet answers 501, see shared/docs/adr/0011-controllers-implement-contracts.md.
 openapi: 3.1.0
 info:
   title: jjforge
   version: v0
-  description: |
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+  description: |-
     The public API of jjforge. The web app, the `jf` CLI, and agents all use it,
     and nothing else is exposed: see shared/docs/adr/0002-public-api-is-http.md.
 
     A list answers one page and a `next` cursor while more pages exist. Every
     failure answers `application/problem+json` with a stable `code`.
-  license:
-    name: Apache-2.0
-    identifier: Apache-2.0
-servers:
-  - url: /
-    description: The host that serves the web app
-security:
-  - bearer: []
 tags:
   - name: echo
     description: The walking skeleton. Removed once a real operation runs end to end.
@@ -36,886 +25,1337 @@ tags:
   - name: files
     description: Trees, file contents, and diffs.
 paths:
-  /api/echo:
-    post:
-      tags: [echo]
-      operationId: echo
-      summary: Echo a message through vcsd
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Echo"
-      responses:
-        "200":
-          description: The message vcsd answered.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Echo"
-        "400":
-          $ref: "#/components/responses/Invalid"
-
   /.well-known/oauth-authorization-server:
     get:
-      tags: [auth]
       operationId: getAuthorizationServerMetadata
       summary: Describe the authorization server (RFC 8414)
-      security: []
-      x-requirements: ["#8", "#9"]
+      parameters: []
       responses:
-        "200":
+        '200':
           description: The server's endpoints and capabilities.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthorizationServerMetadata"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /oauth/authorize:
-    get:
-      tags: [auth]
-      operationId: authorize
-      summary: Start a browser sign-in
-      description: Redirects to the organization's identity provider, then back to `redirect_uri` with a code. PKCE with S256 is required.
-      security: []
-      x-requirements: ["#8"]
-      parameters:
-        - name: response_type
-          in: query
-          required: true
-          schema: { type: string, enum: [code] }
-        - name: client_id
-          in: query
-          required: true
-          schema: { type: string }
-        - name: redirect_uri
-          in: query
-          required: true
-          schema: { type: string, format: uri }
-        - { name: scope, in: query, schema: { type: string } }
-        - name: state
-          in: query
-          required: true
-          schema: { type: string }
-        - name: code_challenge
-          in: query
-          required: true
-          schema: { type: string }
-        - name: code_challenge_method
-          in: query
-          required: true
-          schema: { type: string, enum: [S256] }
-      responses:
-        "302":
-          description: A redirect to the identity provider.
-          headers:
-            Location:
-              schema: { type: string, format: uri }
-        "400":
-          $ref: "#/components/responses/Invalid"
-  /oauth/device:
+                $ref: '#/components/schemas/AuthorizationServerMetadata'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - auth
+      security:
+        - {}
+      x-requirements:
+        - '#8'
+        - '#9'
+  /api/echo:
     post:
-      tags: [auth]
-      operationId: authorizeDevice
-      summary: Start a sign-in on a machine without a browser (RFC 8628)
-      security: []
-      x-requirements: ["#9"]
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: "#/components/schemas/DeviceAuthorizationRequest"
+      operationId: echo
+      summary: Echo a message through vcsd
+      parameters: []
       responses:
-        "200":
-          description: The code to confirm on another device.
+        '200':
+          description: The message vcsd answered.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DeviceAuthorization"
-        "400":
-          $ref: "#/components/responses/OAuthError"
-  /oauth/token:
-    post:
-      tags: [auth]
-      operationId: token
-      summary: Exchange a grant for a token
-      description: |
-        Grants: `authorization_code` after a browser sign-in, the device code
-        grant after a confirmed device sign-in, and `refresh_token`. The scope
-        `read` gives a read-only session, and `write` adds changes.
-      security: []
-      x-requirements: ["#8", "#9", "#16"]
+                $ref: '#/components/schemas/Echo'
+        '400':
+          description: The request is malformed. Code `invalid`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - echo
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/TokenRequest"
-      responses:
-        "200":
-          description: A Biscuit access token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Token"
-        "400":
-          $ref: "#/components/responses/OAuthError"
-  /oauth/revoke:
-    post:
-      tags: [auth]
-      operationId: revoke
-      summary: Revoke a token and its session (RFC 7009)
-      x-requirements: ["#10", "#11"]
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: "#/components/schemas/RevocationRequest"
-      responses:
-        "200":
-          description: Revoked, or already unknown.
-        "400":
-          $ref: "#/components/responses/OAuthError"
-  /oauth/keys:
-    get:
-      tags: [auth]
-      operationId: getKeys
-      summary: List the public keys that verify tokens
-      description: vcsd and other verifiers fetch these once and verify tokens offline.
-      security: []
-      x-requirements: ["#12"]
-      responses:
-        "200":
-          description: The current and the next key.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/KeySet"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
+              $ref: '#/components/schemas/Echo'
+      security:
+        - {}
   /api/me:
     get:
-      tags: [auth]
       operationId: getMe
       summary: Show the signed-in principal
-      x-requirements: ["#8"]
+      parameters: []
       responses:
-        "200":
+        '200':
           description: The principal behind the token.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Principal"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
+                $ref: '#/components/schemas/Principal'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - auth
+      x-requirements:
+        - '#8'
   /api/me/sessions:
     get:
-      tags: [auth]
       operationId: listSessions
       summary: List the signed-in principal's sessions
-      x-requirements: ["#10"]
       parameters:
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
       responses:
-        "200":
+        '200':
           description: One page of sessions.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SessionPage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
+                $ref: '#/components/schemas/SessionPage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - auth
+      x-requirements:
+        - '#10'
   /api/me/sessions/{session}:
     delete:
-      tags: [auth]
       operationId: revokeSession
       summary: Revoke one session
-      x-requirements: ["#10", "#11"]
       parameters:
         - name: session
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema:
+            type: string
+            format: uuid
       responses:
-        "204":
-          description: Revoked.
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - auth
+      x-requirements:
+        - '#10'
+        - '#11'
   /api/orgs:
     get:
-      tags: [orgs]
       operationId: listOrgs
       summary: List the organizations the principal belongs to
-      x-requirements: ["#27"]
       parameters:
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
       responses:
-        "200":
+        '200':
           description: One page of organizations.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OrgPage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
+                $ref: '#/components/schemas/OrgPage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - orgs
+      x-requirements:
+        - '#27'
     post:
-      tags: [orgs]
       operationId: createOrg
       summary: Create an organization, owned by the principal
-      x-requirements: ["#24"]
+      parameters: []
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Org'
+        '400':
+          description: The request is malformed. Code `invalid`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Conflicts with the current state. Code `name_taken` or `precondition_failed`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - orgs
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OrgCreate"
-      responses:
-        "201":
-          description: Created.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Org"
-        "400":
-          $ref: "#/components/responses/Invalid"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "409":
-          $ref: "#/components/responses/Conflict"
+              $ref: '#/components/schemas/OrgCreate'
+      x-requirements:
+        - '#24'
   /api/orgs/{org}:
     get:
-      tags: [orgs]
       operationId: getOrg
       summary: Show one organization
-      x-requirements: ["#27"]
       parameters:
-        - $ref: "#/components/parameters/Org"
+        - $ref: '#/components/parameters/Parameters.Org'
       responses:
-        "200":
+        '200':
           description: The organization.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Org"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /api/orgs/{org}/identity-provider:
-    put:
-      tags: [orgs]
-      operationId: setIdentityProvider
-      summary: Connect the organization's identity provider
-      x-requirements: ["#7"]
-      parameters:
-        - $ref: "#/components/parameters/Org"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/IdentityProvider"
-      responses:
-        "200":
-          description: Verified and saved.
+                $ref: '#/components/schemas/Org'
+        '401':
+          description: No valid token. Code `unauthenticated`.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: "#/components/schemas/IdentityProvider"
-        "400":
-          $ref: "#/components/responses/Invalid"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /api/orgs/{org}/members:
-    get:
-      tags: [orgs]
-      operationId: listMembers
-      summary: List the organization's members and their roles
-      x-requirements: ["#14", "#15"]
-      parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
-      responses:
-        "200":
-          description: One page of members.
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: "#/components/schemas/MemberPage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /api/orgs/{org}/members/{principal}:
-    put:
-      tags: [orgs]
-      operationId: putMember
-      summary: Add a member or change their role
-      x-requirements: ["#14", "#15"]
-      parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Principal"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MemberUpdate"
-      responses:
-        "200":
-          description: The member with their role.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Member"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    delete:
-      tags: [orgs]
-      operationId: removeMember
-      summary: Remove a member
-      description: Removing the last owner fails with `precondition_failed`.
-      x-requirements: ["#14"]
-      parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Principal"
-      responses:
-        "204":
-          description: Removed.
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - orgs
+      x-requirements:
+        - '#27'
   /api/orgs/{org}/access-records:
     get:
-      tags: [orgs]
       operationId: listAccessRecords
       summary: List the organization's access decisions, newest first
-      x-requirements: ["#17"]
       parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
       responses:
-        "200":
+        '200':
           description: One page of access records.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AccessRecordPage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /api/orgs/{org}/repos:
-    get:
-      tags: [repos]
-      operationId: listRepos
-      summary: List the organization's repositories
-      x-requirements: ["#27"]
+                $ref: '#/components/schemas/AccessRecordPage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The token doesn't allow this. Code `forbidden`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - orgs
+      x-requirements:
+        - '#17'
+  /api/orgs/{org}/identity-provider:
+    put:
+      operationId: setIdentityProvider
+      summary: Connect the organization's identity provider
       parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: '#/components/parameters/Parameters.Org'
       responses:
-        "200":
-          description: One page of repositories.
+        '200':
+          description: Verified and saved.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RepoPage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    post:
-      tags: [repos]
-      operationId: createRepo
-      summary: Create an empty repository
-      x-requirements: ["#25", "#26", "#15"]
-      parameters:
-        - $ref: "#/components/parameters/Org"
+                $ref: '#/components/schemas/IdentityProvider'
+        '400':
+          description: The request is malformed. Code `invalid`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The token doesn't allow this. Code `forbidden`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - orgs
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RepoCreate"
+              $ref: '#/components/schemas/IdentityProvider'
+      x-requirements:
+        - '#7'
+  /api/orgs/{org}/members:
+    get:
+      operationId: listMembers
+      summary: List the organization's members and their roles
+      parameters:
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
       responses:
-        "201":
+        '200':
+          description: One page of members.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberPage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - orgs
+      x-requirements:
+        - '#14'
+        - '#15'
+  /api/orgs/{org}/members/{principal}:
+    put:
+      operationId: putMember
+      summary: Add a member or change their role
+      parameters:
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Principal'
+      responses:
+        '200':
+          description: The member with their role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The token doesn't allow this. Code `forbidden`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - orgs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberUpdate'
+      x-requirements:
+        - '#14'
+        - '#15'
+    delete:
+      operationId: removeMember
+      summary: Remove a member
+      description: Removing the last owner fails with `precondition_failed`.
+      parameters:
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Principal'
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The token doesn't allow this. Code `forbidden`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Conflicts with the current state. Code `name_taken` or `precondition_failed`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - orgs
+      x-requirements:
+        - '#14'
+  /api/orgs/{org}/repos:
+    get:
+      operationId: listRepos
+      summary: List the organization's repositories
+      parameters:
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
+      responses:
+        '200':
+          description: One page of repositories.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepoPage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - repos
+      x-requirements:
+        - '#27'
+    post:
+      operationId: createRepo
+      summary: Create an empty repository
+      parameters:
+        - $ref: '#/components/parameters/Parameters.Org'
+      responses:
+        '201':
           description: Created.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Repo"
-        "400":
-          $ref: "#/components/responses/Invalid"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                $ref: '#/components/schemas/Repo'
+        '400':
+          description: The request is malformed. Code `invalid`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The token doesn't allow this. Code `forbidden`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Conflicts with the current state. Code `name_taken` or `precondition_failed`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - repos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepoCreate'
+      x-requirements:
+        - '#25'
+        - '#26'
+        - '#15'
   /api/orgs/{org}/repos/{repo}:
     get:
-      tags: [repos]
       operationId: getRepo
       summary: Show one repository and its clone address
-      x-requirements: ["#27", "#52"]
       parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
       responses:
-        "200":
+        '200':
           description: The repository.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Repo"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                $ref: '#/components/schemas/Repo'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - repos
+      x-requirements:
+        - '#27'
+        - '#52'
     delete:
-      tags: [repos]
       operationId: deleteRepo
       summary: Delete a repository and everything in it
-      x-requirements: ["#28", "#15"]
       parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
       responses:
-        "204":
-          description: Deleted.
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The token doesn't allow this. Code `forbidden`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - repos
+      x-requirements:
+        - '#28'
+        - '#15'
   /api/orgs/{org}/repos/{repo}/activity:
     get:
-      tags: [repos]
       operationId: streamActivity
       summary: Stream the repository's activity as server-sent events
-      description: |
+      description: |-
         Replays recent activity, newest last, then sends each new event as it
         happens. Each event's `data` is one `Activity` as JSON. Reconnecting
         with `Last-Event-ID` resumes after that event.
-      x-requirements: ["#49"]
       parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
-        - { name: Last-Event-ID, in: header, schema: { type: string } }
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema:
+            type: string
       responses:
-        "200":
+        '200':
           description: An event stream of `Activity`.
           content:
             text/event-stream:
               schema:
                 type: string
-              x-event-schema:
-                $ref: "#/components/schemas/Activity"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /api/orgs/{org}/repos/{repo}/changes:
-    get:
-      tags: [history]
-      operationId: listChanges
-      summary: List the changes reachable from a revision, newest first
-      x-requirements: ["#35", "#38"]
-      parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
-        - $ref: "#/components/parameters/Rev"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
-      responses:
-        "200":
-          description: One page of changes.
+        '401':
+          description: No valid token. Code `unauthenticated`.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: "#/components/schemas/ChangePage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/Ambiguous"
-  /api/orgs/{org}/repos/{repo}/changes/{rev}:
-    get:
-      tags: [history]
-      operationId: getChange
-      summary: Show one change
-      description: "`rev` is a change ID, a commit ID, a unique prefix of either, or a bookmark."
-      x-requirements: ["#36", "#38"]
-      parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
-        - $ref: "#/components/parameters/RevPath"
-      responses:
-        "200":
-          description: The change.
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: "#/components/schemas/Change"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/Ambiguous"
-  /api/orgs/{org}/repos/{repo}/changes/{rev}/evolution:
-    get:
-      tags: [history]
-      operationId: getEvolution
-      summary: List the earlier versions of a change, newest first
-      x-requirements: ["#37"]
-      parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
-        - $ref: "#/components/parameters/RevPath"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
-      responses:
-        "200":
-          description: One page of versions.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/VersionPage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/Ambiguous"
-  /api/orgs/{org}/repos/{repo}/operations:
-    get:
-      tags: [history]
-      operationId: listOperations
-      summary: List the operations that changed the repository, newest first
-      x-requirements: ["#39"]
-      parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
-      responses:
-        "200":
-          description: One page of operations.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OperationPage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - repos
+      x-requirements:
+        - '#49'
   /api/orgs/{org}/repos/{repo}/bookmarks:
     get:
-      tags: [history]
       operationId: listBookmarks
       summary: List the bookmarks and their targets
-      x-requirements: ["#40", "#32"]
       parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
       responses:
-        "200":
+        '200':
           description: One page of bookmarks.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BookmarkPage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /api/orgs/{org}/repos/{repo}/tree:
+                $ref: '#/components/schemas/BookmarkPage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - history
+      x-requirements:
+        - '#40'
+        - '#32'
+  /api/orgs/{org}/repos/{repo}/changes:
     get:
-      tags: [files]
-      operationId: listTree
-      summary: List a directory at a revision
-      x-requirements: ["#42"]
+      operationId: listChanges
+      summary: List the changes reachable from a revision, newest first
       parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
-        - $ref: "#/components/parameters/Rev"
-        - $ref: "#/components/parameters/Path"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
+        - $ref: '#/components/parameters/Parameters.Rev'
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
       responses:
-        "200":
-          description: One page of entries, directories first, then by name.
+        '200':
+          description: One page of changes.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TreeEntryPage"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/Ambiguous"
+                $ref: '#/components/schemas/ChangePage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: The revision matches more than one change. Code `rev_ambiguous`, with `candidates`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - history
+      x-requirements:
+        - '#35'
+        - '#38'
+  /api/orgs/{org}/repos/{repo}/changes/{rev}:
+    get:
+      operationId: getChange
+      summary: Show one change
+      description: '`rev` is a change ID, a commit ID, a unique prefix of either, or a bookmark.'
+      parameters:
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
+        - $ref: '#/components/parameters/Parameters.RevPath'
+      responses:
+        '200':
+          description: The change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Change'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: The revision matches more than one change. Code `rev_ambiguous`, with `candidates`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - history
+      x-requirements:
+        - '#36'
+        - '#38'
+  /api/orgs/{org}/repos/{repo}/changes/{rev}/evolution:
+    get:
+      operationId: getEvolution
+      summary: List the earlier versions of a change, newest first
+      parameters:
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
+        - $ref: '#/components/parameters/Parameters.RevPath'
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
+      responses:
+        '200':
+          description: One page of versions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionPage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: The revision matches more than one change. Code `rev_ambiguous`, with `candidates`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - history
+      x-requirements:
+        - '#37'
   /api/orgs/{org}/repos/{repo}/contents:
     get:
-      tags: [files]
       operationId: readFile
       summary: Read a file at a revision
-      description: |
+      description: |-
         Text answers `text/plain`, and binary content answers
         `application/octet-stream`. A `Range` header reads part of the file.
         A conflicted file answers its sides as JSON.
-      x-requirements: ["#43", "#44", "#46"]
       parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
-        - $ref: "#/components/parameters/Rev"
-        - $ref: "#/components/parameters/FilePath"
-        - { name: Range, in: header, schema: { type: string } }
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
+        - $ref: '#/components/parameters/Parameters.Rev'
+        - $ref: '#/components/parameters/Parameters.FilePath'
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
       responses:
-        "200":
+        '200':
           description: The whole file.
           content:
             text/plain:
-              schema: { type: string }
+              schema:
+                type: string
             application/octet-stream:
-              schema: { type: string, format: binary }
+              schema:
+                $ref: '#/components/schemas/Binary'
             application/json:
               schema:
-                $ref: "#/components/schemas/ConflictedFile"
-        "206":
+                $ref: '#/components/schemas/ConflictedFile'
+        '206':
           description: The requested range.
           content:
             application/octet-stream:
-              schema: { type: string, format: binary }
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/Ambiguous"
+              schema:
+                $ref: '#/components/schemas/Binary'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: The revision matches more than one change. Code `rev_ambiguous`, with `candidates`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - files
+      x-requirements:
+        - '#43'
+        - '#44'
+        - '#46'
   /api/orgs/{org}/repos/{repo}/diff:
     get:
-      tags: [files]
       operationId: getDiff
       summary: Compare a change with its parents, or two revisions
       description: Pass `rev` for a change against its parents, or `from` and `to` for two revisions.
-      x-requirements: ["#45", "#46"]
       parameters:
-        - $ref: "#/components/parameters/Org"
-        - $ref: "#/components/parameters/Repo"
-        - { name: rev, in: query, schema: { type: string } }
-        - { name: from, in: query, schema: { type: string } }
-        - { name: to, in: query, schema: { type: string } }
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
+        - name: rev
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
       responses:
-        "200":
+        '200':
           description: One page of file diffs.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FileDiffPage"
-        "400":
-          $ref: "#/components/responses/Invalid"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/Ambiguous"
-
+                $ref: '#/components/schemas/FileDiffPage'
+        '400':
+          description: The request is malformed. Code `invalid`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: The revision matches more than one change. Code `rev_ambiguous`, with `candidates`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - files
+      x-requirements:
+        - '#45'
+        - '#46'
+  /api/orgs/{org}/repos/{repo}/operations:
+    get:
+      operationId: listOperations
+      summary: List the operations that changed the repository, newest first
+      parameters:
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
+      responses:
+        '200':
+          description: One page of operations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationPage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - history
+      x-requirements:
+        - '#39'
+  /api/orgs/{org}/repos/{repo}/tree:
+    get:
+      operationId: listTree
+      summary: List a directory at a revision
+      parameters:
+        - $ref: '#/components/parameters/Parameters.Org'
+        - $ref: '#/components/parameters/Parameters.Repo'
+        - $ref: '#/components/parameters/Parameters.Rev'
+        - $ref: '#/components/parameters/Parameters.Path'
+        - $ref: '#/components/parameters/Parameters.Cursor'
+        - $ref: '#/components/parameters/Parameters.Limit'
+      responses:
+        '200':
+          description: One page of entries, directories first, then by name.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TreeEntryPage'
+        '401':
+          description: No valid token. Code `unauthenticated`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: The revision matches more than one change. Code `rev_ambiguous`, with `candidates`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - files
+      x-requirements:
+        - '#42'
+  /oauth/authorize:
+    get:
+      operationId: authorize
+      summary: Start a browser sign-in
+      description: Redirects to the organization's identity provider, then back to `redirect_uri` with a code. PKCE with S256 is required.
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - code
+          explode: false
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+          explode: false
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          explode: false
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+          explode: false
+        - name: code_challenge
+          in: query
+          required: true
+          schema:
+            type: string
+          explode: false
+        - name: code_challenge_method
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - S256
+          explode: false
+      responses:
+        '302':
+          description: A redirect to the identity provider.
+          headers:
+            Location:
+              required: false
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: The request is malformed. Code `invalid`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - auth
+      security:
+        - {}
+      x-requirements:
+        - '#8'
+  /oauth/device:
+    post:
+      operationId: authorizeDevice
+      summary: Start a sign-in on a machine without a browser (RFC 8628)
+      parameters: []
+      responses:
+        '200':
+          description: The code to confirm on another device.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceAuthorization'
+        '400':
+          description: An OAuth error (RFC 6749, section 5.2).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      tags:
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeviceAuthorizationRequest'
+      security:
+        - {}
+      x-requirements:
+        - '#9'
+  /oauth/keys:
+    get:
+      operationId: getKeys
+      summary: List the public keys that verify tokens
+      description: vcsd and other verifiers fetch these once and verify tokens offline.
+      parameters: []
+      responses:
+        '200':
+          description: The current and the next key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeySet'
+        '404':
+          description: |-
+            Not found, or not visible to the principal. Code `not_found`,
+            `rev_not_found`, or `path_not_found`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - auth
+      security:
+        - {}
+      x-requirements:
+        - '#12'
+  /oauth/revoke:
+    post:
+      operationId: revoke
+      summary: Revoke a token and its session (RFC 7009)
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+        '400':
+          description: An OAuth error (RFC 6749, section 5.2).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      tags:
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RevocationRequest'
+      x-requirements:
+        - '#10'
+        - '#11'
+  /oauth/token:
+    post:
+      operationId: token
+      summary: Exchange a grant for a token
+      description: |-
+        Grants: `authorization_code` after a browser sign-in, the device code
+        grant after a confirmed device sign-in, and `refresh_token`. The scope
+        `read` gives a read-only session, and `write` adds changes.
+      parameters: []
+      responses:
+        '200':
+          description: A Biscuit access token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '400':
+          description: An OAuth error (RFC 6749, section 5.2).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      tags:
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      security:
+        - {}
+      x-requirements:
+        - '#8'
+        - '#9'
+        - '#16'
+security:
+  - bearer: []
 components:
-  securitySchemes:
-    bearer:
-      type: http
-      scheme: bearer
-      bearerFormat: Biscuit
-      description: A token from `/oauth/token`. See shared/docs/adr/0004-identity-and-tokens.md.
-
   parameters:
-    Org:
-      name: org
-      in: path
-      required: true
-      schema: { $ref: "#/components/schemas/Name" }
-    Repo:
-      name: repo
-      in: path
-      required: true
-      schema: { $ref: "#/components/schemas/Name" }
-    Principal:
-      name: principal
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
-    Rev:
-      name: rev
+    Parameters.Cursor:
+      name: cursor
       in: query
-      description: A change ID, a commit ID, a unique prefix of either, or a bookmark. Defaults to the trunk bookmark.
-      schema: { type: string }
-    RevPath:
-      name: rev
-      in: path
-      required: true
-      schema: { type: string }
-    Path:
-      name: path
-      in: query
-      description: A directory relative to the repository root. Defaults to the root.
-      schema: { type: string }
-    FilePath:
+      required: false
+      description: The `next` value of the previous page.
+      schema:
+        type: string
+      explode: false
+    Parameters.FilePath:
       name: path
       in: query
       required: true
       description: A file relative to the repository root.
-      schema: { type: string }
-    Cursor:
-      name: cursor
-      in: query
-      description: The `next` value of the previous page.
-      schema: { type: string }
-    Limit:
+      schema:
+        type: string
+      explode: false
+    Parameters.Limit:
       name: limit
       in: query
-      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
-
-  responses:
-    Invalid:
-      description: The request is malformed. Code `invalid`.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/Problem" }
-    Unauthenticated:
-      description: No valid token. Code `unauthenticated`.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/Problem" }
-    Forbidden:
-      description: The token doesn't allow this. Code `forbidden`.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/Problem" }
-    NotFound:
-      description: |
-        Not found, or not visible to the principal. Code `not_found`,
-        `rev_not_found`, or `path_not_found`.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/Problem" }
-    Conflict:
-      description: Conflicts with the current state. Code `name_taken` or `precondition_failed`.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/Problem" }
-    Ambiguous:
-      description: The revision matches more than one change. Code `rev_ambiguous`, with `candidates`.
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/Problem" }
-    OAuthError:
-      description: An OAuth error (RFC 6749, section 5.2).
-      content:
-        application/json:
-          schema: { $ref: "#/components/schemas/OAuthError" }
-
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+      explode: false
+    Parameters.Org:
+      name: org
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Name'
+    Parameters.Path:
+      name: path
+      in: query
+      required: false
+      description: A directory relative to the repository root. Defaults to the root.
+      schema:
+        type: string
+      explode: false
+    Parameters.Principal:
+      name: principal
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Parameters.Repo:
+      name: repo
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Name'
+    Parameters.Rev:
+      name: rev
+      in: query
+      required: false
+      description: A change ID, a commit ID, a unique prefix of either, or a bookmark. Defaults to the trunk bookmark.
+      schema:
+        type: string
+      explode: false
+    Parameters.RevPath:
+      name: rev
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
-    Echo:
+    AccessRecord:
       type: object
-      required: [message]
+      required:
+        - id
+        - time
+        - principal
+        - action
+        - resource
+        - decision
+        - policy
       properties:
-        message: { type: string }
-
-    Problem:
-      description: RFC 9457 problem details with a stable `code`.
-      type: object
-      required: [code, title, status]
-      properties:
-        code:
+        id:
+          type: string
+          format: uuid
+        time:
+          type: string
+          format: date-time
+        principal:
+          $ref: '#/components/schemas/Principal'
+        action:
+          type: string
+        resource:
+          type: string
+        decision:
           type: string
           enum:
-            - invalid
-            - unauthenticated
-            - forbidden
-            - not_found
-            - rev_not_found
-            - path_not_found
-            - rev_ambiguous
-            - name_taken
-            - precondition_failed
-        title: { type: string }
-        status: { type: integer }
-        detail: { type: string }
-        candidates:
-          description: For `rev_ambiguous`, every change the revision matches.
+            - allow
+            - deny
+        policy:
+          type: string
+          description: The policy that decided.
+    AccessRecordPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
           type: array
-          items: { $ref: "#/components/schemas/ChangeSummary" }
-    OAuthError:
+          items:
+            $ref: '#/components/schemas/AccessRecord'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
+    Activity:
       type: object
-      required: [error]
+      required:
+        - id
+        - time
+        - principal
+        - kind
       properties:
-        error: { type: string }
-        error_description: { type: string }
-
-    Name:
-      type: string
-      pattern: "^[a-z0-9][a-z0-9-]{0,38}$"
-    Principal:
-      type: object
-      required: [id, kind, name]
-      properties:
-        id: { type: string, format: uuid }
-        kind: { type: string, enum: [human, agent, component, workload] }
-        name: { type: string }
-    Session:
-      type: object
-      required: [id, client, createdAt, lastUsedAt, current]
-      properties:
-        id: { type: string, format: uuid }
-        client: { type: string }
-        createdAt: { type: string, format: date-time }
-        lastUsedAt: { type: string, format: date-time }
-        current: { type: boolean }
-
+        id:
+          type: string
+        time:
+          type: string
+          format: date-time
+        principal:
+          $ref: '#/components/schemas/Principal'
+        kind:
+          type: string
+          enum:
+            - push
+            - bookmark_moved
+        bookmark:
+          type: string
+        from:
+          type: string
+          description: The commit ID before.
+        to:
+          type: string
+          description: The commit ID after.
     AuthorizationServerMetadata:
       type: object
       required:
@@ -926,180 +1366,56 @@ components:
         - revocation_endpoint
         - keys_uri
       properties:
-        issuer: { type: string, format: uri }
-        authorization_endpoint: { type: string, format: uri }
-        token_endpoint: { type: string, format: uri }
-        device_authorization_endpoint: { type: string, format: uri }
-        revocation_endpoint: { type: string, format: uri }
-        keys_uri: { type: string, format: uri }
-        scopes_supported: { type: array, items: { type: string } }
-    DeviceAuthorizationRequest:
-      type: object
-      required: [client_id]
-      properties:
-        client_id: { type: string }
-        scope: { type: string }
-    DeviceAuthorization:
-      type: object
-      required:
-        - device_code
-        - user_code
-        - verification_uri
-        - expires_in
-        - interval
-      properties:
-        device_code: { type: string }
-        user_code: { type: string }
-        verification_uri: { type: string, format: uri }
-        verification_uri_complete: { type: string, format: uri }
-        expires_in: { type: integer }
-        interval: { type: integer }
-    TokenRequest:
-      type: object
-      required: [grant_type, client_id]
-      properties:
-        grant_type:
+        issuer:
           type: string
-          enum:
-            - authorization_code
-            - refresh_token
-            - "urn:ietf:params:oauth:grant-type:device_code"
-        client_id: { type: string }
-        code: { type: string }
-        redirect_uri: { type: string, format: uri }
-        code_verifier: { type: string }
-        device_code: { type: string }
-        refresh_token: { type: string }
-        scope: { type: string }
-    Token:
-      type: object
-      required: [access_token, token_type, expires_in]
-      properties:
-        access_token: { type: string }
-        token_type: { type: string, enum: [Bearer] }
-        expires_in: { type: integer }
-        refresh_token: { type: string }
-        scope: { type: string }
-    RevocationRequest:
-      type: object
-      required: [token]
-      properties:
-        token: { type: string }
-        token_type_hint: { type: string, enum: [access_token, refresh_token] }
-    KeySet:
-      type: object
-      required: [keys]
-      properties:
-        keys:
+          format: uri
+        authorization_endpoint:
+          type: string
+          format: uri
+        token_endpoint:
+          type: string
+          format: uri
+        device_authorization_endpoint:
+          type: string
+          format: uri
+        revocation_endpoint:
+          type: string
+          format: uri
+        keys_uri:
+          type: string
+          format: uri
+        scopes_supported:
           type: array
           items:
-            type: object
-            required: [id, algorithm, publicKey]
-            properties:
-              id: { type: string }
-              algorithm: { type: string, enum: [ed25519] }
-              publicKey: { type: string, description: Hex-encoded. }
-              expiresAt: { type: string, format: date-time }
-
-    Org:
-      type: object
-      required: [id, name, role]
-      properties:
-        id: { type: string, format: uuid }
-        name: { $ref: "#/components/schemas/Name" }
-        role: { $ref: "#/components/schemas/Role" }
-    OrgCreate:
-      type: object
-      required: [name]
-      properties:
-        name: { $ref: "#/components/schemas/Name" }
-    Role:
+            type: string
+    Binary:
       type: string
-      enum: [owner, member]
-    IdentityProvider:
-      type: object
-      required: [issuer, clientId]
-      properties:
-        issuer: { type: string, format: uri }
-        clientId: { type: string }
-        clientSecret: { type: string, writeOnly: true }
-    Member:
-      type: object
-      required: [principal, role]
-      properties:
-        principal: { $ref: "#/components/schemas/Principal" }
-        role: { $ref: "#/components/schemas/Role" }
-    MemberUpdate:
-      type: object
-      required: [role]
-      properties:
-        role: { $ref: "#/components/schemas/Role" }
-    AccessRecord:
-      type: object
-      required: [id, time, principal, action, resource, decision, policy]
-      properties:
-        id: { type: string, format: uuid }
-        time: { type: string, format: date-time }
-        principal: { $ref: "#/components/schemas/Principal" }
-        action: { type: string }
-        resource: { type: string }
-        decision: { type: string, enum: [allow, deny] }
-        policy: { type: string, description: The policy that decided. }
-
-    Repo:
-      type: object
-      required: [id, org, name, cloneUrl, createdAt]
-      properties:
-        id: { type: string, format: uuid }
-        org: { $ref: "#/components/schemas/Name" }
-        name: { $ref: "#/components/schemas/Name" }
-        cloneUrl: { type: string, format: uri }
-        createdAt: { type: string, format: date-time }
-    RepoCreate:
-      type: object
-      required: [name]
-      properties:
-        name: { $ref: "#/components/schemas/Name" }
-    Activity:
-      type: object
-      required: [id, time, principal, kind]
-      properties:
-        id: { type: string }
-        time: { type: string, format: date-time }
-        principal: { $ref: "#/components/schemas/Principal" }
-        kind: { type: string, enum: [push, bookmark_moved] }
-        bookmark: { type: string }
-        from: { type: string, description: The commit ID before. }
-        to: { type: string, description: The commit ID after. }
-
-    Signature:
-      type: object
-      required: [name, email, time]
-      properties:
-        name: { type: string }
-        email: { type: string }
-        time: { type: string, format: date-time }
-    ChangeSummary:
+      format: binary
+    Bookmark:
       type: object
       required:
-        - changeId
-        - commitId
-        - description
-        - author
-        - parents
-        - conflicted
-        - bookmarks
+        - name
+        - targets
       properties:
-        changeId: { type: string }
-        commitId: { type: string }
-        description: { type: string }
-        author: { $ref: "#/components/schemas/Signature" }
-        parents:
+        name:
+          type: string
+        targets:
           type: array
-          items: { type: string }
-          description: Parent commit IDs.
-        conflicted: { type: boolean }
-        bookmarks: { type: array, items: { type: string } }
+          items:
+            type: string
+          description: Change IDs. More than one means the bookmark is conflicted.
+    BookmarkPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bookmark'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
     Change:
       type: object
       required:
@@ -1113,186 +1429,646 @@ components:
         - bookmarks
         - files
       properties:
-        changeId: { type: string }
-        commitId: { type: string }
-        description: { type: string }
-        author: { $ref: "#/components/schemas/Signature" }
-        committer: { $ref: "#/components/schemas/Signature" }
+        changeId:
+          type: string
+        commitId:
+          type: string
+        description:
+          type: string
+        author:
+          $ref: '#/components/schemas/Signature'
+        committer:
+          $ref: '#/components/schemas/Signature'
         parents:
           type: array
-          items: { type: string }
+          items:
+            type: string
           description: Parent commit IDs.
-        conflicted: { type: boolean }
-        bookmarks: { type: array, items: { type: string } }
+        conflicted:
+          type: boolean
+        bookmarks:
+          type: array
+          items:
+            type: string
         files:
           type: array
-          items: { $ref: "#/components/schemas/ChangedFile" }
+          items:
+            $ref: '#/components/schemas/ChangedFile'
+    ChangePage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChangeSummary'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
+    ChangeSummary:
+      type: object
+      required:
+        - changeId
+        - commitId
+        - description
+        - author
+        - parents
+        - conflicted
+        - bookmarks
+      properties:
+        changeId:
+          type: string
+        commitId:
+          type: string
+        description:
+          type: string
+        author:
+          $ref: '#/components/schemas/Signature'
+        parents:
+          type: array
+          items:
+            type: string
+          description: Parent commit IDs.
+        conflicted:
+          type: boolean
+        bookmarks:
+          type: array
+          items:
+            type: string
     ChangedFile:
       type: object
-      required: [path, status, conflicted]
+      required:
+        - path
+        - status
+        - conflicted
       properties:
-        path: { type: string }
-        oldPath: { type: string, description: Set for a rename. }
-        status: { type: string, enum: [added, modified, deleted, renamed] }
-        conflicted: { type: boolean }
-    Version:
-      type: object
-      required: [commitId, time, operationId]
-      properties:
-        commitId: { type: string }
-        time: { type: string, format: date-time }
-        operationId:
+        path:
           type: string
-          description: The operation that wrote this version.
-    Operation:
-      type: object
-      required: [id, time, description, parents]
-      properties:
-        id: { type: string }
-        time: { type: string, format: date-time }
-        principal: { $ref: "#/components/schemas/Principal" }
-        description: { type: string }
-        parents: { type: array, items: { type: string } }
-    Bookmark:
-      type: object
-      required: [name, targets]
-      properties:
-        name: { type: string }
-        targets:
-          description: Change IDs. More than one means the bookmark is conflicted.
-          type: array
-          items: { type: string }
-
-    TreeEntry:
-      type: object
-      required: [name, path, kind]
-      properties:
-        name: { type: string }
-        path: { type: string }
-        kind: { type: string, enum: [file, directory, symlink, submodule] }
-        size: { type: integer, format: int64 }
+        oldPath:
+          type: string
+          description: Set for a rename.
+        status:
+          type: string
+          enum:
+            - added
+            - modified
+            - deleted
+            - renamed
+        conflicted:
+          type: boolean
     ConflictedFile:
       type: object
-      required: [path, sides]
+      required:
+        - path
+        - sides
       properties:
-        path: { type: string }
+        path:
+          type: string
         sides:
           type: array
           items:
             type: object
-            required: [kind, binary]
             properties:
-              kind: { type: string, enum: [add, remove] }
-              binary: { type: boolean }
+              kind:
+                type: string
+                enum:
+                  - add
+                  - remove
+              binary:
+                type: boolean
               content:
                 type: string
                 description: Absent for binary content.
+            required:
+              - kind
+              - binary
+    DeviceAuthorization:
+      type: object
+      required:
+        - device_code
+        - user_code
+        - verification_uri
+        - expires_in
+        - interval
+      properties:
+        device_code:
+          type: string
+        user_code:
+          type: string
+        verification_uri:
+          type: string
+          format: uri
+        verification_uri_complete:
+          type: string
+          format: uri
+        expires_in:
+          type: integer
+        interval:
+          type: integer
+    DeviceAuthorizationRequest:
+      type: object
+      required:
+        - client_id
+      properties:
+        client_id:
+          type: string
+        scope:
+          type: string
+    Echo:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
     FileDiff:
       type: object
-      required: [path, status, binary, hunks]
+      required:
+        - path
+        - status
+        - binary
+        - hunks
       properties:
-        path: { type: string }
-        oldPath: { type: string, description: Set for a rename. }
-        status: { type: string, enum: [added, modified, deleted, renamed] }
+        path:
+          type: string
+        oldPath:
+          type: string
+          description: Set for a rename.
+        status:
+          type: string
+          enum:
+            - added
+            - modified
+            - deleted
+            - renamed
         binary:
           type: boolean
           description: True when the content isn't shown as text.
         hunks:
           type: array
-          items: { $ref: "#/components/schemas/Hunk" }
+          items:
+            $ref: '#/components/schemas/Hunk'
+    FileDiffPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileDiff'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
     Hunk:
       type: object
-      required: [oldStart, oldLines, newStart, newLines, lines]
+      required:
+        - oldStart
+        - oldLines
+        - newStart
+        - newLines
+        - lines
       properties:
-        oldStart: { type: integer }
-        oldLines: { type: integer }
-        newStart: { type: integer }
-        newLines: { type: integer }
+        oldStart:
+          type: integer
+        oldLines:
+          type: integer
+        newStart:
+          type: integer
+        newLines:
+          type: integer
         lines:
           type: array
           items:
             type: object
-            required: [kind, text]
             properties:
-              kind: { type: string, enum: [context, added, removed] }
-              text: { type: string }
-
-    # One page per list. `next` is absent on the last page.
-    SessionPage:
+              kind:
+                type: string
+                enum:
+                  - context
+                  - added
+                  - removed
+              text:
+                type: string
+            required:
+              - kind
+              - text
+    IdentityProvider:
       type: object
-      required: [items]
+      required:
+        - issuer
+        - clientId
       properties:
-        items: { type: array, items: { $ref: "#/components/schemas/Session" } }
-        next: { type: string }
-    OrgPage:
+        issuer:
+          type: string
+          format: uri
+        clientId:
+          type: string
+        clientSecret:
+          type: string
+          writeOnly: true
+    KeySet:
       type: object
-      required: [items]
+      required:
+        - keys
       properties:
-        items: { type: array, items: { $ref: "#/components/schemas/Org" } }
-        next: { type: string }
+        keys:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              algorithm:
+                type: string
+                enum:
+                  - ed25519
+              publicKey:
+                type: string
+                description: Hex-encoded.
+              expiresAt:
+                type: string
+                format: date-time
+            required:
+              - id
+              - algorithm
+              - publicKey
+    Member:
+      type: object
+      required:
+        - principal
+        - role
+      properties:
+        principal:
+          $ref: '#/components/schemas/Principal'
+        role:
+          $ref: '#/components/schemas/Role'
     MemberPage:
       type: object
-      required: [items]
-      properties:
-        items: { type: array, items: { $ref: "#/components/schemas/Member" } }
-        next: { type: string }
-    AccessRecordPage:
-      type: object
-      required: [items]
+      required:
+        - items
       properties:
         items:
           type: array
-          items: { $ref: "#/components/schemas/AccessRecord" }
-        next: { type: string }
-    RepoPage:
+          items:
+            $ref: '#/components/schemas/Member'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
+    MemberUpdate:
       type: object
-      required: [items]
+      required:
+        - role
       properties:
-        items: { type: array, items: { $ref: "#/components/schemas/Repo" } }
-        next: { type: string }
-    ChangePage:
+        role:
+          $ref: '#/components/schemas/Role'
+    Name:
+      type: string
+      pattern: ^[a-z0-9][a-z0-9-]{0,38}$
+    OAuthError:
       type: object
-      required: [items]
+      required:
+        - error
       properties:
-        items:
+        error:
+          type: string
+        error_description:
+          type: string
+    Operation:
+      type: object
+      required:
+        - id
+        - time
+        - description
+        - parents
+      properties:
+        id:
+          type: string
+        time:
+          type: string
+          format: date-time
+        principal:
+          $ref: '#/components/schemas/Principal'
+        description:
+          type: string
+        parents:
           type: array
-          items: { $ref: "#/components/schemas/ChangeSummary" }
-        next: { type: string }
-    VersionPage:
-      type: object
-      required: [items]
-      properties:
-        items: { type: array, items: { $ref: "#/components/schemas/Version" } }
-        next: { type: string }
+          items:
+            type: string
     OperationPage:
       type: object
-      required: [items]
+      required:
+        - items
       properties:
         items:
           type: array
-          items: { $ref: "#/components/schemas/Operation" }
-        next: { type: string }
-    BookmarkPage:
+          items:
+            $ref: '#/components/schemas/Operation'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
+    Org:
       type: object
-      required: [items]
+      required:
+        - id
+        - name
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          $ref: '#/components/schemas/Name'
+        role:
+          $ref: '#/components/schemas/Role'
+    OrgCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+    OrgPage:
+      type: object
+      required:
+        - items
       properties:
         items:
           type: array
-          items: { $ref: "#/components/schemas/Bookmark" }
-        next: { type: string }
+          items:
+            $ref: '#/components/schemas/Org'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
+    Principal:
+      type: object
+      required:
+        - id
+        - kind
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum:
+            - human
+            - agent
+            - component
+            - workload
+        name:
+          type: string
+    Problem:
+      type: object
+      required:
+        - code
+        - title
+        - status
+      properties:
+        code:
+          type: string
+          enum:
+            - invalid
+            - unauthenticated
+            - forbidden
+            - not_found
+            - rev_not_found
+            - path_not_found
+            - rev_ambiguous
+            - name_taken
+            - precondition_failed
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChangeSummary'
+          description: For `rev_ambiguous`, every change the revision matches.
+      description: RFC 9457 problem details with a stable `code`.
+    Repo:
+      type: object
+      required:
+        - id
+        - org
+        - name
+        - cloneUrl
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        org:
+          $ref: '#/components/schemas/Name'
+        name:
+          $ref: '#/components/schemas/Name'
+        cloneUrl:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+    RepoCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+    RepoPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Repo'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
+    RevocationRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+          enum:
+            - access_token
+            - refresh_token
+    Role:
+      type: string
+      enum:
+        - owner
+        - member
+    Session:
+      type: object
+      required:
+        - id
+        - client
+        - createdAt
+        - lastUsedAt
+        - current
+      properties:
+        id:
+          type: string
+          format: uuid
+        client:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+    SessionPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
+    Signature:
+      type: object
+      required:
+        - name
+        - email
+        - time
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        time:
+          type: string
+          format: date-time
+    Token:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum:
+            - Bearer
+        expires_in:
+          type: integer
+        refresh_token:
+          type: string
+        scope:
+          type: string
+    TokenRequest:
+      type: object
+      required:
+        - grant_type
+        - client_id
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - authorization_code
+            - refresh_token
+            - urn:ietf:params:oauth:grant-type:device_code
+        client_id:
+          type: string
+        code:
+          type: string
+        redirect_uri:
+          type: string
+          format: uri
+        code_verifier:
+          type: string
+        device_code:
+          type: string
+        refresh_token:
+          type: string
+        scope:
+          type: string
+    TreeEntry:
+      type: object
+      required:
+        - name
+        - path
+        - kind
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        kind:
+          type: string
+          enum:
+            - file
+            - directory
+            - symlink
+            - submodule
+        size:
+          type: integer
+          format: int64
     TreeEntryPage:
       type: object
-      required: [items]
+      required:
+        - items
       properties:
         items:
           type: array
-          items: { $ref: "#/components/schemas/TreeEntry" }
-        next: { type: string }
-    FileDiffPage:
+          items:
+            $ref: '#/components/schemas/TreeEntry'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
+    Version:
       type: object
-      required: [items]
+      required:
+        - commitId
+        - time
+        - operationId
+      properties:
+        commitId:
+          type: string
+        time:
+          type: string
+          format: date-time
+        operationId:
+          type: string
+          description: The operation that wrote this version.
+    VersionPage:
+      type: object
+      required:
+        - items
       properties:
         items:
           type: array
-          items: { $ref: "#/components/schemas/FileDiff" }
-        next: { type: string }
+          items:
+            $ref: '#/components/schemas/Version'
+        next:
+          type: string
+      description: One page of a list. `next` is set while more pages exist.
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: A token from `/oauth/token`. See shared/docs/adr/0004-identity-and-tokens.md.
+servers:
+  - url: /
+    description: The host that serves the web app
+    variables: {}
