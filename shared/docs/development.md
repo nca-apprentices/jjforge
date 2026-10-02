@@ -74,8 +74,11 @@ requirements it serves. [Planning](planning.md) has the rules.
   its requirement issues in `x-requirements`.
   - `mise run spec:lint` lints it with Redocly and is part of
     `mise run lint`.
-  - `mise run spec:trace` checks that every operation cites only issues of
-    type Requirement. The echo operation is exempt until it is removed.
+  - `mise run spec:trace` writes each requirement with the operations and
+    tests that cite it to `build/trace.yaml`. It fails when an operation
+    cites nothing, when a citation isn't a Requirement, or when a closed
+    requirement has no citation. The echo operation is exempt until it is
+    removed.
   - `mise run spec:breaking` compares it with `main` using oasdiff. CI accepts
     a breaking change only when the PR title marks it with `!`, as in
     `feat!: rename the org field`.

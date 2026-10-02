@@ -23,8 +23,9 @@ content lives in this repository.
    that is tested. It never names an endpoint, a command, or a technology.
    Limits such as latency or size are allowed.
 2. **A spec is exact and cites its requirements.** Each OpenAPI operation
-   carries `x-requirements: ["#35"]`. Each CLI test file starts with
-   `satisfies #35`.
+   carries `x-requirements: ["#35"]`. Every other test file, such as a CLI
+   test or a Hurl file, starts with `satisfies #35`. `mise run spec:trace`
+   shows which requirements are cited, and fails on a closed one that isn't.
 3. **The issue number is the reference.** Specs, tests, and commits cite `#35`.
    The title prefix shows the type and the order: `I0` for an initiative, `E01`
    for an epic, `R001` for a requirement, and `T001` for a task. A new issue
