@@ -8,7 +8,7 @@ target/
 build/
 .gradle/
 node_modules/
-web/apps/*/dist/
+dist/
 web/shared/api/src/contract.gen.ts
 
 # Generated: the release copies the web build into the server jar
