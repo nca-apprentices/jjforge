@@ -2,6 +2,7 @@
   "name": "jjforge-web",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "build": "pnpm generate && pnpm --filter @jjforge/web build",

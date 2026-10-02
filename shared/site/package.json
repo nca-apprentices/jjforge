@@ -1,6 +1,7 @@
 {
   "name": "jjforge-site",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "sync": "node scripts/sync-docs.mjs",
