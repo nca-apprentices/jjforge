@@ -23,6 +23,9 @@ ingress:
   enabled: true
   className: traefik
   host: jjforge.example.com
+  # Traefik Middlewares in the release's namespace that every request passes,
+  # such as [github-login].
+  middlewares: []
   tls:
     enabled: true
     secretName: jjforge-tls
