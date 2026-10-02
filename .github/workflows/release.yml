@@ -126,6 +126,31 @@ jobs:
           generate_release_notes: true
           files: dist/*
 
+  # Ticks the "run again" box on infra's Dependency Dashboard, which makes
+  # Renovate run there now instead of hours later. That run merges the
+  # release into dev and opens the PR for prod. The infra-trigger GitHub App
+  # can edit issues in infra and nothing else.
+  deploy:
+    name: Deploy
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: token
+        with:
+          client-id: ${{ vars.INFRA_TRIGGER_CLIENT_ID }}
+          private-key: ${{ secrets.INFRA_TRIGGER_PRIVATE_KEY }}
+          repositories: infra
+      - name: Trigger Renovate in infra
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          GH_REPO: ${{ github.repository_owner }}/infra
+        run: |
+          dashboard=$(gh issue list --author app/renovate --search 'Dependency Dashboard in:title' --json number --jq '.[0].number')
+          gh issue view "$dashboard" --json body --jq .body |
+            sed 's/^- \[ \] <!-- manual job -->/- [x] <!-- manual job -->/' |
+            gh issue edit "$dashboard" --body-file -
+
   # Writes Formula/jf.rb in nca-apprentices/homebrew-tap, so
   # `brew install nca-apprentices/tap/jf` installs this release. The tap's
   # deploy key, stored as a secret here, can push to the tap and nothing else.
