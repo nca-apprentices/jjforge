@@ -16,11 +16,16 @@ jjforge-proto = { path = "proto" }
 
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive", "env"] }
+http = "1.5.0"
+metrics = "0.24.6"
+# The push gateway would pull in a TLS stack that /metrics doesn't need.
+metrics-exporter-prometheus = { version = "0.18.3", default-features = false, features = ["http-listener"] }
 prost = "0.14.4"
 tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
 tonic-prost-build = "0.14.6"
+tower = "0.5.3"
 
 # Every crate opts in with `[lints] workspace = true`. clippy.toml lets tests
 # unwrap, since a panic there is the failure.

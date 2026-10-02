@@ -27,9 +27,14 @@ spec:
           env:
             - name: VCSD_ADDR
               value: 0.0.0.0:50052
+            - name: VCSD_METRICS_ADDR
+              value: 0.0.0.0:9090
           ports:
             - name: grpc
               containerPort: 50052
+            # Prometheus metrics, off the Service.
+            - name: metrics
+              containerPort: 9090
           readinessProbe:
             tcpSocket:
               port: grpc

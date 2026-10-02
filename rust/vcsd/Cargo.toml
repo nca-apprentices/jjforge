@@ -11,8 +11,12 @@ publish.workspace = true
 jjforge-proto.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+http.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
 tokio = { workspace = true, features = ["signal"] }
 tonic.workspace = true
+tower.workspace = true
 
 [lints]
 workspace = true

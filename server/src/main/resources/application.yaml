@@ -5,11 +5,20 @@ spring:
     virtual:
       enabled: true
 
+# The actuator listens on a port of its own, which the Service and the Ingress
+# don't route to, so the internet never sees /actuator/prometheus.
 management:
+  server:
+    port: 8081
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus
+  # Buckets, not only a count and a sum, so Grafana can show the p95 latency.
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 jjforge:
   vcsd:
