@@ -19,7 +19,8 @@ The conventions follow [clig.dev](https://clig.dev).
 - `jf import <path>` copies the history of an existing jj repository into a
   jjforge repository, whatever backend the source uses.
 - `jf init --store s3://bucket/repo` keeps a repository in a bucket without a
-  forge. Only people trusted with the bucket can write to it.
+  forge, and `jf clone --store` reads one from its storage. Only people trusted
+  with the bucket can write to it.
 
 ## Output
 

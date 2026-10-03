@@ -18,7 +18,7 @@ without git it is the only way into the forge, as
   - [E01 Planning and docs](https://github.com/nca-apprentices/jjforge/issues/2)
   - [E02 Contract first](https://github.com/nca-apprentices/jjforge/issues/3)
   - [E03 Module boundaries](https://github.com/nca-apprentices/jjforge/issues/4)
-  - [E36 Storage kernel](https://github.com/nca-apprentices/jjforge/issues/NEW_E36)
+  - [E36 Storage kernel](https://github.com/nca-apprentices/jjforge/issues/84)
 - [I1 Identity and access](https://github.com/nca-apprentices/jjforge/issues/5)
   - [E04 Human login](https://github.com/nca-apprentices/jjforge/issues/6)
   - [E05 Authorization baseline](https://github.com/nca-apprentices/jjforge/issues/13)
