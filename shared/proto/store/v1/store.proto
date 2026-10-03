@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package store.v1;
+
+option java_multiple_files = true;
+option java_package = "dev.nca.jjforge.store.v1";
+
+// The native jj object format. vcsd and the backend in `jf` read and write it,
+// and the sync protocol carries it. See
+// shared/docs/adr/0007-native-jj-without-git.md.
+//
+// An object is stored as an encoded `StoredObject`, and its ID is the BLAKE3
+// hash of those bytes: 32 bytes. Writers encode deterministically, and readers
+// verify the hash.
+
+message StoredObject {
+  oneof kind {
+    File file = 1;
+    Tree tree = 2;
+    Commit commit = 3;
+    Operation operation = 4;
+    View view = 5;
+    Symlink symlink = 6;
+  }
+}
+
+message File {
+  bytes content = 1;
+}
+
+message Symlink {
+  string target = 1;
+}
+
+message Tree {
+  // Sorted by name, bytewise. Names never repeat.
+  repeated TreeEntry entries = 1;
+}
+
+message TreeEntry {
+  string name = 1;
+  oneof value {
+    FileRef file = 2;
+    // The ID of a Tree.
+    bytes tree_id = 3;
+    // The ID of a Symlink.
+    bytes symlink_id = 4;
+  }
+}
+
+message FileRef {
+  // The ID of a File.
+  bytes id = 1;
+  bool executable = 2;
+  // jj's copy tracking ID. Empty when the file has none.
+  bytes copy_id = 3;
+}
+
+// A merge of terms: `adds` has exactly one more entry than `removes`. A merge
+// with one add and no removes is resolved. An empty term means absent.
+message TreeMerge {
+  repeated bytes adds = 1;
+  repeated bytes removes = 2;
+}
+
+message Signature {
+  string name = 1;
+  string email = 2;
+  int64 timestamp_millis = 3;
+  // Minutes east of UTC.
+  int32 tz_offset_minutes = 4;
+}
+
+message Commit {
+  // 16 bytes, stable across rewrites.
+  bytes change_id = 1;
+  // The IDs of the parent commits. Only the root commit has none.
+  repeated bytes parent_ids = 2;
+  // The root tree. More than one term means the commit is conflicted.
+  TreeMerge root_tree = 3;
+  Signature author = 4;
+  Signature committer = 5;
+  string description = 6;
+  // The signature that jj's signing backend made over the commit encoded
+  // without this field, in that backend's format, such as SSH or GPG. Empty
+  // when unsigned.
+  bytes signature = 7;
+  // One label per term of `root_tree` when the commit is conflicted. Empty
+  // when it is resolved.
+  repeated string conflict_labels = 8;
+}
+
+// Where a bookmark points. More than one add means the bookmark is conflicted.
+message RefTarget {
+  repeated bytes adds = 1;
+  repeated bytes removes = 2;
+}
+
+message View {
+  // The commits that are visible, as jj's heads.
+  repeated bytes head_ids = 1;
+  map<string, RefTarget> bookmarks = 2;
+  // Used by a local repository only: the refs last seen on each remote.
+  map<string, RemoteView> remote_views = 3;
+  // Used by a local repository only: each workspace's working-copy commit.
+  map<string, bytes> working_copy_commit_ids = 4;
+  map<string, RefTarget> tags = 5;
+}
+
+message RemoteView {
+  map<string, RefTarget> bookmarks = 1;
+  map<string, RefTarget> tags = 2;
+}
+
+message Operation {
+  // Several parents mean concurrent operations were merged.
+  repeated bytes parent_ids = 1;
+  // The ID of a View.
+  bytes view_id = 2;
+  int64 start_time_millis = 3;
+  int64 end_time_millis = 4;
+  string description = 5;
+  // jj's operation attributes. The forge sets `jjforge.principal` to the
+  // principal that made the operation and `jjforge.delegation` to the chain
+  // that delegated to it, outermost first, both from the verified token.
+  map<string, string> attributes = 6;
+  // For each commit this operation wrote, the commits it replaced, keyed by
+  // the commit ID in hexadecimal. Always recorded.
+  map<string, CommitIds> commit_predecessors = 7;
+  // The segments that hold the objects this operation made visible. The
+  // store sets it when it writes the operation, as ADR 0006 decides, and
+  // jj-lib never sees it.
+  repeated bytes segment_ids = 8;
+  // The rest is what jj keeps on a local operation.
+  string hostname = 9;
+  string username = 10;
+  bool is_snapshot = 11;
+  optional string workspace_name = 12;
+}
+
+message CommitIds {
+  repeated bytes ids = 1;
+}

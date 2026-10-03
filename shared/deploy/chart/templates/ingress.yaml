@@ -6,8 +6,6 @@ metadata:
   labels:
     {{- include "jjforge.labels" . | nindent 4 }}
   annotations:
-    # The Rust client speaks gRPC to vcsd on the same hostname and port as the
-    # web app, so an installation needs one DNS name and one certificate.
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     {{- with .Values.ingress.middlewares }}
     traefik.ingress.kubernetes.io/router.middlewares: {{ range $i, $name := . }}{{ if $i }},{{ end }}{{ $.Release.Namespace }}-{{ $name }}@kubernetescrd{{ end }}
@@ -24,13 +22,6 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
-          - path: /echo.v1.EchoService
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "jjforge.fullname" . }}-vcsd
-                port:
-                  name: grpc
           - path: /
             pathType: Prefix
             backend:

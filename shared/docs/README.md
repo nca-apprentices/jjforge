@@ -16,5 +16,6 @@ why it exists, how it fits together, and how to work on it.
 | [Development](development.md)      | Building, running, checking, and releasing         |
 
 The contracts live next to these documents:
-[openapi.yaml](../openapi.yaml) for the public API and [proto](../proto/) for
-the internal gRPC contract between the server and vcsd.
+[openapi.yaml](../openapi.yaml) for the REST API, and [proto](../proto/) for
+the sync protocol, the native object format, and the internal gRPC contracts
+between the server and vcsd.

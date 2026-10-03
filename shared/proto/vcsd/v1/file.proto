@@ -29,7 +29,8 @@ message TreeEntry {
     KIND_FILE = 1;
     KIND_DIRECTORY = 2;
     KIND_SYMLINK = 3;
-    KIND_SUBMODULE = 4;
+    // Never set: the native format has no submodules, as ADR 0007 decides.
+    KIND_SUBMODULE = 4 [deprecated = true];
   }
 
   string name = 1;

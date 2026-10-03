@@ -19,7 +19,7 @@ class EchoControllerTest {
 
         mvc
             .perform(
-                post("/api/echo")
+                post("/api/v1/echo")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{"message":"hello"}"""),
             ).andExpect(status().isOk)

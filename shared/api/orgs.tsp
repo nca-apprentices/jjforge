@@ -11,14 +11,14 @@ namespace jjforge;
 @returnsDoc("One page of organizations.")
 @extension("x-requirements", #["#27"])
 @get
-@route("/api/orgs")
+@route("/api/v1/orgs")
 op listOrgs(...Parameters.Paging): OrgPage | Unauthenticated;
 
 @tag("orgs")
 @summary("Create an organization, owned by the principal")
 @extension("x-requirements", #["#24"])
 @post
-@route("/api/orgs")
+@route("/api/v1/orgs")
 op createOrg(@body body: OrgCreate):
   | Created<Org>
   | Invalid
@@ -30,7 +30,7 @@ op createOrg(@body body: OrgCreate):
 @returnsDoc("The organization.")
 @extension("x-requirements", #["#27"])
 @get
-@route("/api/orgs/{org}")
+@route("/api/v1/orgs/{org}")
 op getOrg(...Parameters.Org): Org | Unauthenticated | NotFound;
 
 @tag("orgs")
@@ -38,7 +38,7 @@ op getOrg(...Parameters.Org): Org | Unauthenticated | NotFound;
 @returnsDoc("Verified and saved.")
 @extension("x-requirements", #["#7"])
 @put
-@route("/api/orgs/{org}/identity-provider")
+@route("/api/v1/orgs/{org}/identity-provider")
 op setIdentityProvider(...Parameters.Org, @body body: IdentityProvider):
   | IdentityProvider
   | Invalid
@@ -51,7 +51,7 @@ op setIdentityProvider(...Parameters.Org, @body body: IdentityProvider):
 @returnsDoc("One page of members.")
 @extension("x-requirements", #["#14", "#15"])
 @get
-@route("/api/orgs/{org}/members")
+@route("/api/v1/orgs/{org}/members")
 op listMembers(...Parameters.Org, ...Parameters.Paging):
   | MemberPage
   | Unauthenticated
@@ -62,7 +62,7 @@ op listMembers(...Parameters.Org, ...Parameters.Paging):
 @returnsDoc("The member with their role.")
 @extension("x-requirements", #["#14", "#15"])
 @put
-@route("/api/orgs/{org}/members/{principal}")
+@route("/api/v1/orgs/{org}/members/{principal}")
 op putMember(
   ...Parameters.Org,
   ...Parameters.Principal,
@@ -75,7 +75,7 @@ op putMember(
 @returnsDoc("Removed.")
 @extension("x-requirements", #["#14"])
 @delete
-@route("/api/orgs/{org}/members/{principal}")
+@route("/api/v1/orgs/{org}/members/{principal}")
 op removeMember(...Parameters.Org, ...Parameters.Principal):
   | NoContentResponse
   | Unauthenticated
@@ -88,7 +88,7 @@ op removeMember(...Parameters.Org, ...Parameters.Principal):
 @returnsDoc("One page of access records.")
 @extension("x-requirements", #["#17"])
 @get
-@route("/api/orgs/{org}/access-records")
+@route("/api/v1/orgs/{org}/access-records")
 op listAccessRecords(...Parameters.Org, ...Parameters.Paging):
   | AccessRecordPage
   | Unauthenticated

@@ -138,7 +138,15 @@ kover {
     reports {
         filters {
             excludes {
-                packages("dev.nca.jjforge.api", "dev.nca.jjforge.api.model", "dev.nca.jjforge.echo.v1", "dev.nca.jjforge.vcsd.v1")
+                packages(
+                    "dev.nca.jjforge.api",
+                    "dev.nca.jjforge.api.model",
+                    "dev.nca.jjforge.echo.v1",
+                    "dev.nca.jjforge.kernel.v1",
+                    "dev.nca.jjforge.store.v1",
+                    "dev.nca.jjforge.sync.v1",
+                    "dev.nca.jjforge.vcsd.v1",
+                )
                 classes("dev.nca.jjforge.JjforgeApplication", "dev.nca.jjforge.JjforgeApplicationKt")
             }
         }

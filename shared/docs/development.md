@@ -31,7 +31,7 @@ CI runs lint, test, rust:lint, and rust:test.
 With podman, which builds both images from the repository root:
 
 ```text
-mise run up      # server on :8080, vcsd on :50052
+mise run up      # server on :8080, vcsd behind it
 mise run smoke   # in a second terminal: web, server, vcsd and cli
 ```
 
@@ -43,10 +43,10 @@ Without containers:
 (cd rust && cargo run --bin vcsd)
 gradle -p server bootRun
 (cd rust && cargo run --bin jf -- echo hi)
-curl -X POST localhost:8080/api/echo -H 'content-type: application/json' -d '{"message":"hi"}'
+curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '{"message":"hi"}'
 ```
 
-`JJFORGE_ENDPOINT` points the CLI at another vcsd, such as
+`JJFORGE_ENDPOINT` points the CLI at another forge, such as
 `https://jjforge.example.com`.
 
 ## Trying the API
@@ -58,8 +58,6 @@ against any other server too:
 ```text
 hurl --test --variable server=https://jjforge.example.com shared/http/*.hurl
 ```
-
-Hurl cannot send gRPC, so vcsd is exercised through the `jf` CLI.
 
 `mise run lint` also checks every relative link and anchor in the Markdown
 with lychee. `mise run site:build` builds the docs site in `shared/site/` from
@@ -91,9 +89,17 @@ requirements it serves. [Planning](planning.md) has the rules.
     implements no interface or maps a route of its own, and on an interface
     without a controller. See
     [ADR 0011](adr/0011-controllers-implement-contracts.md).
-- `shared/proto/`: the internal contract the server uses to call vcsd. CI runs
-  `buf breaking` against `main`, because the server and vcsd run different
-  versions during a rolling deploy.
+- `shared/proto/`: four contracts, each guarded by `buf breaking` against
+  `main`, because the server, vcsd, and `jf` run different versions during a
+  rolling deploy and long after it.
+  - `vcsd/v1` and `kernel/v1`: the internal gRPC contracts the server uses to
+    call vcsd. See [ADR 0005](adr/0005-storage-kernel.md).
+  - `sync/v1`: the public sync protocol between `jf` and vcsd, HTTP with
+    Protocol Buffers bodies. Its routes are listed in the file. See
+    [ADR 0002](adr/0002-public-protocols.md).
+  - `store/v1`: the native object format. A stored object never changes, so a
+    field is only ever added. See
+    [ADR 0007](adr/0007-native-jj-without-git.md).
 
 ## Releasing
 

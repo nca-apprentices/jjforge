@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package sync.v1;
+
+option java_multiple_files = true;
+option java_package = "dev.nca.jjforge.sync.v1";
+
+// The sync protocol between `jf` and vcsd. It is public, and it is HTTP, not
+// gRPC, so a cache can serve immutable reads. See
+// shared/docs/adr/0002-public-protocols.md.
+//
+// Every request carries a Biscuit token as `Authorization: Bearer`. Bodies are
+// these messages, encoded, as `application/x-protobuf`. Errors are
+// `application/problem+json` with the problem codes of the REST API. IDs in a
+// path are hexadecimal. `{base}` is a repository's clone address:
+// `https://{host}/sync/v1/{org_id}/{repo_id}`.
+//
+//   GET  {base}/head                  -> Head, with the operation ID as ETag
+//   GET  {base}/operations?since={id} -> ObjectBundle of operations and views
+//   POST {base}/objects/missing       HashList -> HashList of absent IDs
+//   GET  {base}/objects/{id}          -> an encoded store.v1.StoredObject,
+//                                        immutable, or a redirect to a
+//                                        short-lived signed URL
+//   POST {base}/objects/fetch         HashList -> ObjectBundle
+//   POST {base}/objects               ObjectBundle -> 204
+//   POST {base}/publish               PublishRequest -> PublishResponse,
+//                                        with `If-Match` naming the expected
+//                                        head
+//
+// A publish whose expected head is stale answers 412 with
+// `precondition_failed` and the current head. `jf` fetches, merges, and tries
+// again or reports the conflict.
+
+message Head {
+  bytes operation_id = 1;
+}
+
+message HashList {
+  repeated bytes ids = 1;
+}
+
+// Encoded store.v1.StoredObject messages. vcsd hashes each one on upload and
+// refuses the bundle if any object is malformed.
+message ObjectBundle {
+  repeated bytes objects = 1;
+}
+
+message BookmarkUpdate {
+  string name = 1;
+  // The target the client last saw, as encoded store.v1.RefTarget. Empty
+  // means the bookmark was absent.
+  bytes old_target = 2;
+  // Empty deletes the bookmark.
+  bytes new_target = 3;
+}
+
+// The change a client proposes. vcsd builds the operation from it, so the
+// principal and the time come from the forge, never from the client.
+message PublishRequest {
+  bytes expected_operation_id = 1;
+  repeated BookmarkUpdate bookmarks = 2;
+  // Commits to make visible without a bookmark, such as a change under review.
+  repeated bytes head_ids = 3;
+  // Commits to hide, such as an abandoned change.
+  repeated bytes hidden_ids = 4;
+  // For each published commit, the commits it replaced, keyed by the commit ID
+  // in hexadecimal, as an encoded store.v1.CommitIds.
+  map<string, bytes> commit_predecessors = 5;
+  string description = 6;
+}
+
+message PublishResponse {
+  bytes operation_id = 1;
+}

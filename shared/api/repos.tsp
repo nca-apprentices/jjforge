@@ -17,7 +17,7 @@ model ActivityStream {
 @returnsDoc("One page of repositories.")
 @extension("x-requirements", #["#27"])
 @get
-@route("/api/orgs/{org}/repos")
+@route("/api/v1/orgs/{org}/repos")
 op listRepos(...Parameters.Org, ...Parameters.Paging):
   | RepoPage
   | Unauthenticated
@@ -27,7 +27,7 @@ op listRepos(...Parameters.Org, ...Parameters.Paging):
 @summary("Create an empty repository")
 @extension("x-requirements", #["#25", "#26", "#15"])
 @post
-@route("/api/orgs/{org}/repos")
+@route("/api/v1/orgs/{org}/repos")
 op createRepo(...Parameters.Org, @body body: RepoCreate):
   | Created<Repo>
   | Invalid
@@ -41,7 +41,7 @@ op createRepo(...Parameters.Org, @body body: RepoCreate):
 @returnsDoc("The repository.")
 @extension("x-requirements", #["#27", "#52"])
 @get
-@route("/api/orgs/{org}/repos/{repo}")
+@route("/api/v1/orgs/{org}/repos/{repo}")
 op getRepo(...Parameters.InRepo): Repo | Unauthenticated | NotFound;
 
 @tag("repos")
@@ -49,7 +49,7 @@ op getRepo(...Parameters.InRepo): Repo | Unauthenticated | NotFound;
 @returnsDoc("Deleted.")
 @extension("x-requirements", #["#28", "#15"])
 @delete
-@route("/api/orgs/{org}/repos/{repo}")
+@route("/api/v1/orgs/{org}/repos/{repo}")
 op deleteRepo(...Parameters.InRepo):
   | NoContentResponse
   | Unauthenticated
@@ -65,7 +65,7 @@ op deleteRepo(...Parameters.InRepo):
 @summary("Stream the repository's activity as server-sent events")
 @extension("x-requirements", #["#49"])
 @get
-@route("/api/orgs/{org}/repos/{repo}/activity")
+@route("/api/v1/orgs/{org}/repos/{repo}/activity")
 op streamActivity(
   ...Parameters.InRepo,
   @header("Last-Event-ID") lastEventId?: string,

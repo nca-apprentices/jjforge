@@ -18,6 +18,9 @@ issues hold status, not durable content.
   decision record (ADR) in `shared/docs/adr/`. ADRs are numbered in order
   and start from [the template](0000-template.md).
 - An ADR is proposed in its own PR and accepted when the PR merges.
-- An accepted ADR is never edited. A new ADR supersedes it, and the old one's
-  status names its successor.
+- Until the first release, an accepted ADR is edited or deleted in a PR when
+  its decision changes, and the index follows. Nothing has shipped that
+  depends on the old decision.
+- From the first release on, an accepted ADR is never edited. A new ADR
+  supersedes it, and the old one's status names its successor.
 - The [index](README.md) lists every ADR with its status.
