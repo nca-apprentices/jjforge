@@ -1,6 +1,5 @@
-//! vcsd serves `echo/v1` on one port. The client and the server both call it,
-//! which is all it has to prove for now. Prometheus metrics are served on a
-//! second port.
+//! vcsd serves `echo/v1` on one port. The server calls it, which is all it
+//! has to prove for now. Prometheus metrics are served on a second port.
 
 use std::future::Future;
 use std::net::SocketAddr;
@@ -54,9 +53,9 @@ impl EchoService for Echo {
 }
 
 /// Counts and times every gRPC call by its method, the request path such as
-/// `/echo.v1.EchoService/Echo`. The Ingress forwards any path under a service,
-/// so an unimplemented one counts as `unknown` rather than as a label value of
-/// its own that a client could invent without end.
+/// `/echo.v1.EchoService/Echo`. An unimplemented path counts as `unknown`
+/// rather than as a label value of its own, so a caller can't grow the label
+/// set without end.
 #[derive(Clone)]
 struct Metered<S>(S);
 

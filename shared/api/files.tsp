@@ -38,7 +38,7 @@ model FileRange {
 @returnsDoc("One page of entries, directories first, then by name.")
 @extension("x-requirements", #["#42"])
 @get
-@route("/api/orgs/{org}/repos/{repo}/tree")
+@route("/api/v1/orgs/{org}/repos/{repo}/tree")
 op listTree(
   ...Parameters.InRepo,
   ...Parameters.Rev,
@@ -56,7 +56,7 @@ op listTree(
 @returnsDoc("The whole file.")
 @extension("x-requirements", #["#43", "#44", "#46"])
 @get
-@route("/api/orgs/{org}/repos/{repo}/contents")
+@route("/api/v1/orgs/{org}/repos/{repo}/contents")
 op readFile(
   ...Parameters.InRepo,
   ...Parameters.Rev,
@@ -77,7 +77,7 @@ op readFile(
 @returnsDoc("One page of file diffs.")
 @extension("x-requirements", #["#45", "#46"])
 @get
-@route("/api/orgs/{org}/repos/{repo}/diff")
+@route("/api/v1/orgs/{org}/repos/{repo}/diff")
 op getDiff(
   ...Parameters.InRepo,
   @query rev?: string,

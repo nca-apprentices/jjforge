@@ -93,7 +93,7 @@ op getKeys(): KeySet | NotFound;
 @returnsDoc("The principal behind the token.")
 @extension("x-requirements", #["#8"])
 @get
-@route("/api/me")
+@route("/api/v1/me")
 op getMe(): Principal | Unauthenticated;
 
 @tag("auth")
@@ -101,7 +101,7 @@ op getMe(): Principal | Unauthenticated;
 @returnsDoc("One page of sessions.")
 @extension("x-requirements", #["#10"])
 @get
-@route("/api/me/sessions")
+@route("/api/v1/me/sessions")
 op listSessions(...Parameters.Paging): SessionPage | Unauthenticated;
 
 @tag("auth")
@@ -109,7 +109,7 @@ op listSessions(...Parameters.Paging): SessionPage | Unauthenticated;
 @returnsDoc("Revoked.")
 @extension("x-requirements", #["#10", "#11"])
 @delete
-@route("/api/me/sessions/{session}")
+@route("/api/v1/me/sessions/{session}")
 op revokeSession(@format("uuid") @path session: string):
   | NoContentResponse
   | Unauthenticated

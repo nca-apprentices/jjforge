@@ -5,8 +5,8 @@ set -euo pipefail
 # Web and REST: the requests in shared/http/, with their asserts.
 hurl --test --variable server="http://localhost:${JJFORGE_PORT:-8080}" shared/http/*.hurl
 
-# gRPC, which hurl cannot send: the jf CLI against vcsd.
-answer=$(JJFORGE_ENDPOINT=http://localhost:50052 cargo run --manifest-path rust/Cargo.toml -q --bin jf -- echo smoke)
+# The jf CLI, through the same REST API.
+answer=$(JJFORGE_ENDPOINT="http://localhost:${JJFORGE_PORT:-8080}" cargo run --manifest-path rust/Cargo.toml -q --bin jf -- echo smoke)
 if [[ $answer != smoke ]]; then
   echo "cli: got '$answer'" >&2
   exit 1

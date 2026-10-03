@@ -134,7 +134,10 @@ model Repo {
   @format("uuid") id: string;
   org: Name;
   name: Name;
+
+  /** The sync address `jf` clones from: `https://{host}/sync/v1/{orgId}/{repoId}`. */
   cloneUrl: url;
+
   createdAt: utcDateTime;
 }
 

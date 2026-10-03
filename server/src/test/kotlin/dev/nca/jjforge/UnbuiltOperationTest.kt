@@ -26,11 +26,11 @@ class UnbuiltOperationTest {
     @ParameterizedTest
     @ValueSource(
         strings = [
-            "/api/me",
-            "/api/orgs",
-            "/api/orgs/acme/repos",
-            "/api/orgs/acme/repos/forge/operations",
-            "/api/orgs/acme/repos/forge/tree",
+            "/api/v1/me",
+            "/api/v1/orgs",
+            "/api/v1/orgs/acme/repos",
+            "/api/v1/orgs/acme/repos/forge/operations",
+            "/api/v1/orgs/acme/repos/forge/tree",
         ],
     )
     fun `an unbuilt operation answers 501`(path: String) {
