@@ -6,7 +6,7 @@
 // - points a link to another doc at its site route, such as
 //   adr/0001-x.md#context -> /adr/0001-x/#context,
 // - points any other relative link at the file on GitHub, such as
-//   ../openapi.yaml -> https://github.com/nca-apprentices/jjforge/blob/main/shared/openapi.yaml.
+//   ../proto/ -> https://github.com/nca-apprentices/jjforge/blob/main/shared/proto/.
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 

@@ -16,8 +16,8 @@ The options were:
   the same repetition.
 - Write TypeSpec and compile it to OpenAPI. Templates such as `Page<T>` remove
   the repetition, and the compiler checks every reference. It is one more
-  language, and the generated YAML must stay in the repository for the
-  generators and for review.
+  language, and the generators need the compiled YAML, so every build
+  compiles it first.
 
 A trial compiled the TypeSpec to an OpenAPI file with no change that oasdiff
 reports and with the same generated Kotlin and TypeScript types. It took 932
@@ -26,9 +26,11 @@ lines against 1,298.
 ## Decision
 
 - `shared/api/` holds the contract in TypeSpec. `mise run spec:build` compiles
-  it to `shared/openapi.yaml`, which is committed and never edited.
-- `mise run spec:lint` fails when `shared/openapi.yaml` doesn't match a fresh
-  compile or when a `.tsp` file isn't formatted.
+  it to `shared/openapi.yaml`, which git ignores and nobody edits. Every task
+  that reads it depends on `spec:build`, the server image compiles it in its
+  web stage, and the release attaches it as an asset.
+- `mise run spec:lint` fails when a `.tsp` file isn't formatted, then lints
+  the compiled file with Redocly.
 - Operations stay in the `jjforge` namespace, each with its own `@tag` and full
   `@route`. TypeSpec prefixes the operation ID of an operation in a nested
   namespace or interface, as in `Orgs_listOrgs`, which renames the generated

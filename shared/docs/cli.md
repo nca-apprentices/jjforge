@@ -25,7 +25,7 @@ The conventions follow [clig.dev](https://clig.dev).
 ## Output
 
 - Data goes to stdout, and messages go to stderr.
-- `--json` prints exactly the schema that [openapi.yaml](../openapi.yaml)
+- `--json` prints exactly the schema that [the contract](../api/)
   defines for the same data, so a script reads one shape everywhere
   ([#53](https://github.com/nca-apprentices/jjforge/issues/53)).
 - Color appears only when stdout is a terminal, and `NO_COLOR` turns it off.

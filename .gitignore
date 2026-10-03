@@ -10,6 +10,8 @@ build/
 node_modules/
 dist/
 web/shared/api/src/contract.gen.ts
+# Compiled from shared/api by `mise run spec:build`
+shared/openapi.yaml
 
 # Generated: the release copies the web build into the server jar
 server/src/main/resources/static/

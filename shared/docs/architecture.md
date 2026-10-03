@@ -29,7 +29,7 @@ jf ──────────── sync/v1 ─────────► v
   [ADR 0006](adr/0006-object-store-is-the-source-of-truth.md) and
   [ADR 0008](adr/0008-postgres-holds-read-models.md).
 - The CLI, the web app, and agents use one REST API with server-sent events,
-  described in [openapi.yaml](../openapi.yaml). `jf` moves objects and
+  described in [shared/api](../api/). `jf` moves objects and
   operations over `sync/v1`, which vcsd serves. There are no private endpoints.
   See [ADR 0002](adr/0002-public-protocols.md).
 - vcsd is the storage kernel. It holds VCS semantics and storage mechanisms,
@@ -47,7 +47,7 @@ Today only the echo skeleton runs: `jf echo` and the web form call
 | Path                         | What it is                                                              |
 | ---------------------------- | ----------------------------------------------------------------------- |
 | `shared/api/`                | The public REST contract in TypeSpec                                    |
-| `shared/openapi.yaml`        | The REST contract compiled to OpenAPI, for the generators               |
+| `shared/openapi.yaml`        | Compiled from `shared/api/` for the generators, ignored by git          |
 | `shared/proto/echo/v1/`      | The echo contract, removed once a real operation runs                   |
 | `shared/proto/vcsd/v1/`      | The internal contract for reading repositories                          |
 | `shared/proto/kernel/v1/`    | The internal contract for streams, names, and leases                    |

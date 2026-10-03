@@ -4,7 +4,8 @@ Status: accepted, 2026-10-02. Deciders: jjforge maintainers.
 
 ## Context
 
-[openapi.yaml](../../openapi.yaml) is written before the code that serves it.
+The contract in [shared/api](../../api/) is written before the code that
+serves it.
 A hand-written request mapping ties nothing to the contract before a request
 arrives, and an operation in the contract that no controller serves answers
 404, which looks like a typo, not like work to do.

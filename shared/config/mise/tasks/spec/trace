@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Map each Requirement issue to the specs and tests that cite it"
+#MISE depends=["spec:build"]
 set -euo pipefail
 
 # One line per operation: its operationId, then the issues it cites, such as
