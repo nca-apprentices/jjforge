@@ -21,6 +21,15 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      # Meets the "restricted" Pod Security Standard. The image's USER is the
+      # numeric 65532, so the kubelet can check that it isn't root.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: server
           image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}
@@ -41,8 +50,20 @@ spec:
             httpGet:
               path: /actuator/health/liveness
               port: management
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          # Tomcat's work directories and the JVM's hsperfdata go to /tmp.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

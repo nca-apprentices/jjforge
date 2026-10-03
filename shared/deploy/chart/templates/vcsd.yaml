@@ -21,6 +21,15 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      # Meets the "restricted" Pod Security Standard. The image's USER is the
+      # numeric 65532, so the kubelet can check that it isn't root.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: vcsd
           image: {{ .Values.vcsd.image.repository }}:{{ .Values.vcsd.image.tag | default .Chart.AppVersion }}
@@ -38,6 +47,11 @@ spec:
           readinessProbe:
             tcpSocket:
               port: grpc
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
           resources:
             {{- toYaml .Values.vcsd.resources | nindent 12 }}
 ---
