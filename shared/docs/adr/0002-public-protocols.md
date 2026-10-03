@@ -28,7 +28,10 @@ The options were:
 - The public API is HTTP only, and it has two parts:
   1. REST, plus server-sent events for live updates, served by the server and
      described in [openapi.yaml](../../openapi.yaml). The CLI, the web app, and
-     agents use the same API, and there are no private endpoints.
+     agents use the same API, and there are no private endpoints. Its routes
+     start with `/api/v1/`. A version changes only by addition, and a change
+     that breaks a client starts `/api/v2/` next to it. The OAuth routes stay
+     where their RFCs put them.
   2. The sync protocol `sync/v1`, served by vcsd under `/sync/v1/` on the same
      host. Its messages are in [proto/sync/v1](../../proto/sync/v1/), and its
      routes are listed there.

@@ -41,7 +41,7 @@ jf ──────────── sync/v1 ─────────► v
   [ADR 0010](adr/0010-roles-and-deployment-modes.md).
 
 Today only the echo skeleton runs: `jf echo` and the web form call
-`POST /api/echo`, and the server passes the message through vcsd over
+`POST /api/v1/echo`, and the server passes the message through vcsd over
 `echo/v1`. Every other operation in the contract answers 501.
 
 | Path                         | What it is                                                              |

@@ -11,5 +11,5 @@ namespace jjforge;
 @returnsDoc("The message vcsd answered.")
 @useAuth(NoAuth)
 @post
-@route("/api/echo")
+@route("/api/v1/echo")
 op echo(@body body: Echo): Echo | Invalid;

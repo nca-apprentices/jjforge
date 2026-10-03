@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: jjforge
-  version: v0
+  version: '1'
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -53,7 +53,7 @@ paths:
       x-requirements:
         - '#8'
         - '#9'
-  /api/echo:
+  /api/v1/echo:
     post:
       operationId: echo
       summary: Echo a message through vcsd
@@ -81,7 +81,7 @@ paths:
               $ref: '#/components/schemas/Echo'
       security:
         - {}
-  /api/me:
+  /api/v1/me:
     get:
       operationId: getMe
       summary: Show the signed-in principal
@@ -103,7 +103,7 @@ paths:
         - auth
       x-requirements:
         - '#8'
-  /api/me/sessions:
+  /api/v1/me/sessions:
     get:
       operationId: listSessions
       summary: List the signed-in principal's sessions
@@ -127,7 +127,7 @@ paths:
         - auth
       x-requirements:
         - '#10'
-  /api/me/sessions/{session}:
+  /api/v1/me/sessions/{session}:
     delete:
       operationId: revokeSession
       summary: Revoke one session
@@ -160,7 +160,7 @@ paths:
       x-requirements:
         - '#10'
         - '#11'
-  /api/orgs:
+  /api/v1/orgs:
     get:
       operationId: listOrgs
       summary: List the organizations the principal belongs to
@@ -223,7 +223,7 @@ paths:
               $ref: '#/components/schemas/OrgCreate'
       x-requirements:
         - '#24'
-  /api/orgs/{org}:
+  /api/v1/orgs/{org}:
     get:
       operationId: getOrg
       summary: Show one organization
@@ -254,7 +254,7 @@ paths:
         - orgs
       x-requirements:
         - '#27'
-  /api/orgs/{org}/access-records:
+  /api/v1/orgs/{org}/access-records:
     get:
       operationId: listAccessRecords
       summary: List the organization's access decisions, newest first
@@ -293,7 +293,7 @@ paths:
         - orgs
       x-requirements:
         - '#17'
-  /api/orgs/{org}/identity-provider:
+  /api/v1/orgs/{org}/identity-provider:
     put:
       operationId: setIdentityProvider
       summary: Connect the organization's identity provider
@@ -342,7 +342,7 @@ paths:
               $ref: '#/components/schemas/IdentityProvider'
       x-requirements:
         - '#7'
-  /api/orgs/{org}/members:
+  /api/v1/orgs/{org}/members:
     get:
       operationId: listMembers
       summary: List the organization's members and their roles
@@ -376,7 +376,7 @@ paths:
       x-requirements:
         - '#14'
         - '#15'
-  /api/orgs/{org}/members/{principal}:
+  /api/v1/orgs/{org}/members/{principal}:
     put:
       operationId: putMember
       summary: Add a member or change their role
@@ -461,7 +461,7 @@ paths:
         - orgs
       x-requirements:
         - '#14'
-  /api/orgs/{org}/repos:
+  /api/v1/orgs/{org}/repos:
     get:
       operationId: listRepos
       summary: List the organization's repositories
@@ -550,7 +550,7 @@ paths:
         - '#25'
         - '#26'
         - '#15'
-  /api/orgs/{org}/repos/{repo}:
+  /api/v1/orgs/{org}/repos/{repo}:
     get:
       operationId: getRepo
       summary: Show one repository and its clone address
@@ -617,7 +617,7 @@ paths:
       x-requirements:
         - '#28'
         - '#15'
-  /api/orgs/{org}/repos/{repo}/activity:
+  /api/v1/orgs/{org}/repos/{repo}/activity:
     get:
       operationId: streamActivity
       summary: Stream the repository's activity as server-sent events
@@ -658,7 +658,7 @@ paths:
         - repos
       x-requirements:
         - '#49'
-  /api/orgs/{org}/repos/{repo}/bookmarks:
+  /api/v1/orgs/{org}/repos/{repo}/bookmarks:
     get:
       operationId: listBookmarks
       summary: List the bookmarks and their targets
@@ -693,7 +693,7 @@ paths:
       x-requirements:
         - '#40'
         - '#32'
-  /api/orgs/{org}/repos/{repo}/changes:
+  /api/v1/orgs/{org}/repos/{repo}/changes:
     get:
       operationId: listChanges
       summary: List the changes reachable from a revision, newest first
@@ -735,7 +735,7 @@ paths:
       x-requirements:
         - '#35'
         - '#38'
-  /api/orgs/{org}/repos/{repo}/changes/{rev}:
+  /api/v1/orgs/{org}/repos/{repo}/changes/{rev}:
     get:
       operationId: getChange
       summary: Show one change
@@ -776,7 +776,7 @@ paths:
       x-requirements:
         - '#36'
         - '#38'
-  /api/orgs/{org}/repos/{repo}/changes/{rev}/evolution:
+  /api/v1/orgs/{org}/repos/{repo}/changes/{rev}/evolution:
     get:
       operationId: getEvolution
       summary: List the earlier versions of a change, newest first
@@ -817,7 +817,7 @@ paths:
         - history
       x-requirements:
         - '#37'
-  /api/orgs/{org}/repos/{repo}/contents:
+  /api/v1/orgs/{org}/repos/{repo}/contents:
     get:
       operationId: readFile
       summary: Read a file at a revision
@@ -880,7 +880,7 @@ paths:
         - '#43'
         - '#44'
         - '#46'
-  /api/orgs/{org}/repos/{repo}/diff:
+  /api/v1/orgs/{org}/repos/{repo}/diff:
     get:
       operationId: getDiff
       summary: Compare a change with its parents, or two revisions
@@ -946,7 +946,7 @@ paths:
       x-requirements:
         - '#45'
         - '#46'
-  /api/orgs/{org}/repos/{repo}/operations:
+  /api/v1/orgs/{org}/repos/{repo}/operations:
     get:
       operationId: listOperations
       summary: List the operations that changed the repository, newest first
@@ -980,7 +980,7 @@ paths:
         - history
       x-requirements:
         - '#39'
-  /api/orgs/{org}/repos/{repo}/tree:
+  /api/v1/orgs/{org}/repos/{repo}/tree:
     get:
       operationId: listTree
       summary: List a directory at a revision

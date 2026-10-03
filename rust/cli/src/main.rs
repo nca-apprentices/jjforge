@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Calls `POST /api/echo` on the forge and returns the message it answered.
+/// Calls `POST /api/v1/echo` on the forge and returns the message it answered.
 async fn echo(endpoint: &Url, message: String) -> anyhow::Result<String> {
     // reqwest needs one TLS provider per process. A second install, from a
     // test, fails and changes nothing.
@@ -60,7 +60,7 @@ async fn echo(endpoint: &Url, message: String) -> anyhow::Result<String> {
         .ok();
 
     let answer: Echo = reqwest::Client::new()
-        .post(endpoint.join("api/echo")?)
+        .post(endpoint.join("api/v1/echo")?)
         .json(&Echo { message })
         .send()
         .await?
@@ -126,7 +126,7 @@ mod tests {
 
         let request = server.await.unwrap();
         assert!(
-            request.starts_with("POST /api/echo HTTP/1.1\r\n"),
+            request.starts_with("POST /api/v1/echo HTTP/1.1\r\n"),
             "{request}"
         );
         assert!(request.ends_with(r#"{"message":"hi"}"#), "{request}");

@@ -43,7 +43,7 @@ Without containers:
 (cd rust && cargo run --bin vcsd)
 gradle -p server bootRun
 (cd rust && cargo run --bin jf -- echo hi)
-curl -X POST localhost:8080/api/echo -H 'content-type: application/json' -d '{"message":"hi"}'
+curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '{"message":"hi"}'
 ```
 
 `JJFORGE_ENDPOINT` points the CLI at another forge, such as

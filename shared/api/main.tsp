@@ -31,7 +31,7 @@ using OpenAPI;
  */
 @service(#{ title: "jjforge" })
 @info(#{
-  version: "v0",
+  version: "1",
   license: #{ name: "Apache-2.0", identifier: "Apache-2.0" },
 })
 @server("/", "The host that serves the web app")

@@ -11,7 +11,7 @@ namespace jjforge;
 @returnsDoc("One page of changes.")
 @extension("x-requirements", #["#35", "#38"])
 @get
-@route("/api/orgs/{org}/repos/{repo}/changes")
+@route("/api/v1/orgs/{org}/repos/{repo}/changes")
 op listChanges(...Parameters.InRepo, ...Parameters.Rev, ...Parameters.Paging):
   | ChangePage
   | Unauthenticated
@@ -24,7 +24,7 @@ op listChanges(...Parameters.InRepo, ...Parameters.Rev, ...Parameters.Paging):
 @returnsDoc("The change.")
 @extension("x-requirements", #["#36", "#38"])
 @get
-@route("/api/orgs/{org}/repos/{repo}/changes/{rev}")
+@route("/api/v1/orgs/{org}/repos/{repo}/changes/{rev}")
 op getChange(...Parameters.InRepo, ...Parameters.RevPath):
   | Change
   | Unauthenticated
@@ -36,7 +36,7 @@ op getChange(...Parameters.InRepo, ...Parameters.RevPath):
 @returnsDoc("One page of versions.")
 @extension("x-requirements", #["#37"])
 @get
-@route("/api/orgs/{org}/repos/{repo}/changes/{rev}/evolution")
+@route("/api/v1/orgs/{org}/repos/{repo}/changes/{rev}/evolution")
 op getEvolution(
   ...Parameters.InRepo,
   ...Parameters.RevPath,
@@ -48,7 +48,7 @@ op getEvolution(
 @returnsDoc("One page of operations.")
 @extension("x-requirements", #["#39"])
 @get
-@route("/api/orgs/{org}/repos/{repo}/operations")
+@route("/api/v1/orgs/{org}/repos/{repo}/operations")
 op listOperations(...Parameters.InRepo, ...Parameters.Paging):
   | OperationPage
   | Unauthenticated
@@ -59,7 +59,7 @@ op listOperations(...Parameters.InRepo, ...Parameters.Paging):
 @returnsDoc("One page of bookmarks.")
 @extension("x-requirements", #["#40", "#32"])
 @get
-@route("/api/orgs/{org}/repos/{repo}/bookmarks")
+@route("/api/v1/orgs/{org}/repos/{repo}/bookmarks")
 op listBookmarks(...Parameters.InRepo, ...Parameters.Paging):
   | BookmarkPage
   | Unauthenticated

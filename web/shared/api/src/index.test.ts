@@ -25,7 +25,7 @@ describe("echo", () => {
     await expect(echo("hi")).resolves.toBe("hi");
 
     const request: Request = fetch.mock.calls[0]?.[0];
-    expect(request.url).toBe("http://localhost/api/echo");
+    expect(request.url).toBe("http://localhost/api/v1/echo");
     await expect(request.json()).resolves.toEqual({ message: "hi" });
   });
 
