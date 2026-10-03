@@ -6,7 +6,7 @@ says "planned" until that surface is built, and a requirement is done only when
 its row is filled for every surface its epic promises. "None" means the surface
 won't offer the capability.
 
-The API column names the REST operations, the `operationId`s in [openapi.yaml](../openapi.yaml),
+The API column names the REST operations, the `operationId`s in [shared/api](../api/),
 and the sync protocol `sync/v1` in [proto/sync/v1](../proto/sync/v1/). The
 `jf` commands follow [cli.md](cli.md). `jf` builds on jj, so after `jf clone`
 every history command runs locally. The `jj` column names the matching jj

@@ -40,6 +40,7 @@ Set `JJFORGE_PORT` for both when something else holds port 8080.
 Without containers:
 
 ```text
+mise run spec:build
 (cd rust && cargo run --bin vcsd)
 gradle -p server bootRun
 (cd rust && cargo run --bin jf -- echo hi)
@@ -71,10 +72,11 @@ requirements it serves. [Planning](planning.md) has the rules.
 - `shared/api/`: the public API in TypeSpec. Every operation lists its
   requirement issues in `x-requirements`. See
   [ADR 0016](adr/0016-contract-in-typespec.md).
-- `shared/openapi.yaml`: compiled from `shared/api/` by `mise run spec:build`
-  and committed with it. Don't edit it.
-  - `mise run spec:lint` fails when the file doesn't match a fresh compile,
-    then lints it with Redocly. It is part of `mise run lint`.
+- `shared/openapi.yaml`: compiled from `shared/api/` by `mise run spec:build`,
+  ignored by git, and never edited. Every task that reads it compiles it
+  first, and a server build that starts without it compiles it itself.
+  - `mise run spec:lint` checks the TypeSpec formatting, then lints the
+    compiled file with Redocly. It is part of `mise run lint`.
   - `mise run spec:trace` writes each requirement with the operations and
     tests that cite it to `build/trace.yaml`. It fails when an operation
     cites nothing, when a citation isn't a Requirement, or when a closed

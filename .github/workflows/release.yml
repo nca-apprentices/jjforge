@@ -84,9 +84,16 @@ jobs:
   chart:
     name: Helm chart and OpenAPI
     runs-on: ubuntu-latest
+    env:
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v7
       - uses: azure/setup-helm@v5
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: node pnpm
+      - name: Compile the OpenAPI document
+        run: mise run spec:build
       - name: Package
         run: |
           helm registry login ${{ env.REGISTRY }} --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"

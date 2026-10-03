@@ -115,6 +115,22 @@ tasks.compileKotlin {
     dependsOn(tasks.openApiGenerate)
 }
 
+// /shared/openapi.yaml is compiled from /shared/api and not committed. A build
+// that starts without it, such as CodeQL's, compiles it here with the pnpm
+// that /shared/api pins. The image copies it in and `mise run spec:build`
+// keeps a local copy fresh, so this is skipped in both cases.
+val spec = layout.projectDirectory.file("../shared/openapi.yaml").asFile
+val compileSpec =
+    tasks.register<Exec>("compileSpec") {
+        onlyIf { !spec.exists() }
+        workingDir = layout.projectDirectory.dir("../shared/api").asFile
+        commandLine("sh", "-c", "corepack pnpm install --frozen-lockfile && corepack pnpm exec tsp compile .")
+    }
+
+tasks.openApiGenerate {
+    dependsOn(compileSpec)
+}
+
 tasks.test {
     useJUnitPlatform()
 }

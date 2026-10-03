@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-#MISE description="Fail on a breaking change to shared/openapi.yaml against a git ref, origin/main by default"
+#MISE description="Fail on a breaking change to the REST contract against a git ref, origin/main by default"
+#MISE depends=["spec:build"]
 #USAGE arg "[base]" default="origin/main"
 set -euo pipefail
 
-base=$(mktemp)
-trap 'rm -f "$base"' EXIT
-git show "${usage_base:?}:shared/openapi.yaml" >"$base"
+# The compiled file isn't committed, so the base ref's TypeSpec is compiled
+# into a scratch directory.
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+git archive "${usage_base:?}" shared/api | tar -x -C "$scratch"
+pnpm --dir "$scratch/shared/api" install --frozen-lockfile
+pnpm --dir "$scratch/shared/api" exec tsp compile . --option "@typespec/openapi3.emitter-output-dir=$scratch"
 
-oasdiff breaking "$base" shared/openapi.yaml --fail-on ERR
+oasdiff breaking "$scratch/openapi.yaml" shared/openapi.yaml --fail-on ERR

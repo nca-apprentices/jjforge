@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Run the tests and builds outside rust/"
+#MISE depends=["spec:build"]
 set -euo pipefail
 
 gradle -p server build
