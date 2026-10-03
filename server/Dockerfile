@@ -5,12 +5,14 @@
 # The SPA is served by the server, so it is built into the jar rather than
 # deployed as a second thing to keep in sync.
 FROM node:24-slim AS web
-WORKDIR /src/web
 RUN corepack enable
-# The install generates the API client from the compiled contract, so the
-# contract is compiled first.
-COPY shared/api /src/shared/api
-RUN pnpm --dir /src/shared/api install --frozen-lockfile && pnpm --dir /src/shared/api exec tsp compile .
+# The web install generates the API client from the compiled contract, so the
+# contract is compiled first. Corepack reads the pinned pnpm version from the
+# working directory, so each package is built from its own.
+WORKDIR /src/shared/api
+COPY shared/api ./
+RUN pnpm install --frozen-lockfile && pnpm exec tsp compile .
+WORKDIR /src/web
 COPY web ./
 RUN pnpm install --frozen-lockfile && pnpm build
 

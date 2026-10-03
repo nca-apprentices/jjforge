@@ -74,7 +74,7 @@ requirements it serves. [Planning](planning.md) has the rules.
   [ADR 0016](adr/0016-contract-in-typespec.md).
 - `shared/openapi.yaml`: compiled from `shared/api/` by `mise run spec:build`,
   ignored by git, and never edited. Every task that reads it compiles it
-  first.
+  first, and a server build that starts without it compiles it itself.
   - `mise run spec:lint` checks the TypeSpec formatting, then lints the
     compiled file with Redocly. It is part of `mise run lint`.
   - `mise run spec:trace` writes each requirement with the operations and

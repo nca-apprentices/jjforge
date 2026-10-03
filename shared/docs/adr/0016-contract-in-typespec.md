@@ -28,7 +28,8 @@ lines against 1,298.
 - `shared/api/` holds the contract in TypeSpec. `mise run spec:build` compiles
   it to `shared/openapi.yaml`, which git ignores and nobody edits. Every task
   that reads it depends on `spec:build`, the server image compiles it in its
-  web stage, and the release attaches it as an asset.
+  web stage, and the release attaches it as an asset. A server build that
+  starts without it, such as CodeQL's, compiles it itself.
 - `mise run spec:lint` fails when a `.tsp` file isn't formatted, then lints
   the compiled file with Redocly.
 - Operations stay in the `jjforge` namespace, each with its own `@tag` and full
