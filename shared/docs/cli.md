@@ -1,8 +1,8 @@
 # CLI conventions
 
 `jf` is the jjforge command. It builds on jj, so every jj command works, and it
-adds the forge commands: `auth`, `org`, `repo`, `clone`, `push`, `import`, and
-`browse`. It talks to the forge through the REST API and the sync protocol
+adds the forge commands: `auth`, `org`, `repo`, `clone`, `fetch`, `push`,
+`import`, and `browse`. It talks to the forge through the REST API and the sync protocol
 `sync/v1`, and nothing else. See [ADR 0009](adr/0009-cli-on-jj-cli.md) and
 [ADR 0002](adr/0002-public-protocols.md).
 

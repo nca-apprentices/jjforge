@@ -14,8 +14,9 @@ jj already avoids locks: operations are immutable objects, and only the head
 moves. Object stores now offer conditional writes. `If-None-Match: *` creates
 an object only if it doesn't exist, and `If-Match` replaces it only if it
 hasn't changed since it was read. SeaweedFS evaluates both atomically across
-its cluster, as do S3, GCS, and R2. One compare-and-swap on a small object is
-the only coordination a repository needs.
+its cluster since 4.29, as does S3. GCS offers the same through generation
+numbers, and R2 accepts the headers. One compare-and-swap on a small object
+is the only coordination a repository needs.
 
 The options were:
 
@@ -41,15 +42,24 @@ The options were:
   t/{org}/pool/idx/{segment}   hash to segment and offset, read with range requests
   t/{org}/r/{repo}/op/{hash}   operations and views
   t/{org}/r/{repo}/HEAD        the current operation
-  t/{org}/s/{stream}/...       domain streams, in the same log format
+  t/{org}/log/...              the tenant's log of stream events, see ADR 0005
   names/{name}                 globally unique names
   ```
 
 - Objects are packed into immutable segments with an index. A single object is
-  never one stored object, because each request costs time and money.
-- `HEAD` moves only with `If-Match`. A writer that loses the race reloads,
-  merges its operation onto the new head, and tries again.
+  never one stored object, because each request costs time and money. A
+  writer, vcsd or `jf`, buffers the objects of one operation and writes them
+  as one segment before it writes the operation.
+- An operation names the segments that hold the objects it made visible,
+  so a reader finds any object from the log alone: it walks the segments,
+  newest first, and caches each index.
+- `HEAD` moves only with `If-Match` naming the entity tag the writer read. A
+  writer that loses the race reloads, merges its operation onto the new head,
+  and tries again.
 - A globally unique name is claimed with `If-None-Match: *`.
+- The bucket has no versioning, and no write uses any other condition.
+  SeaweedFS evaluates only these two atomically, and only on a bucket without
+  versioning.
 - Unreachable objects are collected by a background job that holds a lease, as
   [ADR 0005](0005-storage-kernel.md) describes.
 - Single-repository reads come from the log, so a read after a write sees the

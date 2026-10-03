@@ -19,7 +19,8 @@ accepts store factories. For the name: `jjforge`, `jjf`, `forge`, or `jf`.
 - The CLI is built on jj-cli's `CliRunner`. Every jj command works in it, and
   it adds the forge commands.
 - It registers the jjforge implementations of `Backend`, `OpStore`, and
-  `OpHeadsStore`, so it opens jjforge repositories and plain jj doesn't.
+  `OpHeadsStore` under the store type `jjforge`, next to jj's own, so it opens
+  jjforge repositories and plain jj doesn't.
 - It is called `jf`. People type it constantly, so the shortest name wins. It
   clashes with the JFrog CLI binary, and that cost is accepted. A person who
   has both installs one under another name.
@@ -27,9 +28,10 @@ accepts store factories. For the name: `jjforge`, `jjf`, `forge`, or `jf`.
   and trees as it needs them.
 - `jf` talks to the forge through the REST API and the sync protocol, and
   nothing else, as [ADR 0002](0002-public-protocols.md) decides.
-- `jf` links jj-lib with its git support, so a person can still use `jf git`
-  against other hosts, and `jf import` can read a repository that jj keeps on
-  git.
+- `jf` links jj-lib with its git support. In a repository that jj keeps on
+  git, `jf git` works as `jj git` does, and `jf import` can read it. In a
+  jjforge repository, `jf git` reports that the repository isn't backed by
+  git, because jj-lib's git commands need the git backend.
 - The CLI is specified in four layers:
   1. Conventions, in [`cli.md`](../cli.md).
   2. Reference, which CI generates from clap and checks for drift.

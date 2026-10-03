@@ -11,8 +11,10 @@ stays on each machine. A forge on git keeps translating between two models.
 
 jj-lib separates the backend from its logic. `Backend`, `OpStore`, and
 `OpHeadsStore` are traits, and the git backend is one implementation of them.
-jj-cli's `CliRunner` accepts store factories, so a binary built on it can
-register a backend of its own.
+jj-lib also ships `SimpleBackend`, a proof of concept with the same shapes in
+Protocol Buffers, and jj-cli's `custom-backend` example registers a backend
+through `CliRunner`'s store factories. Google runs its own backend behind the
+same traits.
 
 The options were:
 
@@ -38,15 +40,21 @@ The options were:
      a tree, with an executable bit for a file.
   4. Commit: a change ID, parents, the root tree, author, committer,
      description, and an optional signature. The root tree of a conflicted
-     commit is a merge of trees.
-  5. Operation: parents, a view, the principal and its delegation chain, a
-     time, and a description.
-  6. View: the visible heads and the bookmarks. A bookmark points at one
-     target, or at several when it is conflicted.
+     commit is a merge of trees, with a label for each term.
+  5. Operation: parents, a view, a time, a description, and the attributes
+     jj keeps on an operation. The forge records the principal and its
+     delegation chain as attributes, from the verified token.
+  6. View: the visible heads, the bookmarks, and the tags. A bookmark points
+     at one target, or at several when it is conflicted.
 - The change ID is a field of the commit, and a conflict is a merge of trees
   in the commit. Neither is encoded into anything else.
+- The format holds every field of jj-lib's `Commit`, `View`, and `Operation`
+  except the git ones, so a repository round-trips through jj-lib without
+  loss.
 - One Rust crate implements `Backend`, `OpStore`, and `OpHeadsStore` for this
   format. vcsd and `jf` both use it, so the format has one implementation.
+  The head moves by compare-and-swap, which `OpHeadsStore` allows: its lock
+  is optional, and jj-lib merges divergent heads itself.
 - The backend also works without a forge, pointed at a bucket, as in
   `jf init --store s3://bucket/repo`. Compare-and-swap on the head object
   keeps concurrent writers safe, and only people trusted with the bucket can
@@ -64,5 +72,13 @@ The options were:
   jjforge's own sandboxes use `jf`, and vcsd serves archives of a revision
   for tools that only need files.
 - jj-lib's traits change between releases. Each `jf` release pins one jj
-  version, and the backend runs jj's backend tests.
+  version. jj-lib publishes no conformance tests for a backend, and its test
+  utilities aren't published, so the crate carries tests of its own, ported
+  from jj-lib's.
+- jj-lib has no hook to fetch ahead of a checkout. A checkout reads each file
+  on its own, with as many requests in flight as the backend declares. `jf`
+  fetches the objects of the target tree in bundles before it hands a checkout
+  to jj-lib.
+- `jf import` writes new commits, so every commit ID changes and a signature
+  made over the old format doesn't carry over. Change IDs stay.
 - A stored object never changes, so a field of the format is only ever added.

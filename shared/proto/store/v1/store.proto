@@ -81,9 +81,13 @@ message Commit {
   Signature author = 4;
   Signature committer = 5;
   string description = 6;
-  // An ed25519 signature over the commit encoded without this field. Empty
+  // The signature that jj's signing backend made over the commit encoded
+  // without this field, in that backend's format, such as SSH or GPG. Empty
   // when unsigned.
   bytes signature = 7;
+  // One label per term of `root_tree` when the commit is conflicted. Empty
+  // when it is resolved.
+  repeated string conflict_labels = 8;
 }
 
 // Where a bookmark points. More than one add means the bookmark is conflicted.
@@ -96,14 +100,16 @@ message View {
   // The commits that are visible, as jj's heads.
   repeated bytes head_ids = 1;
   map<string, RefTarget> bookmarks = 2;
-  // Used by a local repository only: the bookmarks last seen on each remote.
-  map<string, RemoteBookmarks> remote_bookmarks = 3;
+  // Used by a local repository only: the refs last seen on each remote.
+  map<string, RemoteView> remote_views = 3;
   // Used by a local repository only: each workspace's working-copy commit.
   map<string, bytes> working_copy_commit_ids = 4;
+  map<string, RefTarget> tags = 5;
 }
 
-message RemoteBookmarks {
+message RemoteView {
   map<string, RefTarget> bookmarks = 1;
+  map<string, RefTarget> tags = 2;
 }
 
 message Operation {
@@ -114,14 +120,22 @@ message Operation {
   int64 start_time_millis = 3;
   int64 end_time_millis = 4;
   string description = 5;
-  // The principal that made the operation, and the chain that delegated to
-  // it, outermost first. The forge sets both from the verified token.
-  string principal_id = 6;
-  repeated string delegation_chain = 7;
+  // jj's operation attributes. The forge sets `jjforge.principal` to the
+  // principal that made the operation and `jjforge.delegation` to the chain
+  // that delegated to it, outermost first, both from the verified token.
+  map<string, string> attributes = 6;
   // For each commit this operation wrote, the commits it replaced, keyed by
-  // the commit ID in hexadecimal.
-  map<string, CommitIds> commit_predecessors = 8;
-  map<string, string> tags = 9;
+  // the commit ID in hexadecimal. Always recorded.
+  map<string, CommitIds> commit_predecessors = 7;
+  // The segments that hold the objects this operation made visible. The
+  // store sets it when it writes the operation, as ADR 0006 decides, and
+  // jj-lib never sees it.
+  repeated bytes segment_ids = 8;
+  // The rest is what jj keeps on a local operation.
+  string hostname = 9;
+  string username = 10;
+  bool is_snapshot = 11;
+  optional string workspace_name = 12;
 }
 
 message CommitIds {

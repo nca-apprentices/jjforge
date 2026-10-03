@@ -40,9 +40,11 @@ The options were:
   3. Leases: acquire and renew a named lease with an epoch. A write that
      carries a stale epoch is refused.
 - Events in a stream are opaque bytes to vcsd. The server owns their schemas.
-- Appends to one stream, and publishes to one repository, go through one owner
-  at a time, chosen on a hash ring. The owner batches them into one
-  compare-and-swap.
+- The tenant is the unit of ordering. Every append to a tenant's streams, and
+  every publish to its repositories, goes through one owner at a time, chosen
+  on a hash ring, which batches them into one compare-and-swap on the tenant's
+  log. A stream is a view of that log, and a cursor is a position in it. A
+  subscription to a prefix that spans tenants subscribes to each.
 - The server is one Spring Boot app, structured with Spring Modulith. Each
   module is a top-level package.
 - Each module owns a set of stream prefixes and one read-model schema in
