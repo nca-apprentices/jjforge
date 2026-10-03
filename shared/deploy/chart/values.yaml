@@ -1,6 +1,9 @@
 # Secrets for pulling the server and vcsd images, such as [{ name: ghcr }].
 imagePullSecrets: []
 
+# Such as prod, so the pods schedule ahead of lower environments.
+priorityClassName: ""
+
 server:
   image:
     repository: ghcr.io/nca-apprentices/jjforge-server
