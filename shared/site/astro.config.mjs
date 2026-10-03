@@ -4,6 +4,7 @@
 import { readdirSync } from "node:fs";
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
+import mermaid from "astro-mermaid";
 import starlightLinksValidator from "starlight-links-validator";
 
 // The sidebar lists the top-level docs, then the ADRs as one group.
@@ -14,6 +15,8 @@ const pages = readdirSync(new URL("../docs", import.meta.url))
 export default defineConfig({
   site: "https://jjforge-docs.nca-apprentices.dev",
   integrations: [
+    // Renders ```mermaid fences in the browser. It must come before starlight.
+    mermaid(),
     starlight({
       title: "jjforge",
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/nca-apprentices/jjforge" }],

@@ -11,6 +11,8 @@
   "dependencies": {
     "@astrojs/starlight": "catalog:",
     "astro": "catalog:",
+    "astro-mermaid": "catalog:",
+    "mermaid": "catalog:",
     "starlight-links-validator": "catalog:"
   },
   "packageManager": "pnpm@12.6.0"

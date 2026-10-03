@@ -6,17 +6,33 @@ decisions behind this page are in [adr/](adr/README.md).
 
 ## Components
 
-```text
-jf (CLI) ──┐                ┌─ server: Spring Boot ──────────────────┐
-           ├── REST + SSE ─►│ roles: api, projector, worker          ├─► Postgres
-web app ───┘                │ identity, policy, orgs, review, hooks  │   (read models)
-                            └───────────────────┬────────────────────┘
-                                                │ gRPC vcsd/v1, kernel/v1
-                                                ▼
-jf ──────────── sync/v1 ─────────► vcsd: Rust, roles: sync, source, writer, indexer
-                                                │
-                                                ▼
-                                   object store: the only source of truth
+```mermaid
+flowchart TB
+    subgraph clients[Clients]
+        cli["jf (CLI)"]
+        web[web app]
+    end
+
+    subgraph server["server: Spring Boot"]
+        direction LR
+        roles["roles: api, projector, worker"]
+        domains["identity, policy, orgs, review, hooks"]
+    end
+
+    pg[("Postgres<br/>(read models)")]
+
+    subgraph vcsd["vcsd: Rust"]
+        vroles["roles: sync, source, writer, indexer"]
+    end
+
+    store[("object store<br/>the only source of truth")]
+
+    cli -- "REST + SSE" --> server
+    web -- "REST + SSE" --> server
+    cli -- "sync/v1" --> vcsd
+    server -- "gRPC vcsd/v1, kernel/v1" --> vcsd
+    server --> pg
+    vcsd --> store
 ```
 
 - jjforge has no git in it. Repositories are stored and synced in jj's own
