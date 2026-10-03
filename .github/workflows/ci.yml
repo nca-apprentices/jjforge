@@ -31,7 +31,7 @@ jobs:
           breaking_against: "https://github.com/${{ github.repository }}.git#branch=main,subdir=shared/proto"
           # The summary comment on the PR needs a write permission the
           # workflow doesn't grant. The checks page shows the same result.
-          comment: false
+          pr_comment: false
 
   lint:
     name: Lint
