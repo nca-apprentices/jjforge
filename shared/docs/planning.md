@@ -36,8 +36,9 @@ content lives in this repository.
    [ADR 0011](adr/0011-controllers-implement-contracts.md) decides.
 5. **Status lives in issues, and durable content lives in the repository.** An
    issue holds no design text beyond its statement and acceptance criteria.
-6. **ADRs are immutable.** A decision changes through a new ADR that supersedes
-   the old one.
+6. **ADRs change by the rules in ADR 0001.** Until the first release, an ADR
+   is edited or deleted when its decision changes. After it, a new ADR
+   supersedes the old one.
 
 ## Definition of done
 

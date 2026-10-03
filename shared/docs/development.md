@@ -95,13 +95,13 @@ requirements it serves. [Planning](planning.md) has the rules.
   `main`, because the server, vcsd, and `jf` run different versions during a
   rolling deploy and long after it.
   - `vcsd/v1` and `kernel/v1`: the internal gRPC contracts the server uses to
-    call vcsd. See [ADR 0020](adr/0020-storage-kernel.md).
+    call vcsd. See [ADR 0005](adr/0005-storage-kernel.md).
   - `sync/v1`: the public sync protocol between `jf` and vcsd, HTTP with
     Protocol Buffers bodies. Its routes are listed in the file. See
-    [ADR 0019](adr/0019-public-protocols.md).
+    [ADR 0002](adr/0002-public-protocols.md).
   - `store/v1`: the native object format. A stored object never changes, so a
     field is only ever added. See
-    [ADR 0017](adr/0017-native-jj-without-git.md).
+    [ADR 0007](adr/0007-native-jj-without-git.md).
 
 ## Releasing
 

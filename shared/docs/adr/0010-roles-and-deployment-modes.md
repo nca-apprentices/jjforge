@@ -1,7 +1,6 @@
-# 0021. Both binaries run as roles, and the chart picks a mode
+# 0010. Both binaries run as roles, and the chart picks a mode
 
-Status: accepted, 2026-10-03. Deciders: jjforge maintainers. Supersedes
-[ADR 0010](0010-backing-services-in-infra.md).
+Status: accepted, 2026-10-03. Deciders: jjforge maintainers.
 
 ## Context
 
@@ -11,10 +10,10 @@ binary that runs any subset of its components, and a chart that picks how many
 of each.
 
 With the object store as the only source of truth, as
-[ADR 0018](0018-object-store-is-the-source-of-truth.md) decides, every
-replica of vcsd and the server is interchangeable. ADR 0010 had the infra
-repository run Postgres, Redpanda, and SeaweedFS. Redpanda is no longer used,
-and Postgres holds only read models that can be rebuilt.
+[ADR 0006](0006-object-store-is-the-source-of-truth.md) decides, every
+replica of vcsd and the server is interchangeable. The backing services need
+backups, upgrades, and capacity planning, which the infra repository already
+does for the shared cluster. Self-hosters want one command to try jjforge.
 
 ## Decision
 

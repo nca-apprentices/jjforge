@@ -9,7 +9,7 @@ I0 to I2 have their requirements written, except the spike E19, whose finding
 can add requirements to E11 and E20. The epics of I3 to I7 get their
 requirements when their initiative starts. Native sync is part of I2, because
 without git it is the only way into the forge, as
-[ADR 0017](adr/0017-native-jj-without-git.md) decides.
+[ADR 0007](adr/0007-native-jj-without-git.md) decides.
 
 <!-- The epic titles match their issues. -->
 <!-- vale Google.WordListCase = NO -->

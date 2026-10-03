@@ -1,13 +1,14 @@
-# 0018. The object store is the only source of truth
+# 0006. The object store is the only source of truth
 
-Status: accepted, 2026-10-03. Deciders: jjforge maintainers. Supersedes
-[ADR 0006](0006-object-storage.md) and [ADR 0008](0008-postgres-on-cnpg.md).
+Status: accepted, 2026-10-03. Deciders: jjforge maintainers.
 
 ## Context
 
-ADR 0006 kept the objects in SeaweedFS and the operation heads in Postgres, so
-a head could move in a transaction. Every write then depends on two stateful
-systems, and Postgres caps write scaling at one primary.
+A repository holds many immutable objects and one small pointer that changes
+often: the operation head. Local disks tie a repository to one node and make
+scaling out a migration. Keeping the heads in a database, so a head moves in a
+transaction, makes every write depend on two stateful systems, and the
+database caps write scaling at one primary.
 
 jj already avoids locks: operations are immutable objects, and only the head
 moves. Object stores now offer conditional writes. `If-None-Match: *` creates
@@ -18,7 +19,8 @@ the only coordination a repository needs.
 
 The options were:
 
-- Objects in the object store and heads in Postgres, as ADR 0006 decided.
+- Local disks per vcsd node, or a shared file system.
+- Objects in the object store and heads in a database.
 - Heads in a consensus group, such as embedded Raft. Fast, but every node
   becomes stateful and Raft becomes the team's to run.
 - Everything in the object store, with heads moved by compare-and-swap. Every
@@ -28,9 +30,11 @@ The options were:
 ## Decision
 
 - The object store holds every piece of state that can't be rebuilt.
-  Everything else is derived from it.
-- Storage is laid out by tenant, as [ADR 0003](0003-tenant-keys-and-pagination.md)
-  requires:
+  Everything else is derived from it, as
+  [ADR 0008](0008-postgres-holds-read-models.md) decides for the read models.
+- vcsd is stateless. Any replica serves any repository.
+- Storage is laid out by tenant, as
+  [ADR 0003](0003-tenant-keys-and-pagination.md) requires:
 
   ```text
   t/{org}/pool/seg/{segment}   packed objects, shared by the organization's repositories
@@ -47,16 +51,13 @@ The options were:
   merges its operation onto the new head, and tries again.
 - A globally unique name is claimed with `If-None-Match: *`.
 - Unreachable objects are collected by a background job that holds a lease, as
-  [ADR 0020](0020-storage-kernel.md) describes.
-- Postgres holds only read models that can be rebuilt by replaying the streams.
-  It needs no backups. A module drops its schema and replays to rebuild it.
+  [ADR 0005](0005-storage-kernel.md) describes.
 - Single-repository reads come from the log, so a read after a write sees the
-  write. Lists and searches come from read models, which may lag.
+  write.
 
 ## Consequences
 
 - A write costs one conditional request to the object store, 20 to 200 ms on
-  most stores. Writers batch, as [ADR 0020](0020-storage-kernel.md) decides.
-- Losing Postgres costs only the time to replay. Losing the object store loses
-  data, so its replication and backups are the ones that matter.
-- A query that nobody planned needs a new read model.
+  most stores. Writers batch, as [ADR 0005](0005-storage-kernel.md) decides.
+- Losing the object store loses data, so its replication and backups are the
+  ones that matter.

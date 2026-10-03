@@ -21,22 +21,24 @@ jf ──────────── sync/v1 ─────────► v
 
 - jjforge has no git in it. Repositories are stored and synced in jj's own
   model: change IDs, conflicts, and the operation log stay intact. See
-  [ADR 0017](adr/0017-native-jj-without-git.md).
+  [ADR 0007](adr/0007-native-jj-without-git.md). `jf` is jj with the jjforge
+  backend, as [ADR 0009](adr/0009-cli-on-jj-cli.md) decides.
 - The object store holds every piece of state that can't be rebuilt. A
   repository's head moves by compare-and-swap, and Postgres holds only read
   models that are rebuilt by replaying. See
-  [ADR 0018](adr/0018-object-store-is-the-source-of-truth.md).
+  [ADR 0006](adr/0006-object-store-is-the-source-of-truth.md) and
+  [ADR 0008](adr/0008-postgres-holds-read-models.md).
 - The CLI, the web app, and agents use one REST API with server-sent events,
   described in [openapi.yaml](../openapi.yaml). `jf` moves objects and
   operations over `sync/v1`, which vcsd serves. There are no private endpoints.
-  See [ADR 0019](adr/0019-public-protocols.md).
+  See [ADR 0002](adr/0002-public-protocols.md).
 - vcsd is the storage kernel. It holds VCS semantics and storage mechanisms,
   and serves `vcsd/v1` and `kernel/v1` to the server over gRPC. The server holds
   every feature and keeps its state in kernel streams. See
-  [ADR 0020](adr/0020-storage-kernel.md).
+  [ADR 0005](adr/0005-storage-kernel.md).
 - Both binaries run as roles, and the chart picks a mode from one Deployment
   of each to one Deployment per role. Every replica is interchangeable. See
-  [ADR 0021](adr/0021-roles-and-deployment-modes.md).
+  [ADR 0010](adr/0010-roles-and-deployment-modes.md).
 
 Today only the echo skeleton runs: `jf echo`, the web form, and
 `POST /api/echo` each pass a message through vcsd over `echo/v1`. Every other
@@ -116,4 +118,4 @@ installation of it. The boundary follows these rules:
   infra repository's `clusters/<env>/apps/jjforge/application.yaml`.
 - The infra repository runs SeaweedFS and a Postgres for read models, the
   backing services. The chart takes only their connection configuration. See
-  [ADR 0021](adr/0021-roles-and-deployment-modes.md).
+  [ADR 0010](adr/0010-roles-and-deployment-modes.md).

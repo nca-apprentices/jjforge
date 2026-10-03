@@ -7,7 +7,7 @@ option java_package = "dev.nca.jjforge.store.v1";
 
 // The native jj object format. vcsd and the backend in `jf` read and write it,
 // and the sync protocol carries it. See
-// shared/docs/adr/0017-native-jj-without-git.md.
+// shared/docs/adr/0007-native-jj-without-git.md.
 //
 // An object is stored as an encoded `StoredObject`, and its ID is the BLAKE3
 // hash of those bytes: 32 bytes. Writers encode deterministically, and readers

@@ -6,7 +6,7 @@ option java_multiple_files = true;
 option java_package = "dev.nca.jjforge.kernel.v1";
 
 // The storage kernel that vcsd offers the server: streams, names, and leases,
-// all kept in the object store. See shared/docs/adr/0020-storage-kernel.md.
+// all kept in the object store. See shared/docs/adr/0005-storage-kernel.md.
 //
 // Nothing outside the cluster calls it. Every call carries the caller's
 // Biscuit token in the `authorization` metadata, and vcsd verifies it offline.

@@ -6,8 +6,9 @@ info:
     name: Apache-2.0
     identifier: Apache-2.0
   description: |-
-    The public API of jjforge. The web app, the `jf` CLI, and agents all use it,
-    and nothing else is exposed: see shared/docs/adr/0002-public-api-is-http.md.
+    The public API of jjforge. The web app, the `jf` CLI, and agents all use it.
+    Only the sync protocol is exposed besides it: see
+    shared/docs/adr/0002-public-protocols.md.
 
     A list answers one page and a `next` cursor while more pages exist. Every
     failure answers `application/problem+json` with a stable `code`.

@@ -11,7 +11,7 @@ and the sync protocol `sync/v1` in [proto/sync/v1](../proto/sync/v1/). The
 `jf` commands follow [cli.md](cli.md). `jf` builds on jj, so after `jf clone`
 every history command runs locally. The `jj` column names the matching jj
 command. Plain `jj` can't open a jjforge repository, because it lacks the
-jjforge backend, as [ADR 0017](adr/0017-native-jj-without-git.md) decides.
+jjforge backend, as [ADR 0009](adr/0009-cli-on-jj-cli.md) decides.
 
 | Capability        | Req                                                                                                                                                                                      | API                                                 | `jf`                         | `jj`               | git or gh                    | UI                         |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------- | ------------------ | ---------------------------- | -------------------------- |

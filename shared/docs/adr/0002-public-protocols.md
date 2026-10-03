@@ -1,13 +1,14 @@
-# 0019. The public protocols are REST and the sync protocol
+# 0002. The public protocols are REST and the sync protocol
 
-Status: accepted, 2026-10-03. Deciders: jjforge maintainers. Supersedes
-[ADR 0002](0002-public-api-is-http.md).
+Status: accepted, 2026-10-03. Deciders: jjforge maintainers.
 
 ## Context
 
-ADR 0002 made REST the one public API and git smart HTTP the one other public
-protocol. [ADR 0017](0017-native-jj-without-git.md) removes git, so `jf` needs
-a way to move objects and operations.
+Two public contracts mean two authentication paths and two compatibility
+promises, so jjforge keeps as few as it can. Browsers can't speak native gRPC,
+and agents and scripts reach REST with any HTTP client. jjforge has no git, as
+[ADR 0007](0007-native-jj-without-git.md) decides, so `jf` also needs a way to
+move objects and operations.
 
 Moving objects differs from every other operation. Objects are immutable and
 named by their hash, so any cache may keep them forever. Uploads are large, and
@@ -18,7 +19,7 @@ The options were:
 - Add the sync operations to the REST contract. The server would have to serve
   them, and every byte would pass through it.
 - A gRPC service for sync. Streaming is natural, but HTTP caches can't cache
-  gRPC, and ADR 0002 already kept gRPC away from clients.
+  gRPC, and browsers and scripts can't call it.
 - A small HTTP protocol of its own, served by vcsd, with Protocol Buffers
   bodies. Immutable reads are plain `GET` requests that a CDN can serve.
 

@@ -1,14 +1,13 @@
-# 0020. vcsd is the storage kernel, and the server owns the product
+# 0005. vcsd is the storage kernel, and the server owns the product
 
-Status: accepted, 2026-10-03. Deciders: jjforge maintainers. Supersedes
-[ADR 0005](0005-modular-monolith.md).
+Status: accepted, 2026-10-03. Deciders: jjforge maintainers.
 
 ## Context
 
 jjforge is also a training program. Apprentices learn Spring Boot by building
 the forge's features, and one maintainer keeps the Rust code. With the object
 store as the only source of truth, as
-[ADR 0018](0018-object-store-is-the-source-of-truth.md) decides, the server
+[ADR 0006](0006-object-store-is-the-source-of-truth.md) decides, the server
 needs somewhere to keep its own state, and something must stop concurrent
 writers from losing each other's work.
 
