@@ -1,6 +1,6 @@
 [package]
 name = "jjforge-proto"
-description = "tonic stubs for echo/v1"
+description = "The Rust stubs for shared/proto"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
