@@ -40,9 +40,9 @@ jf ──────────── sync/v1 ─────────► v
   of each to one Deployment per role. Every replica is interchangeable. See
   [ADR 0010](adr/0010-roles-and-deployment-modes.md).
 
-Today only the echo skeleton runs: `jf echo`, the web form, and
-`POST /api/echo` each pass a message through vcsd over `echo/v1`. Every other
-operation in the contract answers 501.
+Today only the echo skeleton runs: `jf echo` and the web form call
+`POST /api/echo`, and the server passes the message through vcsd over
+`echo/v1`. Every other operation in the contract answers 501.
 
 | Path                         | What it is                                                              |
 | ---------------------------- | ----------------------------------------------------------------------- |

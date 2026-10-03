@@ -47,9 +47,6 @@ metadata:
   name: {{ include "jjforge.fullname" . }}-vcsd
   labels:
     {{- include "jjforge.labels" . | nindent 4 }}
-  annotations:
-    # vcsd speaks cleartext HTTP/2; Traefik has to know before it forwards gRPC.
-    traefik.ingress.kubernetes.io/service.serversscheme: h2c
 spec:
   selector:
     app.kubernetes.io/instance: {{ .Release.Name }}

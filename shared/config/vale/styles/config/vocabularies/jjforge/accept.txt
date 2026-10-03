@@ -31,7 +31,6 @@ Postgres
 proto
 rebases
 Redocly
-Redpanda
 [Rr]eflog
 repos?
 [Rr]evsets?

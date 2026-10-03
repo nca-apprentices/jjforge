@@ -31,7 +31,7 @@ CI runs lint, test, rust:lint, and rust:test.
 With podman, which builds both images from the repository root:
 
 ```text
-mise run up      # server on :8080, vcsd on :50052
+mise run up      # server on :8080, vcsd behind it
 mise run smoke   # in a second terminal: web, server, vcsd and cli
 ```
 
@@ -46,7 +46,7 @@ gradle -p server bootRun
 curl -X POST localhost:8080/api/echo -H 'content-type: application/json' -d '{"message":"hi"}'
 ```
 
-`JJFORGE_ENDPOINT` points the CLI at another vcsd, such as
+`JJFORGE_ENDPOINT` points the CLI at another forge, such as
 `https://jjforge.example.com`.
 
 ## Trying the API
@@ -58,8 +58,6 @@ against any other server too:
 ```text
 hurl --test --variable server=https://jjforge.example.com shared/http/*.hurl
 ```
-
-Hurl cannot send gRPC, so vcsd is exercised through the `jf` CLI.
 
 `mise run lint` also checks every relative link and anchor in the Markdown
 with lychee. `mise run site:build` builds the docs site in `shared/site/` from

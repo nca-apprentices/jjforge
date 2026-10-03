@@ -23,6 +23,3 @@ services:
       dockerfile: rust/vcsd/Dockerfile
     environment:
       VCSD_ADDR: 0.0.0.0:50052
-    # The client calls vcsd directly.
-    ports:
-      - "50052:50052"
