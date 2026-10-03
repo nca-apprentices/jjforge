@@ -1,6 +1,6 @@
 # 0002. The public API is HTTP only
 
-Status: accepted, 2026-10-02. Deciders: jjforge maintainers.
+Status: superseded by [ADR 0019](0019-public-protocols.md), 2026-10-03. Deciders: jjforge maintainers.
 
 ## Context
 

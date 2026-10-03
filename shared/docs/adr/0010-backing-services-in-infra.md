@@ -1,6 +1,6 @@
 # 0010. The infra repository runs the backing services
 
-Status: accepted, 2026-10-02. Deciders: jjforge maintainers.
+Status: superseded by [ADR 0021](0021-roles-and-deployment-modes.md), 2026-10-03. Deciders: jjforge maintainers.
 
 ## Context
 

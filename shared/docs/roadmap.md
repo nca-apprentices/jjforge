@@ -5,8 +5,11 @@ Their status, targets, and requirements live in the
 [jjforge Project](https://github.com/orgs/nca-apprentices/projects/1).
 [Planning](planning.md) explains the IDs.
 
-I0 to I2 have their requirements written. The epics of I3 to I7 get their
-requirements when their initiative starts.
+I0 to I2 have their requirements written, except the spike E19, whose finding
+can add requirements to E11 and E20. The epics of I3 to I7 get their
+requirements when their initiative starts. Native sync is part of I2, because
+without git it is the only way into the forge, as
+[ADR 0017](adr/0017-native-jj-without-git.md) decides.
 
 <!-- The epic titles match their issues. -->
 <!-- vale Google.WordListCase = NO -->
@@ -15,6 +18,7 @@ requirements when their initiative starts.
   - [E01 Planning and docs](https://github.com/nca-apprentices/jjforge/issues/2)
   - [E02 Contract first](https://github.com/nca-apprentices/jjforge/issues/3)
   - [E03 Module boundaries](https://github.com/nca-apprentices/jjforge/issues/4)
+  - [E36 Storage kernel](https://github.com/nca-apprentices/jjforge/issues/NEW_E36)
 - [I1 Identity and access](https://github.com/nca-apprentices/jjforge/issues/5)
   - [E04 Human login](https://github.com/nca-apprentices/jjforge/issues/6)
   - [E05 Authorization baseline](https://github.com/nca-apprentices/jjforge/issues/13)
@@ -24,7 +28,9 @@ requirements when their initiative starts.
   - [E09 Audit log](https://github.com/nca-apprentices/jjforge/issues/21)
 - [I2 Browse jj repos (MVP)](https://github.com/nca-apprentices/jjforge/issues/22)
   - [E10 Orgs and repos](https://github.com/nca-apprentices/jjforge/issues/23)
-  - [E11 Ingest through the git bridge](https://github.com/nca-apprentices/jjforge/issues/29)
+  - [E19 Spike: native jj backend and sync](https://github.com/nca-apprentices/jjforge/issues/62)
+  - [E20 Object store](https://github.com/nca-apprentices/jjforge/issues/63)
+  - [E11 Push and clone](https://github.com/nca-apprentices/jjforge/issues/29)
   - [E12 History](https://github.com/nca-apprentices/jjforge/issues/34)
   - [E13 Files and diff](https://github.com/nca-apprentices/jjforge/issues/41)
   - [E14 Web browsing](https://github.com/nca-apprentices/jjforge/issues/47)
@@ -33,10 +39,7 @@ requirements when their initiative starts.
   - [E16 Review rounds](https://github.com/nca-apprentices/jjforge/issues/58)
   - [E17 Stacks and landing queue](https://github.com/nca-apprentices/jjforge/issues/59)
   - [E18 Conflicts as work items](https://github.com/nca-apprentices/jjforge/issues/60)
-- [I4 Native sync](https://github.com/nca-apprentices/jjforge/issues/61)
-  - [E19 Spike: jj-cli and non-git remotes](https://github.com/nca-apprentices/jjforge/issues/62)
-  - [E20 Object store](https://github.com/nca-apprentices/jjforge/issues/63)
-  - [E21 Sync protocol](https://github.com/nca-apprentices/jjforge/issues/64)
+- [I4 Sync at scale](https://github.com/nca-apprentices/jjforge/issues/61)
   - [E22 Change ownership and push policy](https://github.com/nca-apprentices/jjforge/issues/65)
 - [I5 Events and automation](https://github.com/nca-apprentices/jjforge/issues/66)
   - [E23 Operation log as events](https://github.com/nca-apprentices/jjforge/issues/67)

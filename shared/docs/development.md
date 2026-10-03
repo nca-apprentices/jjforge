@@ -91,9 +91,17 @@ requirements it serves. [Planning](planning.md) has the rules.
     implements no interface or maps a route of its own, and on an interface
     without a controller. See
     [ADR 0011](adr/0011-controllers-implement-contracts.md).
-- `shared/proto/`: the internal contract the server uses to call vcsd. CI runs
-  `buf breaking` against `main`, because the server and vcsd run different
-  versions during a rolling deploy.
+- `shared/proto/`: four contracts, each guarded by `buf breaking` against
+  `main`, because the server, vcsd, and `jf` run different versions during a
+  rolling deploy and long after it.
+  - `vcsd/v1` and `kernel/v1`: the internal gRPC contracts the server uses to
+    call vcsd. See [ADR 0020](adr/0020-storage-kernel.md).
+  - `sync/v1`: the public sync protocol between `jf` and vcsd, HTTP with
+    Protocol Buffers bodies. Its routes are listed in the file. See
+    [ADR 0019](adr/0019-public-protocols.md).
+  - `store/v1`: the native object format. A stored object never changes, so a
+    field is only ever added. See
+    [ADR 0017](adr/0017-native-jj-without-git.md).
 
 ## Releasing
 

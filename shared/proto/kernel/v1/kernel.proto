@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package kernel.v1;
+
+option java_multiple_files = true;
+option java_package = "dev.nca.jjforge.kernel.v1";
+
+// The storage kernel that vcsd offers the server: streams, names, and leases,
+// all kept in the object store. See shared/docs/adr/0020-storage-kernel.md.
+//
+// Nothing outside the cluster calls it. Every call carries the caller's
+// Biscuit token in the `authorization` metadata, and vcsd verifies it offline.
+// A stream name starts with its tenant, as in `t/{org}/review/{id}`, as
+// ADR 0003 requires.
+
+// Appends to and reads streams of events. Events are opaque bytes to vcsd.
+service StreamService {
+  // Appends events if the stream is still at the expected version. A stream
+  // that moved answers ABORTED with the current version in the details, and
+  // the caller reloads and tries again.
+  rpc Append(AppendRequest) returns (AppendResponse);
+  // Streams the events of one stream from a version, oldest first.
+  rpc Read(ReadRequest) returns (stream ReadResponse);
+  // Streams every event under a prefix from a cursor, then each new one as it
+  // is appended. Repository operations arrive here too, under
+  // `t/{org}/r/{repo}`.
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+}
+
+// Claims names that must be unique across the installation, such as an
+// organization name.
+service NameService {
+  // Claims a name for an owner. A name that is already claimed answers
+  // ALREADY_EXISTS with its owner in the details.
+  rpc Claim(ClaimRequest) returns (ClaimResponse);
+  // Releases a name that the owner holds.
+  rpc ReleaseName(ReleaseNameRequest) returns (ReleaseNameResponse);
+  rpc Lookup(LookupRequest) returns (LookupResponse);
+}
+
+// Hands out named leases, so work that needs a single owner has one. Each
+// lease carries an epoch, and a write with a stale epoch is refused.
+service LeaseService {
+  // Acquires a free or expired lease. A lease held by someone else answers
+  // FAILED_PRECONDITION with the holder in the details.
+  rpc Acquire(AcquireRequest) returns (AcquireResponse);
+  // Extends a lease the caller holds. A lost lease answers
+  // FAILED_PRECONDITION, and the caller stops the work it guards.
+  rpc Renew(RenewRequest) returns (RenewResponse);
+  rpc ReleaseLease(ReleaseLeaseRequest) returns (ReleaseLeaseResponse);
+}
+
+message Event {
+  string stream = 1;
+  // The stream's version after this event, starting at 1.
+  uint64 version = 2;
+  // The schema of `data`, owned by the server module that writes the stream,
+  // such as `review.v1.CommentAdded`.
+  string type = 3;
+  bytes data = 4;
+  // The principal that appended the event, from the verified token.
+  string principal_id = 5;
+  // A position across streams, for resuming a subscription.
+  string cursor = 6;
+}
+
+message NewEvent {
+  string type = 1;
+  bytes data = 2;
+}
+
+message Fence {
+  // The lease that guards this write, and the epoch the caller holds.
+  string lease = 1;
+  uint64 epoch = 2;
+}
+
+message AppendRequest {
+  string stream = 1;
+  // Zero means the stream must not exist yet.
+  uint64 expected_version = 2;
+  repeated NewEvent events = 3;
+  // Set when the write needs a single owner.
+  Fence fence = 4;
+}
+
+message AppendResponse {
+  uint64 version = 1;
+  string cursor = 2;
+}
+
+message ReadRequest {
+  string stream = 1;
+  // The first version to return. Zero and one both mean the start.
+  uint64 from_version = 2;
+}
+
+message ReadResponse {
+  Event event = 1;
+}
+
+message SubscribeRequest {
+  // Such as `t/{org}/` for every stream of one organization.
+  string prefix = 1;
+  // Empty means the start.
+  string cursor = 2;
+}
+
+message SubscribeResponse {
+  Event event = 1;
+}
+
+message ClaimRequest {
+  // Such as `org/acme`.
+  string name = 1;
+  // The ID the name points at, a UUIDv7 as ADR 0003 decides.
+  string owner_id = 2;
+}
+
+message ClaimResponse {}
+
+message ReleaseNameRequest {
+  string name = 1;
+  string owner_id = 2;
+}
+
+message ReleaseNameResponse {}
+
+message LookupRequest {
+  string name = 1;
+}
+
+message LookupResponse {
+  string owner_id = 1;
+}
+
+message AcquireRequest {
+  // Such as `landing/{org}/{repo}` or `projector/review/3`.
+  string lease = 1;
+  string holder = 2;
+  int64 ttl_seconds = 3;
+}
+
+message AcquireResponse {
+  uint64 epoch = 1;
+  int64 ttl_seconds = 2;
+}
+
+message RenewRequest {
+  string lease = 1;
+  string holder = 2;
+  uint64 epoch = 3;
+}
+
+message RenewResponse {
+  int64 ttl_seconds = 1;
+}
+
+message ReleaseLeaseRequest {
+  string lease = 1;
+  string holder = 2;
+  uint64 epoch = 3;
+}
+
+message ReleaseLeaseResponse {}

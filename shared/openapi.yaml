@@ -1870,6 +1870,7 @@ components:
         cloneUrl:
           type: string
           format: uri
+          description: 'The sync address `jf` clones from: `https://{host}/sync/v1/{orgId}/{repoId}`.'
         createdAt:
           type: string
           format: date-time

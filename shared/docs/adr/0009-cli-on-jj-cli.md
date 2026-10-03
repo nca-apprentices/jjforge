@@ -1,6 +1,6 @@
 # 0009. The CLI is `jf`, built on jj-cli
 
-Status: accepted, 2026-10-02. Deciders: jjforge maintainers.
+Status: superseded by [ADR 0017](0017-native-jj-without-git.md), 2026-10-03. Deciders: jjforge maintainers.
 
 ## Context
 

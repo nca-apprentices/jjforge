@@ -1,6 +1,6 @@
 # 0008. Postgres, not distributed SQL
 
-Status: accepted, 2026-10-02. Deciders: jjforge maintainers.
+Status: superseded by [ADR 0018](0018-object-store-is-the-source-of-truth.md), 2026-10-03. Deciders: jjforge maintainers.
 
 ## Context
 

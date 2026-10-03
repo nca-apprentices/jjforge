@@ -1,6 +1,6 @@
 # 0006. Objects live in SeaweedFS, and vcsd stays stateless
 
-Status: accepted, 2026-10-02. Deciders: jjforge maintainers.
+Status: superseded by [ADR 0018](0018-object-store-is-the-source-of-truth.md), 2026-10-03. Deciders: jjforge maintainers.
 
 ## Context
 

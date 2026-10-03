@@ -6,7 +6,7 @@ option java_multiple_files = true;
 option java_package = "dev.nca.jjforge.vcsd.v1";
 
 // The internal contract between the server and vcsd. Nothing outside the
-// cluster calls it: see shared/docs/adr/0002-public-api-is-http.md.
+// cluster calls it: see shared/docs/adr/0019-public-protocols.md.
 //
 // Every call carries the caller's Biscuit token in the `authorization`
 // metadata, and vcsd verifies it offline. A RepoRef routes the call to the
