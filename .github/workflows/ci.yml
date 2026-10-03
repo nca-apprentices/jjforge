@@ -26,10 +26,12 @@ jobs:
       - uses: bufbuild/buf-action@v1
         with:
           input: shared/proto
-          # The server and vcsd run different versions during a rolling deploy,
-          # and the CLI calls echo/v1 until it goes, so the contract may only
-          # grow.
+          # The server, vcsd, and jf run different versions during a rolling
+          # deploy and long after it, so a contract may only grow.
           breaking_against: "https://github.com/${{ github.repository }}.git#branch=main,subdir=shared/proto"
+          # The summary comment on the PR needs a write permission the
+          # workflow doesn't grant. The checks page shows the same result.
+          comment: false
 
   lint:
     name: Lint
