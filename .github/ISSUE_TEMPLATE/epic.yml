@@ -19,8 +19,3 @@ body:
       label: Exit criteria
     validations:
       required: true
-  - type: input
-    id: design
-    attributes:
-      label: Design
-      description: The epic's design under shared/docs/design/, such as E10-orgs-and-repos.md, once a write path is specified.

@@ -3,7 +3,7 @@
 A design says how a write path flows: the policy, the claimed names, the
 stream and its events, the read model, and what a partial failure leaves
 behind. [ADR 0017](../adr/0017-specified-before-built.md) decides when one
-is written. The epic's Design field links to its file.
+is written.
 
 | Design                                      | Epic                                                        |
 | ------------------------------------------- | ----------------------------------------------------------- |

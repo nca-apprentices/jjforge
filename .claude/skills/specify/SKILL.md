@@ -27,5 +27,4 @@ design section if the requirement changes state. Someone else builds it.
 5. **Trace.** `mise run spec:trace` lists the operation, the scenario, and
    the design under `R<id>` in `build/trace.yaml`. Then `mise run lint`.
 6. **PR.** Title `feat(spec): <what a person can do>`. Template:
-   `Satisfies #<n>`, spec changed, design changed. Link a new design from
-   the epic's Design field.
+   `Satisfies #<n>`, spec changed, design changed.
