@@ -1,22 +1,26 @@
 # jjforge documentation
 
 jjforge is a forge for [Jujutsu](https://github.com/jj-vcs/jj) repositories
-that grows into a modular platform for building software. These documents say
-why it exists, how it fits together, and how to work on it.
+that grows into a modular platform for building software. Read the sections
+in order.
 
-| Document                           | What it answers                                    |
-| ---------------------------------- | -------------------------------------------------- |
-| [Architecture](architecture.md)    | How the parts fit together                         |
-| [Concepts](concepts.md)            | jj for git users, and what that means for the UI   |
-| [Surfaces](surfaces.md)            | Where each capability appears on each interface    |
-| [CLI conventions](cli.md)          | How `jf` behaves: output, prompts, and exit codes  |
-| [Planning](planning.md)            | Initiatives, epics, requirements, and their rules  |
-| [Designs](design/README.md)        | How each write path flows, one design per epic     |
-| [Roadmap](roadmap.md)              | The initiatives and their epics                    |
-| [Decisions](adr/README.md)         | The architecture decision records                  |
-| [Development](development.md)      | Building, running, checking, and releasing         |
+## The system
 
-The contracts live next to these documents:
-[shared/api](../api/) for the REST API in TypeSpec, and [proto](../proto/) for
-the sync protocol, the native object format, and the internal gRPC contracts
-between the server and vcsd.
+What jjforge is and how it works.
+
+1. [Concepts](concepts.md): jj for git users, and what that means for the UI.
+2. [Architecture](architecture.md): how the parts fit together.
+3. [Surfaces](surfaces.md): where each capability appears on each interface.
+4. [CLI conventions](cli.md): how `jf` behaves.
+5. [Designs](design/README.md): how each write path flows, one per epic.
+
+The [decisions](adr/README.md) say why. Each page links the ones it rests on.
+The contracts are [shared/api](../api/) and [shared/proto](../proto/).
+
+## The work
+
+[Planning](planning.md) says how work is planned and tracked.
+
+## Development
+
+[Development](development.md) says how to build, run, check, and release.

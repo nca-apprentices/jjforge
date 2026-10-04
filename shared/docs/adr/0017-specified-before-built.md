@@ -30,6 +30,8 @@ The options were:
   `shared/http/pending/`, which `mise run smoke` runs without failing, or a
   Rust test marked `#[ignore = "pending #35"]`. The PR that builds the
   operation moves the file or drops the mark, and changes nothing else.
+- Each operation in `shared/api/` cites its requirements with
+  `@extension("x-requirements", #["#35"])`.
 - The contract is reviewed against the scenarios. A scenario that needs
   something the contract lacks changes the contract, never the scenario.
 - A write path has a design: one file per epic in
