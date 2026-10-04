@@ -3,6 +3,7 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
+  "tspMain": "src/main.tsp",
   "devDependencies": {
     "@typespec/compiler": "catalog:",
     "@typespec/http": "catalog:",
