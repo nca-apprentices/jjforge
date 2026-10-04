@@ -68,6 +68,10 @@ these documents.
 
 ## Changing a contract
 
+The skills in `.claude/skills/` walk through both pull requests, `specify`
+and then `build`, and the `spec-reviewer` agent in `.claude/agents/` asks
+the one question a spec review asks.
+
 A contract changes before its implementation, and every operation cites the
 requirements it serves. A write path also has a design section with its
 event proto, in [design/](design/README.md). [Planning](planning.md) has the
