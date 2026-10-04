@@ -5,7 +5,7 @@ type: Requirement
 body:
   - type: markdown
     attributes:
-      value: Start the title with the next free requirement ID, such as `R039`. A requirement names no endpoint, command, or technology. [Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the rules.
+      value: Start the title with the next free requirement ID, such as `R039`. [Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the rules.
   - type: textarea
     id: statement
     attributes:

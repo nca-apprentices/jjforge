@@ -1,26 +1,15 @@
 # CLI conventions
 
-`jf` is the jjforge command. It builds on jj, so every jj command works, and it
-adds the forge commands: `auth`, `org`, `repo`, `clone`, `fetch`, `push`,
-`import`, and `browse`. It talks to the forge through the REST API and the sync protocol
-`sync/v1`, and nothing else. See [ADR 0009](adr/0009-cli-on-jj-cli.md) and
-[ADR 0002](adr/0002-public-protocols.md).
-
-The conventions follow [clig.dev](https://clig.dev).
+`jf` is the jjforge command, built on jj as
+[ADR 0009](adr/0009-cli-on-jj-cli.md) decides. Its conventions follow
+[clig.dev](https://clig.dev).
 
 ## Repositories
 
-- `jf clone` fetches the operations and views of a repository, and the working
-  copy fetches files as it needs them. `jf fetch --full` fetches everything,
-  for working offline.
-- `jf push` uploads the missing objects, then publishes. When someone else
-  published first, `jf` fetches, merges, and tries again, or reports the
-  conflict.
-- `jf import <path>` copies the history of an existing jj repository into a
-  jjforge repository, whatever backend the source uses.
-- `jf init --store s3://bucket/repo` keeps a repository in a bucket without a
-  forge, and `jf clone --store` reads one from its storage. Only people trusted
-  with the bucket can write to it.
+- `jf fetch --full` fetches every object of a repository, for working
+  offline. [ADR 0009](adr/0009-cli-on-jj-cli.md) says what a clone fetches.
+- When someone else published first, `jf push` fetches, merges, and tries
+  again, or reports the conflict.
 
 ## Output
 

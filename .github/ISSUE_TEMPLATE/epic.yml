@@ -19,8 +19,3 @@ body:
       label: Exit criteria
     validations:
       required: true
-  - type: input
-    id: design
-    attributes:
-      label: Design
-      description: A link to the design, if there is one.

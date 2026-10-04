@@ -2,16 +2,14 @@
 
 Each row is one capability of the first release, and each column is one
 surface that offers it. A cell names the operation, command, or screen. It
-says "planned" until that surface is built, and a requirement is done only when
-its row is filled for every surface its epic promises. "None" means the surface
-won't offer the capability.
+says "planned" until that surface is built. "None" means the surface won't
+offer the capability.
 
 The API column names the REST operations, the `operationId`s in [shared/api](../api/),
 and the sync protocol `sync/v1` in [proto/sync/v1](../proto/sync/v1/). The
 `jf` commands follow [cli.md](cli.md). `jf` builds on jj, so after `jf clone`
 every history command runs locally. The `jj` column names the matching jj
-command. Plain `jj` can't open a jjforge repository, because it lacks the
-jjforge backend, as [ADR 0009](adr/0009-cli-on-jj-cli.md) decides.
+command.
 
 | Capability        | Req                                                                                                                                                                                      | API                                                 | `jf`                         | `jj`               | git or gh                    | UI                         |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------- | ------------------ | ---------------------------- | -------------------------- |
