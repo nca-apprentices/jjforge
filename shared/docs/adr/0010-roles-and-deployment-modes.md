@@ -28,12 +28,14 @@ does for the shared cluster. Self-hosters want one command to try jjforge.
 - Work that needs a single owner, such as a projector's partition or a
   repository's landing queue, takes a lease from `kernel/v1`. Losing a node
   costs only a lease takeover and cold caches.
-- The object store is addressed by a URL. `s3://` is used in a cluster, and
-  `file://` runs the evaluation tier without SeaweedFS.
+- The object store is addressed by a URL. `s3://` is used wherever jjforge
+  runs with its twins, and `file://` runs a binary on its own, without
+  containers.
 - The infra repository runs SeaweedFS and a Postgres for read models in the
   cluster. That Postgres needs no backups. The chart takes only their connection
   configuration and installs neither.
-- `shared/deploy/compose.yaml` runs both binaries with `file://` storage and a
-  Postgres for development and evaluation.
+- For development and evaluation, `shared/deploy/compose.yaml` runs both
+  binaries with the twins of [ADR 0018](0018-external-systems-run-as-twins.md),
+  such as SeaweedFS and Postgres.
 - No cache service until a requirement needs one, measured. Every replica
   caches immutable objects in memory and on local disk.

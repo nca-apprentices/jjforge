@@ -48,3 +48,5 @@ unbuilt
 UUIDs
 vcsd
 Vite
+Dex
+Keycloak

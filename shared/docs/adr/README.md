@@ -25,3 +25,4 @@ after it a newer record supersedes it. New records start from
 | [0015](0015-checked-code-rules.md)                  | Code rules are checked, not reviewed                          | Accepted |
 | [0016](0016-contract-in-typespec.md)                | The REST contract is written in TypeSpec                      | Accepted |
 | [0017](0017-specified-before-built.md)              | A requirement is specified before it is built                 | Accepted |
+| [0018](0018-external-systems-run-as-twins.md)       | External systems run as twins wherever jjforge runs           | Proposed |
