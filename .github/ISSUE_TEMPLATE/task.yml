@@ -5,7 +5,7 @@ type: Task
 body:
   - type: markdown
     attributes:
-      value: Start the title with the next free task ID, such as `T002`. [Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the IDs.
+      value: Start the title with the next free task ID, such as `T002`. [Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the IDs. Set the milestone in the sidebar. The [milestones](https://github.com/nca-apprentices/jjforge/milestones) say what each one reaches.
   - type: textarea
     id: goal
     attributes:
