@@ -42,26 +42,20 @@ content lives in this repository.
 6. **ADRs change by the rules in ADR 0001.** Until the first release, an ADR
    is edited or deleted when its decision changes. After it, a new ADR
    supersedes the old one.
-7. **A write path has a design.** An epic has one design in
-   [design/](design/README.md), linked from its Design field, with one
-   section per write path. The event schema is a proto file in the same PR.
-   A read path needs no design.
+7. **A write path has a design.** One file per epic in
+   [design/](design/README.md), linked from the epic's Design field, with
+   its event schema as a proto. A read path needs none.
 
 ## Definition of specified
 
-A requirement is specified when all of this is merged, and the spec PR is
-reviewed with one question: could someone build this without asking the
-author?
+Merged in one PR, reviewed with one question: could someone build this
+without asking the author?
 
 | Artifact  | What it is                                                                 | Where                                                    |
 | --------- | -------------------------------------------------------------------------- | -------------------------------------------------------- |
 | Scenarios | Tests with concrete values, one file per surface, starting `satisfies #35` | `shared/http/pending/` or a Rust test marked `#[ignore]` |
 | Contract  | The operations and messages the scenarios need, citing the requirement     | `shared/api/`, `shared/proto/`                           |
 | Design    | For a write path, its section, and its event proto                         | [design/](design/README.md), `shared/proto/<module>/v1/` |
-
-A pending scenario runs red, because its operation answers 501. The
-implementation PR moves it out of `pending/`, or drops the `#[ignore]`, and
-changes nothing else in it. That move is the red-to-green in the diff.
 
 ## Definition of done
 
