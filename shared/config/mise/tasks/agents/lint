@@ -15,7 +15,7 @@ fail() {
   errors=$((errors + 1))
 }
 
-# A path in backticks, such as `shared/http/pending/`. A placeholder such as
+# A path in backticks, such as `shared/e2e/http/pending/`. A placeholder such as
 # `<module>`, a glob, or a URL isn't a path. A generated path, which
 # .gitignore lists, may not exist yet. The backticks are rg's, not bash's.
 # shellcheck disable=SC2016
@@ -30,7 +30,7 @@ while IFS=: read -r file task; do
   if [[ ! -f shared/config/mise/tasks/${task//://} ]]; then
     fail "$file names mise run $task, which doesn't exist"
   fi
-done < <(matches 'mise run ([a-z][a-z:-]*)' -r "\$1")
+done < <(matches 'mise run ([a-z][a-z0-9:-]*)' -r "\$1")
 
 # A skill or an agent, such as /jjforge-specify or jjforge-spec-reviewer.
 while IFS=: read -r file name; do

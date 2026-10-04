@@ -35,7 +35,7 @@ With podman, which builds both images from the repository root:
 
 ```text
 mise run up      # server on :8080, vcs and the twins of ADR 0018 behind it
-mise run smoke   # in a second terminal: web, server, vcs and cli
+mise run e2e     # in a second terminal: web, server, vcs and cli
 mise run compose logs   # or any other docker-compose command, such as ps or down
 ```
 
@@ -56,12 +56,15 @@ curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '
 
 ## Trying the API
 
-`shared/http/` holds [Hurl](https://hurl.dev) files: requests with asserts on
-each response. `mise run smoke` runs them against `mise run up`, and they run
-against any other server too.
+`shared/e2e/` holds the end-to-end scenarios. `shared/e2e/http/` holds
+[Hurl](https://hurl.dev) files: requests with asserts on each response.
+`shared/e2e/cli/` holds [Bats](https://bats-core.readthedocs.io) files, which
+run the first `jf` on the `PATH`. `mise run e2e` runs both against
+`mise run up`, and they run against any other server too.
 
 ```text
-hurl --test --variable server=https://jjforge.example.com shared/http/*.hurl
+hurl --test --variable server=https://jjforge.example.com shared/e2e/http/*.hurl
+JJFORGE_ENDPOINT=https://jjforge.example.com bats shared/e2e/cli
 ```
 
 `mise run lint` also checks every relative link and anchor in the Markdown

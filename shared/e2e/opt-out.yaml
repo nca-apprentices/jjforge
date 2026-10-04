@@ -1,0 +1,5 @@
+# The requirements without an end-to-end scenario, each with the reason, such
+# as `"#41": No request or jf command can observe it.` `mise run spec:trace`
+# fails on any other closed requirement, or one a PR satisfies, that no file
+# in shared/e2e/ cites.
+{}

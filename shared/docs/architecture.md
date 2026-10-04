@@ -45,8 +45,9 @@ flowchart TB
 | `shared/proto/sync/v1/`      | The public sync protocol between `jf` and vcs                           |
 | `shared/proto/store/v1/`     | The native object format                                                |
 | `shared/proto/repos/v1/`     | The events of the server's repos module                                 |
-| `shared/http/`               | Hurl requests against the REST contract                                 |
-| `shared/http/pending/`       | Scenarios whose operation still answers 501                             |
+| `shared/e2e/http/`           | Hurl scenarios against the REST contract                                |
+| `shared/e2e/http/pending/`   | Scenarios whose operation still answers 501                             |
+| `shared/e2e/cli/`            | Bats scenarios against the `jf` command                                 |
 | `shared/docs/`               | These documents, with one design per epic in `design/`                  |
 | `shared/site/`               | The docs site, built from `shared/docs/`                                |
 | `shared/deploy/chart/`       | The Helm chart, released with every tag                                 |

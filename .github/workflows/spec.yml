@@ -1,7 +1,8 @@
 name: Spec
 
 # Checks shared/openapi.yaml against the issues and against main. Its own
-# workflow, because a title edit reruns it and should rerun nothing else.
+# workflow, because an edit to the PR's title or body reruns it and should
+# rerun nothing else.
 on:
   push:
     branches: [main]
@@ -30,10 +31,16 @@ jobs:
       - uses: jdx/mise-action@v4
         with:
           install_args: node pnpm yq github:oasdiff/oasdiff
-      - name: Every operation cites a requirement
-        run: mise run spec:trace
+      # The requirements on the PR's "Satisfies" line need an end-to-end
+      # scenario before they merge, not only once they close.
+      - name: Every requirement is traced
+        run: |
+          satisfies=$(grep -Ei '^satisfies' <<<"$PR_BODY" | grep -Eo '[0-9]+' || true)
+          # shellcheck disable=SC2086 # One argument per requirement.
+          mise run spec:trace $satisfies
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_BODY: ${{ github.event.pull_request.body }}
       # A breaking change passes only when the PR title marks it, as in
       # "feat!: drop the echo operation".
       - name: No unmarked breaking change

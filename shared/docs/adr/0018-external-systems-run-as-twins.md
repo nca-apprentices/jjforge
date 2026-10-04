@@ -33,7 +33,7 @@ and reads its users from a JSON file.
   such as SeaweedFS for S3 and `mock-oauth2-server` for OpenID Connect. A twin
   is taken off the shelf, and written here only when nothing conforms.
 - Twins are part of the system. `shared/deploy/compose.yaml` runs every twin,
-  integration tests start the same images, and CI runs `mise run smoke`
+  integration tests start the same images, and CI runs `mise run e2e`
   against compose. No integration test replaces an external system with a
   mock.
 - A twin's seed is the test data: the organizations `acme` and `other`, each

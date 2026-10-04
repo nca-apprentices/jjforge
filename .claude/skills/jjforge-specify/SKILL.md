@@ -11,11 +11,15 @@ design section if the requirement changes state. Someone else builds it.
 1. **Read.** `gh issue view <n> --json title,body,type`: a Requirement, and
    its epic for the surfaces it promises. Then the tag's `.tsp` file, its
    design, and its Hurl files.
-2. **Scenarios first.** A Hurl file under `shared/http/pending/`, starting
-   with `# satisfies #<n>`: one comment per scenario, concrete values, every
-   refusal with its problem code, created names as `<word>-{{run}}`. New
-   fixtures go in `shared/http/pending/vars.env`. A CLI or sync scenario is a
-   Rust test marked `#[ignore = "pending #<n>"]`. Check: `hurlfmt --check`.
+2. **Scenarios first.** A Hurl file under `shared/e2e/http/pending/`,
+   starting with `# satisfies #<n>`: one comment per scenario, concrete
+   values, every refusal with its problem code, created names as
+   `<word>-{{run}}`. New fixtures go in `shared/e2e/http/pending/vars.env`. A
+   CLI or sync scenario is a Bats test in `shared/e2e/cli/` that calls
+   `skip "pending #<n>"` and checks the exit code of each failure that
+   `shared/docs/cli.md` lists. A requirement that no request or `jf` command
+   can observe gets its reason in `shared/e2e/opt-out.yaml` instead. Check:
+   `hurlfmt --check`, `mise run lint`, and `mise run spec:trace <n>`.
 3. **Contract against the scenarios.** Every assert must be expressible with
    `shared/api/` and `shared/proto/`. If not, change the contract, never the
    scenario, and add `#<n>` to `x-requirements`. Check: `mise run spec:lint`

@@ -26,10 +26,15 @@ The options were:
   different person builds it. A question the builder has to ask is a gap in
   the spec, fixed in the spec.
 - Scenarios are tests with concrete values, starting with `satisfies #35`.
-  While the operation answers 501 they are pending: a Hurl file under
-  `shared/http/pending/`, which `mise run smoke` runs without failing, or a
-  Rust test marked `#[ignore = "pending #35"]`. The PR that builds the
-  operation moves the file or drops the mark, and changes nothing else.
+  A REST scenario is a Hurl file, and a `jf` scenario is a Bats test that
+  runs `jf` as a person would. While the operation answers 501 they are
+  pending: a Hurl file under `shared/e2e/http/pending/`, or a Bats test that
+  calls `skip "pending #35"`. `mise run e2e` runs pending ones without failing. The
+  PR that builds the operation moves the file or drops the `skip`, and
+  changes nothing else.
+- Every requirement has an end-to-end scenario, unless
+  `shared/e2e/opt-out.yaml` gives the reason it has none. `mise run spec:trace`
+  fails on a closed requirement, or one a PR satisfies, without either.
 - Each operation in `shared/api/` cites its requirements with
   `@extension("x-requirements", #["#35"])`.
 - The contract is reviewed against the scenarios. A scenario that needs

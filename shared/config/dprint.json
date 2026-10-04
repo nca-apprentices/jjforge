@@ -16,9 +16,12 @@
     "cargo.applyConventions": false
   },
   "exec": {
+    // The exec globs resolve from this directory, not the repository root, so
+    // a path under shared/ starts with **/.
     "associations": [
       "**/*.{kt,kts,md,proto}",
-      "shared/config/mise/tasks/**/*",
+      "**/mise/tasks/**/*",
+      "**/*.bats",
       "web/**/*.{ts,tsx,json}"
     ],
     "commands": [
@@ -38,7 +41,12 @@
       },
       {
         "command": "shfmt --indent=2 --filename {{file_path}}",
-        "associations": ["shared/config/mise/tasks/**/*"]
+        "associations": ["**/mise/tasks/**/*"]
+      },
+      {
+        // Bats files format as the task scripts do. A command takes one glob.
+        "command": "shfmt --indent=2 --filename {{file_path}}",
+        "associations": ["**/*.bats"]
       },
       {
         // The Biome that web/ installs, so web/biome.json stays its only config.

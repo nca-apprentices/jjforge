@@ -13,9 +13,9 @@ without changing it.
    requirement isn't specified: stop and run `/jjforge-specify <n>` first.
 2. **Read.** The issue, the scenarios that start with `satisfies #<n>`, the
    design section that starts with `designs #<n>`, and its proto.
-3. **Red.** Move the Hurl file from `shared/http/pending/` to `shared/http/`,
-   or drop the `#[ignore = "pending #<n>"]` mark. Run `mise run up` and
-   `mise run smoke`, and watch the scenarios fail. If the file also covers a
+3. **Red.** Move the Hurl file from `shared/e2e/http/pending/` to
+   `shared/e2e/http/`, or drop the `skip "pending #<n>"` line. Run
+   `mise run up` and `mise run e2e`, and watch the scenarios fail. If the file also covers a
    requirement this PR doesn't build, ask before splitting it.
 4. **Build.** The tag's controller overrides the generated method, as
    ADR 0011 decides. A write path follows its design step by step: the
@@ -29,8 +29,9 @@ without changing it.
    repeats this step.
    - Start `mise run up` in the background. It rebuilds both images, and
      needs `podman machine start` first.
-   - `mise run smoke` sends every Hurl file. The moved file passes, and the
-     pending files fail only on their 501.
+   - `mise run e2e` sends every Hurl file and runs every Bats file. The
+     moved scenarios pass, and the pending Hurl files fail only on their
+     501.
    - Run each `jf` command the requirement adds, with `JJFORGE_ENDPOINT`
      pointing at the server.
    - `mise run compose logs` shows each request from the scenarios, and no

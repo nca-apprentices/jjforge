@@ -3,6 +3,12 @@
 #MISE depends=["spec:build"]
 set -euo pipefail
 
+# The arguments name the requirements a change satisfies, such as `25 26`
+# from a PR's "Satisfies #25 #26". Each needs an end-to-end scenario, as a
+# closed requirement does.
+satisfies=" ${*//#/} "
+opt_outs=shared/e2e/opt-out.yaml
+
 # One line per operation: its method, its operationId, then the issues it
 # cites, such as "get listChanges #35 #38". The echo skeleton is exempt until
 # it is removed.
@@ -42,7 +48,7 @@ citations=$(
   done <<<"$operations"
 
   {
-    grep -rEo --exclude='*.md' 'satisfies( #[0-9]+)+' rust server web shared/http || true
+    grep -rEo --exclude='*.md' 'satisfies( #[0-9]+)+' rust jvm web shared/e2e || true
     grep -rEo 'designs( #[0-9]+)+' shared/docs/design || true
   } |
     while IFS=: read -r file match; do
@@ -64,6 +70,14 @@ while read -r issue; do
     fail "$issue is ${type:-missing}, not a Requirement, cited by $by"
   fi
 done < <(awk 'NF { print $1 }' <<<"$citations" | sort -u)
+
+# An opt-out names a Requirement.
+while read -r issue; do
+  type=$(awk -F'\t' -v n="${issue#\#}" '$1 == n { print $3 }' <<<"$issues")
+  if [[ $type != Requirement ]]; then
+    fail "$opt_outs names $issue, which is ${type:-missing}, not a Requirement"
+  fi
+done < <(yq -r 'keys[]' "$opt_outs")
 
 # One entry per Requirement in build/trace.yaml, in ID order, such as
 # "R020: {issue: 35, state: open, title: ..., cited_by: [listChanges]}". A
@@ -90,6 +104,16 @@ while IFS=$'\t' read -r number state _ title; do
     if [[ -n $writer ]]; then
       fail "#$number is closed and $writer writes for it, but no design in shared/docs/design cites it"
     fi
+  fi
+
+  # A done requirement, or one this change satisfies, has an end-to-end
+  # scenario, unless the opt-outs give the reason it has none.
+  reason=$(N="#$number" yq -r '.[strenv(N)] // ""' "$opt_outs")
+  if [[ $by == *shared/e2e/* && -n $reason ]]; then
+    fail "#$number has a scenario in shared/e2e, so $opt_outs must not opt it out"
+  fi
+  if [[ ($state == closed || $satisfies == *" $number "*) && $by != *shared/e2e/* && -z $reason ]]; then
+    fail "#$number has no scenario in shared/e2e. Add one, or give the reason in $opt_outs"
   fi
 
   ID=${title%% *} NUMBER=$number STATE=$state TITLE=${title#* } BY=$by yq -n '
