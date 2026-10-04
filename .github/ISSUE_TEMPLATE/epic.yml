@@ -23,4 +23,4 @@ body:
     id: design
     attributes:
       label: Design
-      description: A link to the design, if there is one.
+      description: The epic's design under shared/docs/design/, such as E10-orgs-and-repos.md, once a write path is specified.

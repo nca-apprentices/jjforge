@@ -11,6 +11,7 @@ why it exists, how it fits together, and how to work on it.
 | [Surfaces](surfaces.md)            | Where each capability appears on each interface    |
 | [CLI conventions](cli.md)          | How `jf` behaves: output, prompts, and exit codes  |
 | [Planning](planning.md)            | Initiatives, epics, requirements, and their rules  |
+| [Designs](design/README.md)        | How each write path flows, one design per epic     |
 | [Roadmap](roadmap.md)              | The initiatives and their epics                    |
 | [Decisions](adr/README.md)         | The architecture decision records                  |
 | [Development](development.md)      | Building, running, checking, and releasing         |

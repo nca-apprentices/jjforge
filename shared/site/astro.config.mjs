@@ -23,6 +23,7 @@ export default defineConfig({
       sidebar: [
         { label: "Overview", link: "/" },
         ...pages,
+        { label: "Designs", items: [{ autogenerate: { directory: "design" } }] },
         { label: "Architecture decisions", items: [{ autogenerate: { directory: "adr" } }] },
       ],
       plugins: [starlightLinksValidator()],

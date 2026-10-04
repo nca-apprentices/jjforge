@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package repos.v1;
+
+option java_multiple_files = true;
+option java_package = "dev.nca.jjforge.repos.v1";
+
+// The events of the server's repos module, appended to the kernel stream
+// `t/{org}/repo/{repo}`. `kernel.v1.Event.type` names the message, as in
+// `repos.v1.RepoCreated`. The principal that made the change is in
+// `Event.principal_id`, from the verified token, so no event repeats it. See
+// shared/docs/design/E10-orgs-and-repos.md.
+
+message RepoCreated {
+  // UUIDv7, as ADR 0003 decides.
+  string org_id = 1;
+  string repo_id = 2;
+  string name = 3;
+  int64 created_at_millis = 4;
+}
+
+message RepoDeleted {
+  string org_id = 1;
+  string repo_id = 2;
+}

@@ -14,6 +14,7 @@ content lives in this repository.
 | ADR          | Which decision was made, and why                | [adr/](adr/README.md)                      | Review                     |
 | Architecture | How the parts fit together                      | [architecture.md](architecture.md)         | Review                     |
 | Spec         | Exactly how each interface behaves              | `api/`, `proto/`, [cli.md](cli.md)         | Lint, contract tests, Hurl |
+| Design       | How a write path flows, and what a crash leaves | [design/](design/README.md)                | Trace, review              |
 | Concepts     | jj compared with git, and the UI consequences   | [concepts.md](concepts.md)                 | Review                     |
 | Surfaces     | Where each capability appears on each interface | [surfaces.md](surfaces.md)                 | Review                     |
 
@@ -24,21 +25,43 @@ content lives in this repository.
    Limits such as latency or size are allowed.
 2. **A spec is exact and cites its requirements.** Each operation in
    `shared/api/` carries `@extension("x-requirements", #["#35"])`. Every test
-   file, such as a CLI test or a Hurl file, starts with `satisfies #35`.
-   `mise run spec:trace` shows which requirements are cited, and fails on a
-   closed one that isn't.
+   file, such as a CLI test or a Hurl file, starts with `satisfies #35`, and
+   a design section starts with `designs #35`. `mise run spec:trace` shows
+   which requirements are cited, and fails on a closed one that isn't.
 3. **The issue number is the reference.** Specs, tests, and commits cite `#35`.
    The title prefix shows the type and the order: `I0` for an initiative, `E01`
    for an epic, `R001` for a requirement, and `T001` for a task. A new issue
    takes the next free ID of its type by hand.
-4. **The contract comes first.** A spec may merge before its implementation. An
-   operation that isn't built yet answers 501, as
+4. **The spec comes first.** A requirement is specified in its own PR, by
+   one person, and built in a later PR by another, as
+   [ADR 0017](adr/0017-specified-before-built.md) decides. An operation
+   that isn't built yet answers 501, as
    [ADR 0011](adr/0011-controllers-implement-contracts.md) decides.
 5. **Status lives in issues, and durable content lives in the repository.** An
    issue holds no design text beyond its statement and acceptance criteria.
 6. **ADRs change by the rules in ADR 0001.** Until the first release, an ADR
    is edited or deleted when its decision changes. After it, a new ADR
    supersedes the old one.
+7. **A write path has a design.** An epic has one design in
+   [design/](design/README.md), linked from its Design field, with one
+   section per write path. The event schema is a proto file in the same PR.
+   A read path needs no design.
+
+## Definition of specified
+
+A requirement is specified when all of this is merged, and the spec PR is
+reviewed with one question: could someone build this without asking the
+author?
+
+| Artifact  | What it is                                                                 | Where                                                    |
+| --------- | -------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Scenarios | Tests with concrete values, one file per surface, starting `satisfies #35` | `shared/http/pending/` or a Rust test marked `#[ignore]` |
+| Contract  | The operations and messages the scenarios need, citing the requirement     | `shared/api/`, `shared/proto/`                           |
+| Design    | For a write path, its section, and its event proto                         | [design/](design/README.md), `shared/proto/<module>/v1/` |
+
+A pending scenario runs red, because its operation answers 501. The
+implementation PR moves it out of `pending/`, or drops the `#[ignore]`, and
+changes nothing else in it. That move is the red-to-green in the diff.
 
 ## Definition of done
 

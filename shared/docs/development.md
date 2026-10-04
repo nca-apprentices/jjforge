@@ -54,7 +54,9 @@ curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '
 
 `shared/http/` holds [Hurl](https://hurl.dev) files: requests with asserts on
 each response. `mise run smoke` runs them against `mise run up`, and they run
-against any other server too:
+against any other server too. `shared/http/pending/` holds the scenarios of
+operations that still answer 501: `mise run smoke` runs them and reports,
+without failing, and the PR that builds an operation moves its file up.
 
 ```text
 hurl --test --variable server=https://jjforge.example.com shared/http/*.hurl
@@ -67,7 +69,9 @@ these documents.
 ## Changing a contract
 
 A contract changes before its implementation, and every operation cites the
-requirements it serves. [Planning](planning.md) has the rules.
+requirements it serves. A write path also has a design section with its
+event proto, in [design/](design/README.md). [Planning](planning.md) has the
+rules, and [ADR 0017](adr/0017-specified-before-built.md) the decision.
 
 - `shared/api/`: the public API in TypeSpec. Every operation lists its
   requirement issues in `x-requirements`. See
@@ -77,11 +81,12 @@ requirements it serves. [Planning](planning.md) has the rules.
   first, and a server build that starts without it compiles it itself.
   - `mise run spec:lint` checks the TypeSpec formatting, then lints the
     compiled file with Redocly. It is part of `mise run lint`.
-  - `mise run spec:trace` writes each requirement with the operations and
-    tests that cite it to `build/trace.yaml`. It fails when an operation
-    cites nothing, when a citation isn't a Requirement, or when a closed
-    requirement has no citation. The echo operation is exempt until it is
-    removed.
+  - `mise run spec:trace` writes each requirement with the operations,
+    tests, and designs that cite it to `build/trace.yaml`. It fails when an
+    operation cites nothing, when a citation isn't a Requirement, when a
+    closed requirement has no citation, or when a closed requirement is
+    cited by a write operation and no design. The echo operation is exempt
+    until it is removed.
   - `mise run spec:breaking` compares it with `main` using oasdiff. CI accepts
     a breaking change only when the PR title marks it with `!`, as in
     `feat!: rename the org field`.
@@ -91,7 +96,7 @@ requirements it serves. [Planning](planning.md) has the rules.
     implements no interface or maps a route of its own, and on an interface
     without a controller. See
     [ADR 0011](adr/0011-controllers-implement-contracts.md).
-- `shared/proto/`: four contracts, each guarded by `buf breaking` against
+- `shared/proto/`: five contracts, each guarded by `buf breaking` against
   `main`, because the server, vcsd, and `jf` run different versions during a
   rolling deploy and long after it.
   - `vcsd/v1` and `kernel/v1`: the internal gRPC contracts the server uses to
@@ -102,6 +107,9 @@ requirements it serves. [Planning](planning.md) has the rules.
   - `store/v1`: the native object format. A stored object never changes, so a
     field is only ever added. See
     [ADR 0007](adr/0007-native-jj-without-git.md).
+  - `repos/v1`: the events of the server's repos module, the first schema of
+    the kernel streams. Each module gets one, with its design. See
+    [ADR 0005](adr/0005-storage-kernel.md).
 
 ## Releasing
 

@@ -69,8 +69,10 @@ Today only the echo skeleton runs: `jf echo` and the web form call
 | `shared/proto/kernel/v1/`    | The internal contract for streams, names, and leases                    |
 | `shared/proto/sync/v1/`      | The public sync protocol between `jf` and vcsd                          |
 | `shared/proto/store/v1/`     | The native object format                                                |
+| `shared/proto/repos/v1/`     | The events of the server's repos module                                 |
 | `shared/http/`               | Hurl requests against the REST contract                                 |
-| `shared/docs/`               | These documents                                                         |
+| `shared/http/pending/`       | Scenarios whose operation still answers 501                             |
+| `shared/docs/`               | These documents, with one design per epic in `design/`                  |
 | `shared/site/`               | The docs site, built from `shared/docs/`                                |
 | `shared/deploy/chart/`       | The Helm chart, released with every tag                                 |
 | `shared/deploy/compose.yaml` | The evaluation tier: everything on one machine                          |
