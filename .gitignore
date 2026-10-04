@@ -3,6 +3,16 @@
 .claude-notes/
 .DS_Store
 
+# Editor config
+.idea/
+*.iml
+.vscode/
+.cursor/
+.zed/
+.nvim.lua
+Session.vim
+*.swp
+
 # Build output
 target/
 build/
