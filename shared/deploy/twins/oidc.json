@@ -1,0 +1,33 @@
+{
+  "interactiveLogin": true,
+  "tokenCallbacks": [
+    {
+      "issuerId": "acme",
+      "requestMappings": [
+        {
+          "requestParam": "subject",
+          "match": "acme-owner|acme-member",
+          "claims": {
+            "sub": "${subject}",
+            "email": "${subject}@acme.example",
+            "preferred_username": "${subject}"
+          }
+        }
+      ]
+    },
+    {
+      "issuerId": "other",
+      "requestMappings": [
+        {
+          "requestParam": "subject",
+          "match": "other-owner",
+          "claims": {
+            "sub": "${subject}",
+            "email": "${subject}@other.example",
+            "preferred_username": "${subject}"
+          }
+        }
+      ]
+    }
+  ]
+}

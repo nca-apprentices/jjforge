@@ -30,7 +30,7 @@ CI runs lint, test, rust:lint, and rust:test.
 With podman, which builds both images from the repository root:
 
 ```text
-mise run up      # server on :8080, vcsd behind it
+mise run up      # server on :8080, vcsd and the twins of ADR 0018 behind it
 mise run smoke   # in a second terminal: web, server, vcsd and cli
 mise run compose logs   # or any other docker-compose command, such as ps or down
 ```

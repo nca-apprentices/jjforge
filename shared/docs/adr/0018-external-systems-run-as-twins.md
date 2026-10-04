@@ -38,9 +38,10 @@ and reads its users from a JSON file.
   mock.
 - A twin's seed is the test data: the organizations `acme` and `other`, each
   with its own issuer, and their owners and members. The Hurl fixtures name
-  the same people.
-- A design names the external systems its write path calls. Their twins join
-  compose in the PR that builds the first requirement to call them.
+  the same people. `shared/deploy/twins/` holds the seeds.
+- Compose runs every twin from the start, before any code calls it. A design
+  names the external systems its write path calls, and a new one brings its
+  twin in the PR that specifies it.
 - A requirement is built when its scenarios pass against the running system,
   built from the PR with its twins, and the logs and stored state match the
   design. The `jjforge-implement` skill walks through that check.

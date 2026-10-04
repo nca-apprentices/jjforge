@@ -1,6 +1,7 @@
 # Evaluation tier: one command, one machine, no Kubernetes. Same images and the
 # same configuration surface as the Helm chart. `--build` builds them from the
-# repository root instead of pulling a release.
+# repository root instead of pulling a release. The external systems run as
+# the twins of ADR 0018.
 name: jjforge
 
 services:
@@ -11,6 +12,8 @@ services:
       dockerfile: server/Dockerfile
     depends_on:
       - vcsd
+      - postgres
+      - oidc
     environment:
       JJFORGE_VCSD_TARGET: vcsd:50052
     ports:
@@ -21,5 +24,33 @@ services:
     build:
       context: ../..
       dockerfile: rust/vcsd/Dockerfile
+    depends_on:
+      - seaweedfs
     environment:
       VCSD_ADDR: 0.0.0.0:50052
+
+  # The read models of ADR 0008. They are rebuilt from the streams, so the
+  # data lives only as long as the container.
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: jjforge
+      POSTGRES_USER: jjforge
+      POSTGRES_PASSWORD: jjforge
+
+  # The object store of ADR 0006, through its S3 API on port 8333. Without a
+  # signing key, SeaweedFS logs an error that its unused STS service has none.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    command: server -dir=/data -s3
+    environment:
+      WEED_JWT_FILER_SIGNING_KEY: twin-only-key-that-signs-nothing-real
+
+  # The OpenID Connect provider of each organization, one issuer per
+  # organization, such as http://oidc:8080/acme.
+  oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:6.0.4
+    environment:
+      JSON_CONFIG_PATH: /config/oidc.json
+    volumes:
+      - ./twins/oidc.json:/config/oidc.json:ro

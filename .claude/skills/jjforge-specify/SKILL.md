@@ -23,7 +23,9 @@ design section if the requirement changes state. Someone else builds it.
 4. **Design the write path.** Skip for a read. Add a section to the epic's
    file in `shared/docs/design/` in the format its README gives, and the
    event schema as `shared/proto/<module>/v1/events.proto`. Name each
-   external system the path calls and its twin, as ADR 0018 decides. Check:
+   external system the path calls and its twin, as ADR 0018 decides. A new
+   system's twin joins `shared/deploy/compose.yaml`, with its seed in
+   `shared/deploy/twins/`. Check:
    `buf lint shared/proto`.
 5. **Trace.** `mise run spec:trace` lists the operation, the scenario, and
    the design under `R<id>` in `build/trace.yaml`. Then `mise run lint`.

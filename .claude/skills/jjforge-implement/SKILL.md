@@ -39,10 +39,9 @@ without changing it.
    - The state the design says a write leaves exists: the events in the
      stream, the rows in the read model, and the objects in the store. Read
      each through `mise run compose exec <service>`.
-   - Every external system runs as its twin, as ADR 0018 decides. A twin the
-     design names that `shared/deploy/compose.yaml` doesn't run yet joins it
-     in this PR, seeded with the people the Hurl fixtures name, and the
-     integration tests start the same image.
+   - Every external system runs as its twin from `shared/deploy/compose.yaml`,
+     as ADR 0018 decides. Integration tests start the same image, and talk
+     to it, never to a mock.
    - Stop with `mise run compose down`.
 8. **Surfaces.** In `shared/docs/surfaces.md`, drop "(planned)" from the
    requirement's row for each surface this PR builds.
