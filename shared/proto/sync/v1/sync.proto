@@ -5,7 +5,7 @@ package sync.v1;
 option java_multiple_files = true;
 option java_package = "dev.nca.jjforge.sync.v1";
 
-// The sync protocol between `jf` and vcsd. It is public, and it is HTTP, not
+// The sync protocol between `jf` and vcs. It is public, and it is HTTP, not
 // gRPC, so a cache can serve immutable reads. See
 // shared/docs/adr/0002-public-protocols.md.
 //
@@ -39,7 +39,7 @@ message HashList {
   repeated bytes ids = 1;
 }
 
-// Encoded store.v1.StoredObject messages. vcsd hashes each one on upload and
+// Encoded store.v1.StoredObject messages. vcs hashes each one on upload and
 // refuses the bundle if any object is malformed.
 message ObjectBundle {
   repeated bytes objects = 1;
@@ -54,7 +54,7 @@ message BookmarkUpdate {
   bytes new_target = 3;
 }
 
-// The change a client proposes. vcsd builds the operation from it, so the
+// The change a client proposes. vcs builds the operation from it, so the
 // principal and the time come from the forge, never from the client.
 message PublishRequest {
   bytes expected_operation_id = 1;

@@ -46,7 +46,7 @@ trycmd
 TypeSpec
 unbuilt
 UUIDs
-vcsd
+(?:vcs|VCS)
 Vite
 Dex
 Keycloak

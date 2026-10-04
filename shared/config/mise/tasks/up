@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-#MISE description="Build the images and run server and vcsd with podman"
+#MISE description="Build the images and run server and vcs with podman"
 set -euo pipefail
 
 # podman builds the images itself. Compose's own builder goes through the
 # Docker API, which needs BuildKit and Docker's credential helpers. Compose then
 # finds the images locally under the names in shared/deploy/compose.yaml and
 # pulls nothing.
-podman build --tag ghcr.io/nca-apprentices/jjforge-server:latest --file server/Dockerfile .
-podman build --tag ghcr.io/nca-apprentices/jjforge-vcsd:latest --file rust/vcsd/Dockerfile .
+podman build --tag ghcr.io/nca-apprentices/jjforge-server:latest --file jvm/Dockerfile .
+podman build --tag ghcr.io/nca-apprentices/jjforge-vcs:latest --file rust/vcs/Dockerfile .
 
 # JJFORGE_PORT moves the server off 8080 when something else holds it.
 exec mise run compose up

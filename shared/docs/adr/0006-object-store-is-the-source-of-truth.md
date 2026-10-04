@@ -20,7 +20,7 @@ is the only coordination a repository needs.
 
 The options were:
 
-- Local disks per vcsd node, or a shared file system.
+- Local disks per vcs node, or a shared file system.
 - Objects in the object store and heads in a database.
 - Heads in a consensus group, such as embedded Raft. Fast, but every node
   becomes stateful and Raft becomes the team's to run.
@@ -33,7 +33,7 @@ The options were:
 - The object store holds every piece of state that can't be rebuilt.
   Everything else is derived from it, as
   [ADR 0008](0008-postgres-holds-read-models.md) decides for the read models.
-- vcsd is stateless. Any replica serves any repository.
+- vcs is stateless. Any replica serves any repository.
 - Storage is laid out by tenant, as
   [ADR 0003](0003-tenant-keys-and-pagination.md) requires:
 
@@ -48,7 +48,7 @@ The options were:
 
 - Objects are packed into immutable segments with an index. A single object is
   never one stored object, because each request costs time and money. A
-  writer, vcsd or `jf`, buffers the objects of one operation and writes them
+  writer, vcs or `jf`, buffers the objects of one operation and writes them
   as one segment before it writes the operation.
 - An operation names the segments that hold the objects it made visible,
   so a reader finds any object from the log alone: it walks the segments,

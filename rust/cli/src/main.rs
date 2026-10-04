@@ -1,6 +1,6 @@
 //! `jf echo <message>` sends the message through the forge's REST API and
 //! prints the answer. It proves the client reaches the server, which passes
-//! the message through vcsd, and nothing more.
+//! the message through vcs, and nothing more.
 
 use clap::Parser;
 use clap::Subcommand;

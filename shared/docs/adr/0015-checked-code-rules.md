@@ -6,7 +6,7 @@ Status: accepted, 2026-10-02. Deciders: jjforge maintainers.
 
 Apprentices write most of the code, and a rule that only review holds is
 applied unevenly. The server read its one setting with `@Value` and never
-validated it, and vcsd parsed its address by hand. Formatting was the only
+validated it, and vcs parsed its address by hand. Formatting was the only
 rule a tool checked.
 
 The server's architecture rules could use Konsist, which reads Kotlin source,
@@ -34,7 +34,7 @@ Server, in `gradle build`:
 - Compiler warnings are errors.
 - Kover fails below 80 percent line coverage of the hand-written code.
 
-vcsd and `jf`, in `mise run rust:lint`:
+vcs and `jf`, in `mise run rust:lint`:
 
 - Each binary reads its settings from flags or the environment into one clap
   struct. An invalid value stops it with a usage message.

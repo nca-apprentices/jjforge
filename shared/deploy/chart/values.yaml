@@ -1,4 +1,4 @@
-# Secrets for pulling the server and vcsd images, such as [{ name: ghcr }].
+# Secrets for pulling the server and vcs images, such as [{ name: ghcr }].
 imagePullSecrets: []
 
 # Such as prod, so the pods schedule ahead of lower environments.
@@ -13,9 +13,9 @@ server:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { memory: 1Gi }
 
-vcsd:
+vcs:
   image:
-    repository: ghcr.io/nca-apprentices/jjforge-vcsd
+    repository: ghcr.io/nca-apprentices/jjforge-vcs
     tag: ""
   replicas: 1
   resources:

@@ -12,7 +12,7 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # One version ships everything: server image, vcsd image, client binaries,
+  # One version ships everything: server image, vcs image, client binaries,
   # chart and OpenAPI document all carry the same tag.
   server-image:
     name: Server image
@@ -27,12 +27,12 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: .
-          file: server/Dockerfile
+          file: jvm/Dockerfile
           push: true
           tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/jjforge-server:${{ github.ref_name }}
 
-  vcsd-image:
-    name: vcsd image
+  vcs-image:
+    name: vcs image
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -44,9 +44,9 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: .
-          file: rust/vcsd/Dockerfile
+          file: rust/vcs/Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/jjforge-vcsd:${{ github.ref_name }}
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/jjforge-vcs:${{ github.ref_name }}
 
   client:
     name: Client binaries
@@ -114,7 +114,7 @@ jobs:
   # client binaries, the chart, and the OpenAPI document attached.
   release:
     name: GitHub release
-    needs: [server-image, vcsd-image, client, chart]
+    needs: [server-image, vcs-image, client, chart]
     runs-on: ubuntu-latest
     steps:
       # Only this workflow's own artifacts: the image jobs also upload

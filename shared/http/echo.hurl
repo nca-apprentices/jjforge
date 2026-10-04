@@ -4,7 +4,7 @@ HTTP 200
 [Asserts]
 body contains "id=\"root\""
 
-# POST /api/v1/echo answers with the message, by way of vcsd.
+# POST /api/v1/echo answers with the message, by way of vcs.
 POST {{server}}/api/v1/echo
 {
   "message": "hello"

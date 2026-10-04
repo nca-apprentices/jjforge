@@ -1,28 +1,9 @@
 #!/usr/bin/env bash
-#MISE description="Check formatting, lints, types, and links in every component outside rust/"
+#MISE description="Run shared:lint, jvm:lint, web:lint, and rust:lint"
 set -euo pipefail
 
-buf lint shared/proto
-mise run spec:lint
-
-# Workflows, Dockerfiles, and the task scripts.
-actionlint
-hadolint --config shared/config/hadolint.yaml server/Dockerfile rust/vcsd/Dockerfile
-find shared/config/mise/tasks -type f -exec shellcheck {} +
-
-helm lint shared/deploy/chart
-helm template jjforge shared/deploy/chart >/dev/null
-
-pnpm --dir web install --frozen-lockfile
-pnpm --dir web typecheck
-pnpm --dir web exec biome ci --error-on-warnings
-
-# Last, because the web formatter needs the packages installed above.
-dprint check --config shared/config/dprint.json
-mise run prose
-mise run agents:lint
-
-# Every relative link and anchor in the Markdown. Offline, so a remote site
-# that is down never fails the check.
-git ls-files -z --cached --others --exclude-standard '*.md' |
-  xargs -0 lychee --offline --include-fragments --no-progress
+# One after another, because two pnpm installs into web/ at once collide.
+mise run shared:lint
+mise run jvm:lint
+mise run web:lint
+mise run rust:lint

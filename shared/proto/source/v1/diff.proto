@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package source.v1;
+
+import "source/v1/repo.proto";
+
+option java_multiple_files = true;
+option java_package = "dev.nca.jjforge.source.v1";
+
+// Compares revisions. vcs computes every diff, and no client does.
+service DiffService {
+  // Streams one FileDiff per changed file.
+  rpc Diff(DiffRequest) returns (stream DiffResponse);
+}
+
+message DiffRequest {
+  RepoRef repo = 1;
+  // Either `rev`, compared with its parents, or `from` and `to`.
+  string rev = 2;
+  string from = 3;
+  string to = 4;
+}
+
+message DiffResponse {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_ADDED = 1;
+    STATUS_MODIFIED = 2;
+    STATUS_DELETED = 3;
+    STATUS_RENAMED = 4;
+  }
+
+  string path = 1;
+  // Set for a rename.
+  string old_path = 2;
+  Status status = 3;
+  bool binary = 4;
+  repeated Hunk hunks = 5;
+}
+
+message Hunk {
+  message Line {
+    enum Kind {
+      KIND_UNSPECIFIED = 0;
+      KIND_CONTEXT = 1;
+      KIND_ADDED = 2;
+      KIND_REMOVED = 3;
+    }
+
+    Kind kind = 1;
+    string text = 2;
+  }
+
+  int32 old_start = 1;
+  int32 old_lines = 2;
+  int32 new_start = 3;
+  int32 new_lines = 4;
+  repeated Line lines = 5;
+}

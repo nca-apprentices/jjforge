@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-#MISE description="Run the tests and builds outside rust/"
-#MISE depends=["spec:build"]
+#MISE description="Run jvm:test, web:test, and rust:test"
 set -euo pipefail
 
-gradle -p server build
-
-pnpm --dir web install --frozen-lockfile
-pnpm --dir web test
-pnpm --dir web build
+mise run jvm:test
+mise run web:test
+mise run rust:test

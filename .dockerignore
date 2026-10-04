@@ -2,4 +2,4 @@
 **/target
 **/node_modules
 web/apps/*/dist
-server/src/main/resources/static
+jvm/src/main/resources/static

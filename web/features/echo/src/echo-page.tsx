@@ -4,7 +4,7 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 
 /**
- * Sends a message through the server and vcsd and shows what came back.
+ * Sends a message through the server and vcs and shows what came back.
  * @public
  */
 export function EchoPage() {

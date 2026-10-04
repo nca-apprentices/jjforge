@@ -20,7 +20,7 @@ The options were:
   them, and every byte would pass through it.
 - A gRPC service for sync. Streaming is natural, but HTTP caches can't cache
   gRPC, and browsers and scripts can't call it.
-- A small HTTP protocol of its own, served by vcsd, with Protocol Buffers
+- A small HTTP protocol of its own, served by vcs, with Protocol Buffers
   bodies. Immutable reads are plain `GET` requests that a CDN can serve.
 
 ## Decision
@@ -32,22 +32,22 @@ The options were:
      start with `/api/v1/`. A version changes only by addition, and a change
      that breaks a client starts `/api/v2/` next to it. The OAuth routes stay
      where their RFCs put them.
-  2. The sync protocol `sync/v1`, served by vcsd under `/sync/v1/` on the same
+  2. The sync protocol `sync/v1`, served by vcs under `/sync/v1/` on the same
      host. Its messages are in [proto/sync/v1](../../proto/sync/v1/), and its
      routes are listed there.
 - `sync/v1` addresses a repository by its organization and repository IDs,
   which the REST answer for a repository returns as its clone address. A
   rename doesn't break a clone.
-- Objects are read with `GET`, and their answers are immutable. vcsd checks the
+- Objects are read with `GET`, and their answers are immutable. vcs checks the
   token before it serves or redirects to a short-lived signed URL.
-- vcsd verifies the hash of every uploaded object before it stores it.
-- A publish names the head it expects. vcsd moves the head only when every
+- vcs verifies the hash of every uploaded object before it stores it.
+- A publish names the head it expects. vcs moves the head only when every
   referenced object is present, the token's scope covers each changed bookmark,
   a protected bookmark moves only under the landing token, and the change
-  ownership policy holds. vcsd decides all of this offline, from the token.
+  ownership policy holds. vcs decides all of this offline, from the token.
 - Both parts answer errors as `application/problem+json` with the same problem
   codes, so the CLI maps them to the same exit codes.
-- gRPC runs only inside the cluster, under `vcsd/v1` and `kernel/v1`.
+- gRPC runs only inside the cluster, under `source/v1` and `kernel/v1`.
 
 ## Consequences
 

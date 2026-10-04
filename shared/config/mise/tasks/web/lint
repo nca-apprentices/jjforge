@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Check the web types and lints"
+#MISE depends=["spec:build"]
+set -euo pipefail
+
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web typecheck
+pnpm --dir web exec biome ci --error-on-warnings

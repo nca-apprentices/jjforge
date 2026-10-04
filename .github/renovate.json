@@ -22,7 +22,7 @@
       "rangeStrategy": "bump"
     },
     {
-      "description": "Everything arrives as one PR per schedule window. Files that must agree, such as rust-toolchain.toml, mise.toml, and the vcsd image, update together.",
+      "description": "Everything arrives as one PR per schedule window. Files that must agree, such as rust-toolchain.toml, mise.toml, and the vcs image, update together.",
       "matchPackageNames": ["*"],
       "groupName": "dependencies",
       "separateMajorMinor": false

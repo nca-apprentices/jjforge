@@ -23,8 +23,7 @@ without changing it.
 5. **Spec gaps.** A scenario or a design that can't be built as written is a
    gap in the spec. Stop and fix it in a spec PR through `/jjforge-specify`.
    This PR changes no scenario.
-6. **Green.** `mise run test`, `mise run rust:test`, and `mise run lint`
-   pass.
+6. **Green.** `mise run test` and `mise run lint` pass.
 7. **Run it.** Passing tests aren't enough. Once the change is done, run the
    system built from the working tree and watch it work. Every later change
    repeats this step.

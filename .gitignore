@@ -14,4 +14,4 @@ web/shared/api/src/contract.gen.ts
 shared/openapi.yaml
 
 # Generated: the release copies the web build into the server jar
-server/src/main/resources/static/
+jvm/src/main/resources/static/

@@ -11,13 +11,13 @@ of each.
 
 With the object store as the only source of truth, as
 [ADR 0006](0006-object-store-is-the-source-of-truth.md) decides, every
-replica of vcsd and the server is interchangeable. The backing services need
+replica of vcs and the server is interchangeable. The backing services need
 backups, upgrades, and capacity planning, which the infra repository already
 does for the shared cluster. Self-hosters want one command to try jjforge.
 
 ## Decision
 
-- vcsd selects its roles with `--target`: `sync`, `source`, `writer`,
+- vcs selects its roles with `--target`: `sync`, `source`, `writer`,
   `indexer`, or `all`.
 - The server selects its roles with Spring profiles: `api`, `projector`,
   `worker`, or `all`.

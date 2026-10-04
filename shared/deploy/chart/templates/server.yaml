@@ -34,8 +34,8 @@ spec:
         - name: server
           image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}
           env:
-            - name: JJFORGE_VCSD_TARGET
-              value: {{ include "jjforge.fullname" . }}-vcsd:50052
+            - name: JJFORGE_VCS_TARGET
+              value: {{ include "jjforge.fullname" . }}-vcs:50052
           ports:
             - name: http
               containerPort: 8080

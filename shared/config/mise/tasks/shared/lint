@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+#MISE description="Check the contracts, workflows, Dockerfiles, task scripts, chart, formatting, prose, and links"
+set -euo pipefail
+
+buf lint shared/proto
+mise run spec:lint
+
+# Workflows, Dockerfiles, and the task scripts.
+actionlint
+hadolint --config shared/config/hadolint.yaml jvm/Dockerfile rust/vcs/Dockerfile
+find shared/config/mise/tasks -type f -exec shellcheck {} +
+
+helm lint shared/deploy/chart
+helm template jjforge shared/deploy/chart >/dev/null
+
+# The web formatter needs the web packages installed.
+pnpm --dir web install --frozen-lockfile
+dprint check --config shared/config/dprint.json
+mise run prose
+mise run agents:lint
+
+# Every relative link and anchor in the Markdown. Offline, so a remote site
+# that is down never fails the check.
+git ls-files -z --cached --others --exclude-standard '*.md' |
+  xargs -0 lychee --offline --include-fragments --no-progress

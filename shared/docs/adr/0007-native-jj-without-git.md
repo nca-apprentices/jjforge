@@ -52,7 +52,7 @@ The options were:
   except the git ones, so a repository round-trips through jj-lib without
   loss.
 - One Rust crate implements `Backend`, `OpStore`, and `OpHeadsStore` for this
-  format. vcsd and `jf` both use it, so the format has one implementation.
+  format. vcs and `jf` both use it, so the format has one implementation.
   The head moves by compare-and-swap, which `OpHeadsStore` allows: its lock
   is optional, and jj-lib merges divergent heads itself.
 - The backend also works without a forge, pointed at a bucket, as in
@@ -69,7 +69,7 @@ The options were:
   person installs `jf`, as [ADR 0009](0009-cli-on-jj-cli.md) describes.
 - Tools that fetch from git, such as hosted CI, IDE integrations, and package
   managers that resolve git dependencies, don't work against jjforge.
-  jjforge's own sandboxes use `jf`, and vcsd serves archives of a revision
+  jjforge's own sandboxes use `jf`, and vcs serves archives of a revision
   for tools that only need files.
 - jj-lib's traits change between releases. Each `jf` release pins one jj
   version. jj-lib publishes no conformance tests for a backend, and its test

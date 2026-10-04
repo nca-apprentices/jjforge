@@ -21,7 +21,7 @@ hurl = "8.0.1"
 yq = "4.53.6"
 # `mise run lint` checks every Markdown link.
 lychee = "0.24.2"
-# Static checks in `mise run lint` and `rust:lint`.
+# Static checks in `mise run shared:lint` and `rust:lint`.
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
 hadolint = "2.15.1"
@@ -36,7 +36,7 @@ shfmt = "3.14.1"
 vale = "3.22.0"
 
 # Tool configuration and the tasks live under shared/config. `mise tasks` lists
-# the tasks. CI runs lint, test, rust:lint, and rust:test.
+# the tasks. CI runs each namespace, such as jvm:lint and jvm:test, as a job.
 [task_config]
 includes = ["shared/config/mise/tasks"]
 

@@ -6,7 +6,7 @@ Status: accepted, 2026-10-02. Deciders: jjforge maintainers.
 
 People already have accounts at their organization's identity provider.
 Agents and jobs later act on their behalf and need narrower, short-lived
-access. vcsd serves reads and must keep working when the sign-in service is
+access. vcs serves reads and must keep working when the sign-in service is
 down ([#12](https://github.com/nca-apprentices/jjforge/issues/12)).
 
 Options: pass the identity provider's tokens through, or run jjforge as its
@@ -25,5 +25,5 @@ code, OPA, or Cedar.
   can mint a token for a sub-agent without a round trip.
 - Cedar holds the authorization policy, evaluated in the server. Every
   decision is recorded with the policy that made it.
-- vcsd verifies tokens offline against the published key set. Revocation takes
+- vcs verifies tokens offline against the published key set. Revocation takes
   effect when the current token expires, so tokens are short-lived.

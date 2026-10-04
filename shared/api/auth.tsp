@@ -78,7 +78,7 @@ op revoke(
   @body body: RevocationRequest,
 ): OkResponse | OAuthFailure;
 
-/** vcsd and other verifiers fetch these once and verify tokens offline. */
+/** vcs and other verifiers fetch these once and verify tokens offline. */
 @tag("auth")
 @summary("List the public keys that verify tokens")
 @returnsDoc("The current and the next key.")

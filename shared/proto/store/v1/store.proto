@@ -5,7 +5,7 @@ package store.v1;
 option java_multiple_files = true;
 option java_package = "dev.nca.jjforge.store.v1";
 
-// The native jj object format. vcsd and the backend in `jf` read and write it,
+// The native jj object format. vcs and the backend in `jf` read and write it,
 // and the sync protocol carries it. See
 // shared/docs/adr/0007-native-jj-without-git.md.
 //

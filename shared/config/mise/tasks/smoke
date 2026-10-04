@@ -24,4 +24,4 @@ if [[ $answer != smoke ]]; then
   exit 1
 fi
 
-echo "web, server, vcsd and cli answered"
+echo "web, server, vcs and cli answered"

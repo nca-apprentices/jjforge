@@ -7,8 +7,8 @@ using OpenAPI;
 namespace jjforge;
 
 @tag("echo")
-@summary("Echo a message through vcsd")
-@returnsDoc("The message vcsd answered.")
+@summary("Echo a message through vcs")
+@returnsDoc("The message vcs answered.")
 @useAuth(NoAuth)
 @post
 @route("/api/v1/echo")

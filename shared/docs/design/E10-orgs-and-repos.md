@@ -16,17 +16,17 @@ Command: `createRepo(org, name)` by principal P, served by `POST
 sequenceDiagram
     participant client as jf or web app
     participant server
-    participant vcsd
+    participant vcs
     participant store as object store
 
     client->>server: POST /api/v1/orgs/{org}/repos {name}
     server->>server: Cedar: P owns the org, decision recorded
-    server->>vcsd: NameService.Claim(repo/{orgId}/{name}, repoId)
-    vcsd->>store: PUT names/repo/{orgId}/{name}, If-None-Match: *
-    server->>vcsd: RepoService.CreateRepo(orgId, repoId)
-    vcsd->>store: PUT t/{org}/r/{repo}/HEAD, If-None-Match: *
-    server->>vcsd: StreamService.Append(t/{orgId}/repo/{repoId}, version 0, RepoCreated)
-    vcsd->>store: compare-and-swap on t/{org}/log
+    server->>vcs: NameService.Claim(repo/{orgId}/{name}, repoId)
+    vcs->>store: PUT names/repo/{orgId}/{name}, If-None-Match: *
+    server->>vcs: RepoService.CreateRepo(orgId, repoId)
+    vcs->>store: PUT t/{org}/r/{repo}/HEAD, If-None-Match: *
+    server->>vcs: StreamService.Append(t/{orgId}/repo/{repoId}, version 0, RepoCreated)
+    vcs->>store: compare-and-swap on t/{org}/log
     server-->>client: 201 Repo with cloneUrl
 ```
 
@@ -37,7 +37,7 @@ sequenceDiagram
    new UUIDv7 as the repository ID. `ALREADY_EXISTS`: 409 `name_taken`. The
    claim is global, so the same name in another organization is a different
    name.
-3. Storage: `RepoService.CreateRepo(orgId, repoId)`. vcsd writes
+3. Storage: `RepoService.CreateRepo(orgId, repoId)`. vcs writes
    `t/{org}/r/{repo}/HEAD` at the root operation with `If-None-Match: *`,
    as [ADR 0006](../adr/0006-object-store-is-the-source-of-truth.md) decides.
    This step runs in the command, not in a projector, because the acceptance

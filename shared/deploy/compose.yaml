@@ -9,25 +9,25 @@ services:
     image: ghcr.io/nca-apprentices/jjforge-server:${JJFORGE_VERSION:-latest}
     build:
       context: ../..
-      dockerfile: server/Dockerfile
+      dockerfile: jvm/Dockerfile
     depends_on:
-      - vcsd
+      - vcs
       - postgres
       - oidc
     environment:
-      JJFORGE_VCSD_TARGET: vcsd:50052
+      JJFORGE_VCS_TARGET: vcs:50052
     ports:
       - "${JJFORGE_PORT:-8080}:8080"
 
-  vcsd:
-    image: ghcr.io/nca-apprentices/jjforge-vcsd:${JJFORGE_VERSION:-latest}
+  vcs:
+    image: ghcr.io/nca-apprentices/jjforge-vcs:${JJFORGE_VERSION:-latest}
     build:
       context: ../..
-      dockerfile: rust/vcsd/Dockerfile
+      dockerfile: rust/vcs/Dockerfile
     depends_on:
       - seaweedfs
     environment:
-      VCSD_ADDR: 0.0.0.0:50052
+      VCS_ADDR: 0.0.0.0:50052
 
   # The read models of ADR 0008. They are rebuilt from the streams, so the
   # data lives only as long as the container.

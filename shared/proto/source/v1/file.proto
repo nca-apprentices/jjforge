@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package source.v1;
+
+import "source/v1/repo.proto";
+
+option java_multiple_files = true;
+option java_package = "dev.nca.jjforge.source.v1";
+
+// Reads trees and files at a revision.
+service FileService {
+  rpc ListTree(ListTreeRequest) returns (ListTreeResponse);
+  // Streams a file in chunks, so a large file never sits whole in memory.
+  rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse);
+}
+
+message ListTreeRequest {
+  RepoRef repo = 1;
+  string rev = 2;
+  // Empty means the root.
+  string path = 3;
+  string page_token = 4;
+  int32 page_size = 5;
+}
+
+message TreeEntry {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_FILE = 1;
+    KIND_DIRECTORY = 2;
+    KIND_SYMLINK = 3;
+    // Never set: the native format has no submodules, as ADR 0007 decides.
+    KIND_SUBMODULE = 4 [deprecated = true];
+  }
+
+  string name = 1;
+  string path = 2;
+  Kind kind = 3;
+  int64 size = 4;
+}
+
+message ListTreeResponse {
+  repeated TreeEntry entries = 1;
+  string next_page_token = 2;
+}
+
+message ReadFileRequest {
+  RepoRef repo = 1;
+  string rev = 2;
+  string path = 3;
+  // A byte range. Zero length means to the end.
+  int64 offset = 4;
+  int64 length = 5;
+}
+
+message ReadFileResponse {
+  // Set on the first chunk only.
+  int64 size = 1;
+  bool binary = 2;
+  bytes chunk = 3;
+}

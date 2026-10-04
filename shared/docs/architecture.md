@@ -21,7 +21,7 @@ flowchart TB
 
     pg[("Postgres<br/>(read models)")]
 
-    subgraph vcsd["vcsd: Rust"]
+    subgraph vcs["vcs: Rust"]
         vroles["roles: sync, source, writer, indexer"]
     end
 
@@ -29,10 +29,10 @@ flowchart TB
 
     cli -- "REST + SSE" --> server
     web -- "REST + SSE" --> server
-    cli -- "sync/v1" --> vcsd
-    server -- "gRPC vcsd/v1, kernel/v1" --> vcsd
+    cli -- "sync/v1" --> vcs
+    server -- "gRPC source/v1, kernel/v1" --> vcs
     server --> pg
-    vcsd --> store
+    vcs --> store
 ```
 
 | Path                         | What it is                                                              |
@@ -40,9 +40,9 @@ flowchart TB
 | `shared/api/`                | The public REST contract in TypeSpec                                    |
 | `shared/openapi.yaml`        | Compiled from `shared/api/` for the generators, ignored by git          |
 | `shared/proto/echo/v1/`      | The echo contract, removed once a real operation runs                   |
-| `shared/proto/vcsd/v1/`      | The internal contract for reading repositories                          |
+| `shared/proto/source/v1/`    | The internal contract for reading repositories                          |
 | `shared/proto/kernel/v1/`    | The internal contract for streams, names, and leases                    |
-| `shared/proto/sync/v1/`      | The public sync protocol between `jf` and vcsd                          |
+| `shared/proto/sync/v1/`      | The public sync protocol between `jf` and vcs                           |
 | `shared/proto/store/v1/`     | The native object format                                                |
 | `shared/proto/repos/v1/`     | The events of the server's repos module                                 |
 | `shared/http/`               | Hurl requests against the REST contract                                 |
@@ -53,9 +53,9 @@ flowchart TB
 | `shared/deploy/compose.yaml` | The evaluation tier: everything on one machine                          |
 | `shared/config/`             | Tool configuration and the mise tasks                                   |
 | `rust/cli/`                  | The `jf` command                                                        |
-| `rust/vcsd/`                 | The storage kernel                                                      |
+| `rust/vcs/`                  | The storage kernel                                                      |
 | `rust/proto/`                | The Rust stubs for `shared/proto/`                                      |
-| `server/`                    | Kotlin Spring Boot. `identity/` and `source/` hold the stub controllers |
+| `jvm/`                       | Kotlin Spring Boot. `identity/` and `source/` hold the stub controllers |
 | `web/`                       | A pnpm workspace: `apps/`, `features/`, and `shared/`                   |
 
 ## Building blocks

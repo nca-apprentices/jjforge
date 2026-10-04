@@ -9,7 +9,7 @@ import type { paths } from "./contract.gen";
 export const client = createClient<paths>({ baseUrl: location.origin });
 
 /**
- * Calls `POST /api/v1/echo` and returns the message vcsd answered.
+ * Calls `POST /api/v1/echo` and returns the message vcs answered.
  * @public
  */
 export async function echo(message: string): Promise<string> {

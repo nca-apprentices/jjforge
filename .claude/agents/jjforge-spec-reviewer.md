@@ -27,7 +27,7 @@ Check, in this order, and report each gap with the file and line:
 4. **Design, for a write path.** The section starts with `designs #<n>`. It
    names the policy and its refusal, every claimed name, the stream, the
    events and their proto file, the read model and its queries, and what each
-   partial failure leaves behind and who repairs it. A step that calls vcsd
+   partial failure leaves behind and who repairs it. A step that calls vcs
    names the gRPC method. Each external system the path calls has its twin
    named, as ADR 0018 decides. A read path has no design, and that is
    correct.

@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "jjforge.fullname" . }}-vcs
+  labels:
+    {{- include "jjforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vcs
+spec:
+  replicas: {{ .Values.vcs.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: vcs
+  template:
+    metadata:
+      labels:
+        {{- include "jjforge.labels" . | nindent 8 }}
+        app.kubernetes.io/component: vcs
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      # Meets the "restricted" Pod Security Standard. The image's USER is the
+      # numeric 65532, so the kubelet can check that it isn't root.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vcs
+          image: {{ .Values.vcs.image.repository }}:{{ .Values.vcs.image.tag | default .Chart.AppVersion }}
+          env:
+            - name: VCS_ADDR
+              value: 0.0.0.0:50052
+            - name: VCS_METRICS_ADDR
+              value: 0.0.0.0:9090
+          ports:
+            - name: grpc
+              containerPort: 50052
+            # Prometheus metrics, off the Service.
+            - name: metrics
+              containerPort: 9090
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          resources:
+            {{- toYaml .Values.vcs.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "jjforge.fullname" . }}-vcs
+  labels:
+    {{- include "jjforge.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: vcs
+  ports:
+    - name: grpc
+      port: 50052
+      targetPort: grpc

@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package source.v1;
+
+import "google/protobuf/timestamp.proto";
+import "source/v1/repo.proto";
+
+option java_multiple_files = true;
+option java_package = "dev.nca.jjforge.source.v1";
+
+// Reads the history of a repository at a given operation.
+service HistoryService {
+  // Resolves a change ID, a commit ID, a unique prefix of either, or a
+  // bookmark. FAILED_PRECONDITION with the candidates in the details means the
+  // revision is ambiguous.
+  rpc Resolve(ResolveRequest) returns (ResolveResponse);
+  // Streams the changes reachable from a revision, newest first.
+  rpc Log(LogRequest) returns (stream LogResponse);
+  rpc GetChange(GetChangeRequest) returns (GetChangeResponse);
+  // Lists the earlier versions of a change, newest first.
+  rpc GetEvolution(GetEvolutionRequest) returns (GetEvolutionResponse);
+  rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse);
+  rpc ListBookmarks(ListBookmarksRequest) returns (ListBookmarksResponse);
+}
+
+message Signature {
+  string name = 1;
+  string email = 2;
+  google.protobuf.Timestamp time = 3;
+}
+
+message Change {
+  string change_id = 1;
+  string commit_id = 2;
+  string description = 3;
+  Signature author = 4;
+  Signature committer = 5;
+  repeated string parent_commit_ids = 6;
+  bool conflicted = 7;
+  repeated string bookmarks = 8;
+}
+
+message ResolveRequest {
+  RepoRef repo = 1;
+  string rev = 2;
+}
+
+message ResolveResponse {
+  string change_id = 1;
+  string commit_id = 2;
+}
+
+message LogRequest {
+  RepoRef repo = 1;
+  // Empty means the trunk bookmark.
+  string rev = 2;
+}
+
+message LogResponse {
+  Change change = 1;
+}
+
+message GetChangeRequest {
+  RepoRef repo = 1;
+  string rev = 2;
+}
+
+message GetChangeResponse {
+  Change change = 1;
+}
+
+message GetEvolutionRequest {
+  RepoRef repo = 1;
+  string rev = 2;
+  string page_token = 3;
+  int32 page_size = 4;
+}
+
+message Version {
+  string commit_id = 1;
+  google.protobuf.Timestamp time = 2;
+  string operation_id = 3;
+}
+
+message GetEvolutionResponse {
+  repeated Version versions = 1;
+  string next_page_token = 2;
+}
+
+message ListOperationsRequest {
+  RepoRef repo = 1;
+  string page_token = 2;
+  int32 page_size = 3;
+}
+
+message Operation {
+  string id = 1;
+  google.protobuf.Timestamp time = 2;
+  string principal_id = 3;
+  string description = 4;
+  repeated string parent_ids = 5;
+}
+
+message ListOperationsResponse {
+  repeated Operation operations = 1;
+  string next_page_token = 2;
+}
+
+message ListBookmarksRequest {
+  RepoRef repo = 1;
+  string page_token = 2;
+  int32 page_size = 3;
+}
+
+message Bookmark {
+  string name = 1;
+  // More than one target means the bookmark is conflicted.
+  repeated string target_change_ids = 2;
+}
+
+message ListBookmarksResponse {
+  repeated Bookmark bookmarks = 1;
+  string next_page_token = 2;
+}

@@ -7,22 +7,26 @@ toolchain, and `mise trust` once lets mise read `mise.toml`. The tasks live in
 ## Checking
 
 ```text
-mise run fmt     # format every file, as shared/config/dprint.json configures
-mise run lint    # formatting, prose, links, buf, spec, workflows, Dockerfiles,
-                 # task scripts, helm, tsc, biome
-mise run test    # gradle build (tests, detekt, architecture, coverage), vitest,
-                 # web build
+mise run fmt     # format every file, then cargo fmt
+mise run lint    # every lint task below
+mise run test    # every test task below
 ```
 
-The `rust:` tasks cover the Rust code:
+Each top-level directory has its own tasks:
 
 ```text
+mise run shared:lint  # formatting, prose, links, buf, spec, workflows,
+                      # Dockerfiles, task scripts, helm
+mise run jvm:lint     # detekt
+mise run jvm:test     # gradle build (tests, detekt, architecture, coverage)
+mise run web:lint     # tsc, biome
+mise run web:test     # vitest, web build
 mise run rust:fmt     # cargo fmt
 mise run rust:lint    # cargo fmt --check, clippy, rustdoc, machete, deny
 mise run rust:test    # cargo test
 ```
 
-CI runs lint, test, rust:lint, and rust:test.
+CI runs each namespace as a job.
 [ADR 0015](adr/0015-checked-code-rules.md) lists the rules they enforce.
 
 ## Running
@@ -30,8 +34,8 @@ CI runs lint, test, rust:lint, and rust:test.
 With podman, which builds both images from the repository root:
 
 ```text
-mise run up      # server on :8080, vcsd and the twins of ADR 0018 behind it
-mise run smoke   # in a second terminal: web, server, vcsd and cli
+mise run up      # server on :8080, vcs and the twins of ADR 0018 behind it
+mise run smoke   # in a second terminal: web, server, vcs and cli
 mise run compose logs   # or any other docker-compose command, such as ps or down
 ```
 
@@ -41,8 +45,8 @@ Without containers:
 
 ```text
 mise run spec:build
-(cd rust && cargo run --bin vcsd)
-gradle -p server bootRun
+(cd rust && cargo run --bin vcs)
+gradle -p jvm bootRun
 (cd rust && cargo run --bin jf -- echo hi)
 curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '{"message":"hi"}'
 ```
@@ -81,12 +85,12 @@ mise run spec:breaking  # compare the REST contract with main using oasdiff
 
 CI accepts a breaking REST change only when the PR title marks it with `!`, as
 in `feat!: rename the org field`. `buf breaking` guards every proto against
-`main`, because the server, vcsd, and `jf` run different versions during a
+`main`, because the server, vcs, and `jf` run different versions during a
 rolling deploy and long after it.
 
 ## Releasing
 
-A `v*` tag publishes, all with the same version, the server and vcsd images to
+A `v*` tag publishes, all with the same version, the server and vcs images to
 `ghcr.io/nca-apprentices`, the CLI binaries, and the chart to
 `oci://ghcr.io/nca-apprentices/charts/jjforge`.
 [Architecture](architecture.md#releases-and-deployment) says how it is

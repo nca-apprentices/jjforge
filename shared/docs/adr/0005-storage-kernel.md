@@ -1,4 +1,4 @@
-# 0005. vcsd is the storage kernel, and the server owns the product
+# 0005. vcs is the storage kernel, and the server owns the product
 
 Status: accepted, 2026-10-03. Deciders: jjforge maintainers.
 
@@ -23,23 +23,23 @@ The options were:
 - The server writes its own streams to the object store with the S3 SDK. One
   hop less, but the log format gets a second implementation, and apprentices
   write storage code.
-- vcsd offers a small, generic contract for streams, names, and leases, and the
+- vcs offers a small, generic contract for streams, names, and leases, and the
   server keeps its state through it. Rust holds the storage mechanisms, and
   Spring holds every feature.
 
 ## Decision
 
-- vcsd holds VCS semantics and storage mechanisms, and nothing a person would
+- vcs holds VCS semantics and storage mechanisms, and nothing a person would
   call a feature. The server holds every feature: organizations, identity,
   policy, review, landing, hooks, workflows, and notifications.
-- vcsd serves `kernel/v1`, described in [proto/kernel/v1](../../proto/kernel/v1/):
+- vcs serves `kernel/v1`, described in [proto/kernel/v1](../../proto/kernel/v1/):
   1. Streams: append with an expected version, read from a version, and
      subscribe to a prefix from a cursor. A subscription also carries every
      repository's operations.
   2. Names: claim a globally unique name.
   3. Leases: acquire and renew a named lease with an epoch. A write that
      carries a stale epoch is refused.
-- Events in a stream are opaque bytes to vcsd. The server owns their schemas.
+- Events in a stream are opaque bytes to vcs. The server owns their schemas.
 - The tenant is the unit of ordering. Every append to a tenant's streams, and
   every publish to its repositories, goes through one owner at a time, chosen
   on a hash ring, which batches them into one compare-and-swap on the tenant's

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Run the web tests and build"
+#MISE depends=["spec:build"]
+set -euo pipefail
+
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web test
+pnpm --dir web build
