@@ -19,8 +19,8 @@ requirement or a task is a sub-issue of its epic, and an epic is a sub-issue
 of its initiative. The issue forms set the type.
 
 A [milestone](https://github.com/nca-apprentices/jjforge/milestones) is a
-state of the forge, defined in its description. Each epic and task carries
-one, and a requirement inherits its epic's.
+state of the forge, defined in its description. An epic or a task carries one
+once it is planned. A requirement carries none, because its epic's covers it.
 
 ## Rules
 
