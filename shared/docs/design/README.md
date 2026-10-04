@@ -22,6 +22,10 @@ rules, and [ADR 0017](../adr/0017-specified-before-built.md) the decision.
 - A section names its steps in order, each with the problem code it answers
   on refusal, then the partial failures and who repairs them, then the read
   model and its queries.
+- A Mermaid diagram goes where it says more than the list: a sequence diagram
+  for a command that crosses the server, vcsd, and the store, and a flowchart
+  for where data moves between a stream, a projector, and a read model.
+  Refusals and failures stay in prose, so the diagram shows the happy path.
 - The event schema is a proto file under `shared/proto/<module>/v1/`, in the
   same PR as the section. The projector's test lands with the implementation.
 - A design links to the ADRs it depends on. An ADR never links to a design,

@@ -12,6 +12,24 @@ designs #25 #26 #15
 Command: `createRepo(org, name)` by principal P, served by `POST
 /api/v1/orgs/{org}/repos`.
 
+```mermaid
+sequenceDiagram
+    participant client as jf or web app
+    participant server
+    participant vcsd
+    participant store as object store
+
+    client->>server: POST /api/v1/orgs/{org}/repos {name}
+    server->>server: Cedar: P owns the org, decision recorded
+    server->>vcsd: NameService.Claim(repo/{orgId}/{name}, repoId)
+    vcsd->>store: PUT names/repo/{orgId}/{name}, If-None-Match: *
+    server->>vcsd: RepoService.CreateRepo(orgId, repoId)
+    vcsd->>store: PUT t/{org}/r/{repo}/HEAD, If-None-Match: *
+    server->>vcsd: StreamService.Append(t/{orgId}/repo/{repoId}, version 0, RepoCreated)
+    vcsd->>store: compare-and-swap on t/{org}/log
+    server-->>client: 201 Repo with cloneUrl
+```
+
 1. Policy: P is an owner of the organization, decided by Cedar and recorded,
    as [ADR 0004](../adr/0004-identity-and-tokens.md) decides. Refused: 403
    `forbidden`.
@@ -71,6 +89,20 @@ nothing.
 designs #27
 
 Schema `repos`, written only by the projector:
+
+```mermaid
+flowchart LR
+    stream["kernel stream<br/>t/{org}/repo/{repo}"]
+    projector["repos projector"]
+    pg[("Postgres schema repos<br/>repo, cursor")]
+    queries["getRepo, listRepos"]
+    command["createRepo, deleteRepo"]
+
+    command -- "Append" --> stream
+    stream -- "Subscribe t/{org}/repo/" --> projector
+    projector -- "one transaction:<br/>row and cursor" --> pg
+    pg --> queries
+```
 
 ```text
 repo(org_id, id, name, clone_url, created_at)   primary key (org_id, id)
