@@ -1,5 +1,5 @@
 ---
-name: specify
+name: jjforge-specify
 description: Write the spec PR for one requirement, before anyone builds it. Use when asked to specify, spec, or write scenarios or a design for an issue such as R012 or #25.
 ---
 
@@ -22,9 +22,14 @@ design section if the requirement changes state. Someone else builds it.
    and `mise run spec:breaking`.
 4. **Design the write path.** Skip for a read. Add a section to the epic's
    file in `shared/docs/design/` in the format its README gives, and the
-   event schema as `shared/proto/<module>/v1/events.proto`. Check:
+   event schema as `shared/proto/<module>/v1/events.proto`. Name each
+   external system the path calls and its twin, as ADR 0018 decides. Check:
    `buf lint shared/proto`.
 5. **Trace.** `mise run spec:trace` lists the operation, the scenario, and
    the design under `R<id>` in `build/trace.yaml`. Then `mise run lint`.
-6. **PR.** Title `feat(spec): <what a person can do>`. Template:
+6. **Review.** Run the `jjforge-spec-reviewer` agent and close every gap it
+   reports.
+7. **PR.** Title `feat(spec): <what a person can do>`. Template:
    `Satisfies #<n>`, spec changed, design changed.
+
+Next, once the PR merges: `/jjforge-implement <n>`, by someone else.

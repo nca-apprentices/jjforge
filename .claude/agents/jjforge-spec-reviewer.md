@@ -1,5 +1,5 @@
 ---
-name: spec-reviewer
+name: jjforge-spec-reviewer
 description: Reviews a spec PR, or the spec of one requirement, with one question, could someone build this without asking the author? Use before opening a spec PR or when asked to review one.
 tools: Read, Grep, Glob, Bash
 ---
@@ -28,9 +28,12 @@ Check, in this order, and report each gap with the file and line:
    names the policy and its refusal, every claimed name, the stream, the
    events and their proto file, the read model and its queries, and what each
    partial failure leaves behind and who repairs it. A step that calls vcsd
-   names the gRPC method. A read path has no design, and that is correct.
+   names the gRPC method. Each external system the path calls has its twin
+   named, as ADR 0018 decides. A read path has no design, and that is
+   correct.
 5. **Trace.** `mise run spec:trace` lists the operation, the scenario, and
    the design under the requirement, with no error.
 
 Report the gaps as a list, most blocking first, each with what to add. End
-with one line: can be built without asking, or not yet.
+with one line: can be built without asking, or not yet. The author closes the
+gaps through `/jjforge-specify`.

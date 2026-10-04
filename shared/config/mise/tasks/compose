@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Run docker-compose against the podman machine, such as `mise run compose logs server`"
+set -euo pipefail
+
+# docker-compose talks to the podman machine's Docker-compatible socket
+# directly. `podman compose` would only wrap the same binary.
+socket=$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')
+
+DOCKER_HOST=unix://$socket exec docker-compose --file shared/deploy/compose.yaml "$@"

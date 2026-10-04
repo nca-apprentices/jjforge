@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# SessionStart: names the jjforge workflow this branch is in, from the files
+# it changes against main. Claude Code adds the output to the context.
+set -euo pipefail
+
+base=$(git merge-base HEAD origin/main 2>/dev/null || true)
+changed=""
+if [[ -n $base ]]; then
+  # Deletions excluded, so a scenario moved out of pending doesn't count.
+  changed=$(git diff --name-only --diff-filter=d "$base")
+fi
+
+if rg -q '^shared/(http/pending|api|docs/design|proto)/' <<<"$changed"; then
+  echo "This branch changes a spec. Follow /jjforge-specify, and run the jjforge-spec-reviewer agent before the PR."
+fi
+if rg -q '^(server/src/main|rust/[a-z]+/src)/' <<<"$changed"; then
+  echo "This branch changes code. If it builds a requirement, follow /jjforge-implement."
+fi
+echo "AGENTS.md routes each kind of work to a jjforge skill or agent. Use it instead of doing its steps by hand."

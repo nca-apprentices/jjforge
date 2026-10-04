@@ -32,6 +32,7 @@ With podman, which builds both images from the repository root:
 ```text
 mise run up      # server on :8080, vcsd behind it
 mise run smoke   # in a second terminal: web, server, vcsd and cli
+mise run compose logs   # or any other docker-compose command, such as ps or down
 ```
 
 Set `JJFORGE_PORT` for both when something else holds port 8080.
@@ -65,9 +66,11 @@ these documents.
 
 ## Changing a contract
 
-The `specify` skill in `.claude/skills/` walks through a spec PR, as
+The `jjforge-specify` skill in `.claude/skills/` walks through a spec PR, as
 [ADR 0017](adr/0017-specified-before-built.md) decides, and the
-`spec-reviewer` agent in `.claude/agents/` reviews it.
+`jjforge-spec-reviewer` agent in `.claude/agents/` reviews it.
+`jjforge-implement` builds the requirement once the spec merges.
+[AGENTS.md](../../AGENTS.md) routes each kind of work to its skill.
 
 ```text
 mise run spec:build     # compile shared/api/ to shared/openapi.yaml

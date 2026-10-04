@@ -20,6 +20,7 @@ pnpm --dir web exec biome ci --error-on-warnings
 # Last, because the web formatter needs the packages installed above.
 dprint check --config shared/config/dprint.json
 mise run prose
+mise run agents:lint
 
 # Every relative link and anchor in the Markdown. Offline, so a remote site
 # that is down never fails the check.
