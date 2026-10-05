@@ -52,7 +52,7 @@ flowchart TB
 | `rust/cli/`                  | The `jf` command                                                        |
 | `rust/vcs/`                  | The repository service                                                  |
 | `rust/proto/`                | The Rust stubs for `shared/proto/`                                      |
-| `jvm/`                       | Kotlin Spring Boot. `identity/` and `source/` hold the stub controllers |
+| `jvm/`                       | Kotlin Spring Boot. `identity/`, `repos/`, and `source/` hold stubs     |
 | `web/`                       | A pnpm workspace: `apps/`, `features/`, and `shared/`                   |
 
 ## Building blocks
