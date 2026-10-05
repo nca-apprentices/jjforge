@@ -22,9 +22,8 @@ export default defineConfig({
           items: [
             "concepts",
             "architecture",
-            "surfaces",
             "cli",
-            { label: "Designs", items: [{ autogenerate: { directory: "design" } }] },
+            { label: "Specs", items: [{ autogenerate: { directory: "specs" } }] },
             { label: "Architecture decisions", items: [{ autogenerate: { directory: "adr" } }] },
           ],
         },

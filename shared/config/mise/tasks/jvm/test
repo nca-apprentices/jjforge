@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Run the gradle build: tests, detekt, architecture, and coverage"
-#MISE depends=["spec:build"]
+#MISE depends=["api:build"]
 set -euo pipefail
 
 gradle -p jvm build

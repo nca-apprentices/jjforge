@@ -10,9 +10,9 @@ What jjforge is and how it works.
 
 1. [Concepts](concepts.md): jj for git users, and what that means for the UI.
 2. [Architecture](architecture.md): how the parts fit together.
-3. [Surfaces](surfaces.md): where each capability appears on each interface.
-4. [CLI conventions](cli.md): how `jf` behaves.
-5. [Designs](design/README.md): how each write path flows, one per epic.
+3. [CLI conventions](cli.md): how `jf` behaves.
+4. [Specs](specs/README.md): what each epic's requirements do and how it
+   works inside, one page per epic.
 
 The [decisions](adr/README.md) say why. Each page links the ones it rests on.
 The contracts are [shared/api](../api/) and [shared/proto](../proto/).

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Fail on a breaking change to the REST contract against a git ref, origin/main by default"
-#MISE depends=["spec:build"]
+#MISE depends=["api:build"]
 #USAGE arg "[base]" default="origin/main"
 set -euo pipefail
 

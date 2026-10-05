@@ -36,7 +36,6 @@ model FileRange {
 @tag("files")
 @summary("List a directory at a revision")
 @returnsDoc("One page of entries, directories first, then by name.")
-@extension("x-requirements", #["#42"])
 @get
 @route("/api/v1/orgs/{org}/repos/{repo}/tree")
 op listTree(
@@ -54,7 +53,6 @@ op listTree(
 @tag("files")
 @summary("Read a file at a revision")
 @returnsDoc("The whole file.")
-@extension("x-requirements", #["#43", "#44", "#46"])
 @get
 @route("/api/v1/orgs/{org}/repos/{repo}/contents")
 op readFile(
@@ -75,7 +73,6 @@ op readFile(
 @tag("files")
 @summary("Compare a change with its parents, or two revisions")
 @returnsDoc("One page of file diffs.")
-@extension("x-requirements", #["#45", "#46"])
 @get
 @route("/api/v1/orgs/{org}/repos/{repo}/diff")
 op getDiff(

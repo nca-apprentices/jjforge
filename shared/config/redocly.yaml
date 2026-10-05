@@ -1,4 +1,4 @@
-# `mise run spec:lint` lints shared/openapi.yaml with this file. The strict
+# `mise run api:lint` lints shared/openapi.yaml with this file. The strict
 # ruleset fails on what `recommended` only warns about.
 # .redocly.lint-ignore.yaml lists the deliberate exceptions.
 extends:

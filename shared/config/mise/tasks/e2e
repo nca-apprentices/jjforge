@@ -9,7 +9,7 @@ run=$(date +%s)
 hurl --test --variable server="$server" --variable run="$run" shared/e2e/http/*.hurl
 
 # The pending scenarios, whose operations still answer 501. They report and
-# never fail: the PR that builds an operation moves its file up, as ADR 0017
+# never fail: the PR that builds a requirement moves its file up, as ADR 0017
 # decides.
 if compgen -G 'shared/e2e/http/pending/*.hurl' >/dev/null; then
   echo "pending scenarios, expected to fail until their operations are built:"
@@ -25,3 +25,9 @@ if [[ -z ${JF_BIN:-} ]]; then
   JF_BIN=$PWD/rust/target/debug/jf
 fi
 PATH="$(dirname "$JF_BIN"):$PATH" JJFORGE_ENDPOINT="$server" bats shared/e2e/cli
+
+# The pending CLI scenarios, like the pending REST ones.
+if compgen -G 'shared/e2e/cli/pending/*.bats' >/dev/null; then
+  echo "pending CLI scenarios, expected to fail until their commands are built:"
+  PATH="$(dirname "$JF_BIN"):$PATH" JJFORGE_ENDPOINT="$server" bats shared/e2e/cli/pending || true
+fi

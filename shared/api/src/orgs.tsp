@@ -9,14 +9,12 @@ namespace jjforge;
 @tag("orgs")
 @summary("List the organizations the principal belongs to")
 @returnsDoc("One page of organizations.")
-@extension("x-requirements", #["#27"])
 @get
 @route("/api/v1/orgs")
 op listOrgs(...Parameters.Paging): OrgPage | Unauthenticated;
 
 @tag("orgs")
 @summary("Create an organization, owned by the principal")
-@extension("x-requirements", #["#24"])
 @post
 @route("/api/v1/orgs")
 op createOrg(@body body: OrgCreate):
@@ -28,7 +26,6 @@ op createOrg(@body body: OrgCreate):
 @tag("orgs")
 @summary("Show one organization")
 @returnsDoc("The organization.")
-@extension("x-requirements", #["#27"])
 @get
 @route("/api/v1/orgs/{org}")
 op getOrg(...Parameters.Org): Org | Unauthenticated | NotFound;
@@ -36,7 +33,6 @@ op getOrg(...Parameters.Org): Org | Unauthenticated | NotFound;
 @tag("orgs")
 @summary("Connect the organization's identity provider")
 @returnsDoc("Verified and saved.")
-@extension("x-requirements", #["#7"])
 @put
 @route("/api/v1/orgs/{org}/identity-provider")
 op setIdentityProvider(...Parameters.Org, @body body: IdentityProvider):
@@ -49,7 +45,6 @@ op setIdentityProvider(...Parameters.Org, @body body: IdentityProvider):
 @tag("orgs")
 @summary("List the organization's members and their roles")
 @returnsDoc("One page of members.")
-@extension("x-requirements", #["#14", "#15"])
 @get
 @route("/api/v1/orgs/{org}/members")
 op listMembers(...Parameters.Org, ...Parameters.Paging):
@@ -60,7 +55,6 @@ op listMembers(...Parameters.Org, ...Parameters.Paging):
 @tag("orgs")
 @summary("Add a member or change their role")
 @returnsDoc("The member with their role.")
-@extension("x-requirements", #["#14", "#15"])
 @put
 @route("/api/v1/orgs/{org}/members/{principal}")
 op putMember(
@@ -73,7 +67,6 @@ op putMember(
 @tag("orgs")
 @summary("Remove a member")
 @returnsDoc("Removed.")
-@extension("x-requirements", #["#14"])
 @delete
 @route("/api/v1/orgs/{org}/members/{principal}")
 op removeMember(...Parameters.Org, ...Parameters.Principal):
@@ -86,7 +79,6 @@ op removeMember(...Parameters.Org, ...Parameters.Principal):
 @tag("orgs")
 @summary("List the organization's access decisions, newest first")
 @returnsDoc("One page of access records.")
-@extension("x-requirements", #["#17"])
 @get
 @route("/api/v1/orgs/{org}/access-records")
 op listAccessRecords(...Parameters.Org, ...Parameters.Paging):

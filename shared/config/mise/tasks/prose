@@ -13,3 +13,13 @@ if [[ -n $alerts ]]; then
   echo "$alerts"
   exit 1
 fi
+
+# A spec page has the four sections that ADR 0017 decides.
+for page in shared/docs/specs/[0-9]*.md; do
+  for section in Flow Persistence Architecture Failures; do
+    if ! grep -q "^## $section\$" "$page"; then
+      echo "$page: no '## $section' section"
+      exit 1
+    fi
+  done
+done

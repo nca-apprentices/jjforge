@@ -18,9 +18,10 @@ target/
 build/
 .gradle/
 node_modules/
+.pnpm-store/
 dist/
 web/shared/api/src/contract.gen.ts
-# Compiled from shared/api by `mise run spec:build`
+# Compiled from shared/api by `mise run api:build`
 shared/openapi.yaml
 
 # Generated: the release copies the web build into the server jar

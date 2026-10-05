@@ -1,11 +1,10 @@
 name: Epic
-description: What can be demonstrated when it is done. Add it as a sub-issue of its initiative.
-title: "E"
+description: What can be demonstrated when it is done.
 type: Epic
 body:
   - type: markdown
     attributes:
-      value: Start the title with the next free epic ID, such as `E36`. [Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the IDs. Set the milestone in the sidebar. The [milestones](https://github.com/nca-apprentices/jjforge/milestones) say what each one reaches.
+      value: Set the milestone in the sidebar. The [milestones](https://github.com/nca-apprentices/jjforge/milestones) say what each one reaches.
   - type: textarea
     id: demo
     attributes:

@@ -9,7 +9,6 @@ namespace jjforge;
 @tag("history")
 @summary("List the changes reachable from a revision, newest first")
 @returnsDoc("One page of changes.")
-@extension("x-requirements", #["#35", "#38"])
 @get
 @route("/api/v1/orgs/{org}/repos/{repo}/changes")
 op listChanges(...Parameters.InRepo, ...Parameters.Rev, ...Parameters.Paging):
@@ -22,7 +21,6 @@ op listChanges(...Parameters.InRepo, ...Parameters.Rev, ...Parameters.Paging):
 @tag("history")
 @summary("Show one change")
 @returnsDoc("The change.")
-@extension("x-requirements", #["#36", "#38"])
 @get
 @route("/api/v1/orgs/{org}/repos/{repo}/changes/{rev}")
 op getChange(...Parameters.InRepo, ...Parameters.RevPath):
@@ -34,7 +32,6 @@ op getChange(...Parameters.InRepo, ...Parameters.RevPath):
 @tag("history")
 @summary("List the earlier versions of a change, newest first")
 @returnsDoc("One page of versions.")
-@extension("x-requirements", #["#37"])
 @get
 @route("/api/v1/orgs/{org}/repos/{repo}/changes/{rev}/evolution")
 op getEvolution(
@@ -46,7 +43,6 @@ op getEvolution(
 @tag("history")
 @summary("List the operations that changed the repository, newest first")
 @returnsDoc("One page of operations.")
-@extension("x-requirements", #["#39"])
 @get
 @route("/api/v1/orgs/{org}/repos/{repo}/operations")
 op listOperations(...Parameters.InRepo, ...Parameters.Paging):
@@ -57,7 +53,6 @@ op listOperations(...Parameters.InRepo, ...Parameters.Paging):
 @tag("history")
 @summary("List the bookmarks and their targets")
 @returnsDoc("One page of bookmarks.")
-@extension("x-requirements", #["#40", "#32"])
 @get
 @route("/api/v1/orgs/{org}/repos/{repo}/bookmarks")
 op listBookmarks(...Parameters.InRepo, ...Parameters.Paging):

@@ -16,10 +16,9 @@ docker-compose = "5.5.1"
 # `mise run e2e` runs the scenarios in shared/e2e/.
 hurl = "8.0.1"
 bats = "1.14.0"
-# The OpenAPI checks: `mise run spec:lint`, `spec:breaking`, and `spec:trace`.
+# The OpenAPI checks: `mise run api:lint` and `api:breaking`.
 "npm:@redocly/cli" = "2.54.2"
 "github:oasdiff/oasdiff" = "1.32.1"
-yq = "4.53.6"
 # `mise run lint` checks every Markdown link.
 lychee = "0.24.2"
 # Static checks in `mise run shared:lint` and `rust:lint`.

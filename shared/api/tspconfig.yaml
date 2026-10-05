@@ -1,4 +1,4 @@
-# `mise run spec:build` compiles src/main.tsp, the tspMain of package.json, to
+# `mise run api:build` compiles src/main.tsp, the tspMain of package.json, to
 # shared/openapi.yaml.
 emit:
   - "@typespec/openapi3"

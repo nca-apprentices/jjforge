@@ -39,12 +39,13 @@ and reads its users from a JSON file.
 - A twin's seed is the test data: the organizations `acme` and `other`, each
   with its own issuer, and their owners and members. The Hurl fixtures name
   the same people. `shared/deploy/twins/` holds the seeds.
-- Compose runs every twin from the start, before any code calls it. A design
-  names the external systems its write path calls, and a new one brings its
-  twin in the PR that specifies it.
+- Compose runs every twin from the start, before any code calls it. The
+  Architecture section of a spec page names the external systems its paths
+  call, and a new one brings its twin in the spec PR.
 - A requirement is built when its scenarios pass against the running system,
   built from the PR with its twins, and the logs and stored state match the
-  design. The `jjforge-implement` skill walks through that check.
+  Persistence section of its spec page.
+  [Development](../development.md#specifying-and-building) lists that check.
 
 ## Consequences
 
