@@ -49,10 +49,8 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           BASE: ${{ github.base_ref }}
           GH_TOKEN: ${{ github.token }}
-      # A breaking change passes only when the PR title marks it, as in
-      # "feat!: drop the echo operation".
-      - name: No unmarked breaking change
-        if: ${{ !contains(github.event.pull_request.title, '!:') }}
+      # /api/v1 changes only by addition, as ADR 0002 decides.
+      - name: No breaking change
         run: mise run api:breaking "origin/$BASE"
         env:
           BASE: ${{ github.base_ref }}

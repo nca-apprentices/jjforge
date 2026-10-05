@@ -112,8 +112,9 @@ mise run api:lint      # TypeSpec formatting, then Redocly
 mise run api:breaking  # compare the REST contract with main using oasdiff
 ```
 
-CI accepts a breaking REST change only when the PR title marks it with `!`, as
-in `feat!: rename the org field`. `buf breaking` guards every proto against
+CI fails a breaking REST change, because a version changes only by addition,
+as [ADR 0002](adr/0002-native-jj-without-git.md) decides. `buf breaking`
+guards every proto against
 `main`, because the server, vcs, and `jf` run different versions during a
 rolling deploy and long after it.
 
