@@ -9,6 +9,6 @@ or {
   $name <: r"[a-z][a-zA-Z0-9]*",
   register_diagnostic(
     span = $element,
-    message = "Only @jjforge/ui renders HTML elements. Use or add a component there (ADR 0014)."
+    message = "Only @jjforge/ui renders HTML elements. Use or add a component there (ADR 0008)."
   )
 }

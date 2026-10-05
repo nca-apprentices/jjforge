@@ -14,23 +14,21 @@ flowchart TB
     end
 
     subgraph server["server: Spring Boot"]
-        direction LR
-        roles["roles: api, projector, worker"]
         domains["identity, policy, orgs, review, hooks"]
     end
 
-    pg[("Postgres<br/>(read models)")]
+    pg[("Postgres<br/>the server's state")]
 
     subgraph vcs["vcs: Rust"]
-        vroles["roles: sync, source, writer, indexer"]
+        vdomains["jj backend, sync, source reads"]
     end
 
-    store[("object store<br/>the only source of truth")]
+    store[("object store<br/>repositories")]
 
     cli -- "REST + SSE" --> server
     web -- "REST + SSE" --> server
     cli -- "sync/v1" --> vcs
-    server -- "gRPC source/v1, kernel/v1" --> vcs
+    server -- "gRPC source/v1" --> vcs
     server --> pg
     vcs --> store
 ```
@@ -40,11 +38,9 @@ flowchart TB
 | `shared/api/`                | The public REST contract in TypeSpec                                    |
 | `shared/openapi.yaml`        | Compiled from `shared/api/` for the generators, ignored by git          |
 | `shared/proto/echo/v1/`      | The echo contract, removed once a real operation runs                   |
-| `shared/proto/source/v1/`    | The internal contract for reading repositories                          |
-| `shared/proto/kernel/v1/`    | The internal contract for streams, names, and leases                    |
+| `shared/proto/source/v1/`    | The internal contract between the server and vcs                        |
 | `shared/proto/sync/v1/`      | The public sync protocol between `jf` and vcs                           |
 | `shared/proto/store/v1/`     | The native object format                                                |
-| `shared/proto/repos/v1/`     | The events of the server's repos module                                 |
 | `shared/e2e/http/`           | Hurl scenarios against the REST contract                                |
 | `shared/e2e/http/pending/`   | Scenarios whose operation still answers 501                             |
 | `shared/e2e/cli/`            | Bats scenarios against the `jf` command                                 |
@@ -54,7 +50,7 @@ flowchart TB
 | `shared/deploy/compose.yaml` | The evaluation tier: everything on one machine                          |
 | `shared/config/`             | Tool configuration and the mise tasks                                   |
 | `rust/cli/`                  | The `jf` command                                                        |
-| `rust/vcs/`                  | The storage kernel                                                      |
+| `rust/vcs/`                  | The repository service                                                  |
 | `rust/proto/`                | The Rust stubs for `shared/proto/`                                      |
 | `jvm/`                       | Kotlin Spring Boot. `identity/` and `source/` hold the stub controllers |
 | `web/`                       | A pnpm workspace: `apps/`, `features/`, and `shared/`                   |
@@ -78,7 +74,7 @@ flowchart TB
 
 1. Every object is addressable by content hash or change ID.
 2. Every action is attributable to a principal with a delegation chain.
-3. Every capability is an attenuated, expiring, identity-bound token.
+3. Every capability is a scoped, expiring, identity-bound token.
 4. Every state transition emits an event and is recorded.
 5. Every component, including the platform's own, uses the same registry,
    permission, and sandbox path.

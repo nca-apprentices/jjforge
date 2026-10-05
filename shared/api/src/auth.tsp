@@ -54,7 +54,7 @@ op authorizeDevice(
  */
 @tag("auth")
 @summary("Exchange a grant for a token")
-@returnsDoc("A Biscuit access token.")
+@returnsDoc("A JWT access token.")
 @useAuth(NoAuth)
 @post
 @route("/oauth/token")

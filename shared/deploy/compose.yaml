@@ -1,7 +1,7 @@
 # Evaluation tier: one command, one machine, no Kubernetes. Same images and the
 # same configuration surface as the Helm chart. `--build` builds them from the
 # repository root instead of pulling a release. The external systems run as
-# the twins of ADR 0018.
+# the twins of ADR 0009.
 name: jjforge
 
 services:
@@ -29,8 +29,8 @@ services:
     environment:
       VCS_ADDR: 0.0.0.0:50052
 
-  # The read models of ADR 0008. They are rebuilt from the streams, so the
-  # data lives only as long as the container.
+  # The server's state of ADR 0003. A twin holds test data only, so it lives
+  # as long as the container.
   postgres:
     image: postgres:18
     environment:
@@ -38,7 +38,7 @@ services:
       POSTGRES_USER: jjforge
       POSTGRES_PASSWORD: jjforge
 
-  # The object store of ADR 0006, through its S3 API on port 8333. Without a
+  # The object store of ADR 0003, through its S3 API on port 8333. Without a
   # signing key, SeaweedFS logs an error that its unused STS service has none.
   seaweedfs:
     image: chrislusf/seaweedfs:4.48

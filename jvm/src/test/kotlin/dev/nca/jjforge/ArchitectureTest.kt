@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component
 import org.springframework.validation.annotation.Validated
 
 /**
- * The server's code rules that the compiler doesn't check, as ADR 0015
+ * The server's code rules that the compiler doesn't check, as ADR 0007
  * decides. ControllerContractTest holds the rules for controllers.
  */
 @AnalyzeClasses(packages = ["dev.nca.jjforge"], importOptions = [ImportOption.DoNotIncludeTests::class])

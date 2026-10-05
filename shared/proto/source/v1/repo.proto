@@ -6,9 +6,9 @@ option java_multiple_files = true;
 option java_package = "dev.nca.jjforge.source.v1";
 
 // The internal contract between the server and vcs. Nothing outside the
-// cluster calls it: see shared/docs/adr/0002-public-protocols.md.
+// cluster calls it: see shared/docs/adr/0002-native-jj-without-git.md.
 //
-// Every call carries the caller's Biscuit token in the `authorization`
+// Every call carries the caller's JWT in the `authorization`
 // metadata, and vcs verifies it offline. A RepoRef routes the call to the
 // repository's storage.
 

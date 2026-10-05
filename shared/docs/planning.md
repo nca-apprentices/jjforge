@@ -28,7 +28,7 @@ once it is planned. A requirement carries none, because its epic's covers it.
    that is tested. It never names an endpoint, a command, or a technology.
    Limits such as latency or size are allowed.
 2. **A requirement is specified before it is built**, as
-   [ADR 0017](adr/0017-specified-before-built.md) decides. One page per epic
+   [ADR 0009](adr/0009-specified-tested-built.md) decides. One page per epic
    in [specs/](specs/README.md) holds a section per requirement.
    [Development](development.md#specifying-and-building) lists the steps.
 3. **The issue number is the reference.** A spec section, a build PR, and a

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.modulith.core.ApplicationModules
 
 /**
- * Each direct subpackage is a module, as ADR 0005 decides. A module uses
+ * Each direct subpackage is a module, as ADR 0004 decides. A module uses
  * another only through its top-level package, never its internals. The code
  * generated from the contracts belongs to no module.
  */

@@ -158,8 +158,6 @@ kover {
                     "dev.nca.jjforge.api",
                     "dev.nca.jjforge.api.model",
                     "dev.nca.jjforge.echo.v1",
-                    "dev.nca.jjforge.kernel.v1",
-                    "dev.nca.jjforge.repos.v1",
                     "dev.nca.jjforge.store.v1",
                     "dev.nca.jjforge.sync.v1",
                     "dev.nca.jjforge.source.v1",

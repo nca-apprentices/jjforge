@@ -9,7 +9,7 @@ run=$(date +%s)
 hurl --test --variable server="$server" --variable run="$run" shared/e2e/http/*.hurl
 
 # The pending scenarios, whose operations still answer 501. They report and
-# never fail: the PR that builds a requirement moves its file up, as ADR 0017
+# never fail: the PR that builds a requirement moves its file up, as ADR 0009
 # decides.
 if compgen -G 'shared/e2e/http/pending/*.hurl' >/dev/null; then
   echo "pending scenarios, expected to fail until their operations are built:"

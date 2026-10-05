@@ -6,6 +6,6 @@ JsxAttribute(name = $name) as $attribute where {
   $name <: or { `className`, `style` },
   register_diagnostic(
     span = $attribute,
-    message = "Only @jjforge/ui styles. Use or add a component there (ADR 0014)."
+    message = "Only @jjforge/ui styles. Use or add a component there (ADR 0008)."
   )
 }

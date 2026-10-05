@@ -3,7 +3,7 @@
 //
 // The spec page of an epic in shared/docs/specs/ names the operations each
 // requirement adds. An operation that isn't built yet answers 501, see
-// shared/docs/adr/0011-controllers-implement-contracts.md.
+// shared/docs/adr/0006-contract-in-typespec.md.
 import "@typespec/http";
 import "@typespec/openapi";
 import "@typespec/openapi3";
@@ -23,7 +23,7 @@ using OpenAPI;
 /**
  * The public API of jjforge. The web app, the `jf` CLI, and agents all use it.
  * Only the sync protocol is exposed besides it: see
- * shared/docs/adr/0002-public-protocols.md.
+ * shared/docs/adr/0002-native-jj-without-git.md.
  *
  * A list answers one page and a `next` cursor while more pages exist. Every
  * failure answers `application/problem+json` with a stable `code`.
@@ -57,11 +57,11 @@ using OpenAPI;
 ])
 namespace jjforge;
 
-/** A token from `/oauth/token`. See shared/docs/adr/0004-identity-and-tokens.md. */
+/** A token from `/oauth/token`. See shared/docs/adr/0005-identity-and-tokens.md. */
 model bearer {
   type: AuthType.http;
   scheme: "bearer";
-  bearerFormat: "Biscuit";
+  bearerFormat: "JWT";
 }
 
 /** Created. */

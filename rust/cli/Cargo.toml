@@ -7,7 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
-# The command is `jf`, as ADR 0009 decides.
+# The command is `jf`, as ADR 0002 decides.
 [[bin]]
 name = "jf"
 path = "src/main.rs"

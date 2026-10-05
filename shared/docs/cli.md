@@ -1,13 +1,13 @@
 # CLI conventions
 
 `jf` is the jjforge command, built on jj as
-[ADR 0009](adr/0009-cli-on-jj-cli.md) decides. Its conventions follow
+[ADR 0002](adr/0002-native-jj-without-git.md) decides. Its conventions follow
 [clig.dev](https://clig.dev).
 
 ## Repositories
 
 - `jf fetch --full` fetches every object of a repository, for working
-  offline. [ADR 0009](adr/0009-cli-on-jj-cli.md) says what a clone fetches.
+  offline. [ADR 0002](adr/0002-native-jj-without-git.md) says what a clone fetches.
 - When someone else published first, `jf push` fetches, merges, and tries
   again, or reports the conflict.
 

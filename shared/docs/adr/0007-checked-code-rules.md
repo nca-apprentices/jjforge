@@ -1,4 +1,4 @@
-# 0015. Code rules are checked, not reviewed
+# 0007. Code rules are checked, not reviewed
 
 Status: accepted, 2026-10-02. Deciders: jjforge maintainers.
 
@@ -26,7 +26,7 @@ Server, in `gradle build`:
 - A component gets its dependencies through its constructor. It has no
   `@Autowired` or `lateinit` field.
 - `ArchitectureTest` checks both rules with ArchUnit. `ControllerContractTest`
-  checks the controllers, as [ADR 0011](0011-controllers-implement-contracts.md)
+  checks the controllers, as [ADR 0006](0006-contract-in-typespec.md)
   decides.
 - `ModulesTest` runs Spring Modulith's verification: a module uses another only
   through its top-level package.

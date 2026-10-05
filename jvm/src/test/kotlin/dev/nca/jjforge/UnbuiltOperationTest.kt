@@ -11,7 +11,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 
-/** An operation in the contract that no one has built yet answers 501, as ADR 0011 decides. */
+/** An operation in the contract that no one has built yet answers 501, as ADR 0006 decides. */
 class UnbuiltOperationTest {
     private val mvc =
         MockMvcBuilders

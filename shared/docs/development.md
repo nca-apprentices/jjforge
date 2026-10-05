@@ -27,14 +27,14 @@ mise run rust:test    # cargo test
 ```
 
 CI runs each namespace as a job.
-[ADR 0015](adr/0015-checked-code-rules.md) lists the rules they enforce.
+[ADR 0007](adr/0007-checked-code-rules.md) lists the rules they enforce.
 
 ## Running
 
 With podman, which builds both images from the repository root:
 
 ```text
-mise run up      # server on :8080, vcs and the twins of ADR 0018 behind it
+mise run up      # server on :8080, vcs and the twins of ADR 0009 behind it
 mise run e2e     # in a second terminal: web, server, vcs and cli
 mise run compose logs   # or any other docker-compose command, such as ps or down
 ```
@@ -74,7 +74,7 @@ these documents.
 ## Specifying and building
 
 A requirement is specified in its epic's page under [specs/](specs/README.md)
-before it is built, as [ADR 0017](adr/0017-specified-before-built.md)
+before it is built, as [ADR 0009](adr/0009-specified-tested-built.md)
 decides. The Spec workflow fails a PR that closes a requirement no spec page
 has a section for.
 
@@ -96,13 +96,13 @@ A build PR, for one requirement, by someone other than the spec's author:
 1. Move the scenario out of `pending/` and update its link. Start
    `mise run up`, and watch `mise run e2e` fail.
 2. Build along the Flow section. A controller overrides the generated method,
-   as [ADR 0011](adr/0011-controllers-implement-contracts.md) decides.
+   as [ADR 0006](adr/0006-contract-in-typespec.md) decides.
 3. A scenario or a flow that can't be built as written goes back to a spec PR.
    This PR changes nothing else in the spec.
 4. Run `mise run test`, `mise run lint`, and `mise run e2e`. Check that
    `mise run compose logs` shows no error and that the state the Persistence
    section names exists, as
-   [ADR 0018](adr/0018-external-systems-run-as-twins.md) decides.
+   [ADR 0009](adr/0009-specified-tested-built.md) decides.
 5. Title it `feat(<module>): <what a person can do>`, and write `Closes #<n>`
    and what step 4 showed in the body.
 
