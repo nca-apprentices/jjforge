@@ -14,39 +14,32 @@ The scenarios use the seed that `mise run up` loads once
 ## Create a repository (#25)
 
 An owner adds an empty repository to their organization, and members use it at
-once. The answer carries the clone address
-`https://{host}/sync/v1/{orgId}/{repoId}`, and a clone works as soon as the
-answer arrives. A member's attempt is refused with 403
-`forbidden`, as [#15](https://github.com/nca-apprentices/jjforge/issues/15)
-decides. Operation `createRepo`, command `jf repo create`, and the New
-repository screen.
+once. A clone works as soon as the answer arrives. Only an owner creates one,
+as [#15](https://github.com/nca-apprentices/jjforge/issues/15) decides.
 
 Scenario: [repo-create.hurl](../../e2e/http/pending/repo-create.hurl).
 
 ## A repository name is unique within its organization (#26)
 
-Two repositories in one organization never share a name. A second one with the
-same name is refused with 409 `name_taken`. The same name in another
-organization is a different name and succeeds. Part of `createRepo`.
+Two repositories in one organization never share a name. The same name in
+another organization is a different name.
 
 Scenario: [repo-name-unique.hurl](../../e2e/http/pending/repo-name-unique.hurl).
 
 ## A person sees only the organizations and repositories they belong to (#27)
 
 Lists show only the person's organizations and their repositories. An
-organization or a repository the person doesn't belong to answers 404
-`not_found`, never 403, so an outsider learns nothing from the answer.
-Operations: `listOrgs`, `getOrg`, `listRepos`, `getRepo`.
+organization or a repository the person doesn't belong to looks as if it
+doesn't exist, so an outsider learns nothing from the answer.
 
 Scenario: [repo-visibility.hurl](../../e2e/http/pending/repo-visibility.hurl).
 
 ## Delete a repository (#28)
 
 An owner removes a repository and everything in it. Afterwards it can't be
-read, cloned, or pushed to, and its name is free for a new repository. A
-member's attempt is refused with 403 `forbidden`, as
+read, cloned, or pushed to, and its name is free for a new repository. Only an
+owner deletes one, as
 [#15](https://github.com/nca-apprentices/jjforge/issues/15) decides.
-Operation: `deleteRepo`. Command: `jf repo delete`.
 
 Scenario: [repo-delete.hurl](../../e2e/http/pending/repo-delete.hurl).
 
@@ -54,8 +47,7 @@ Scenario: [repo-delete.hurl](../../e2e/http/pending/repo-delete.hurl).
 
 ### Create a repository
 
-Command `createRepo(org, name)` by principal P, served by `POST
-/api/v1/orgs/{org}/repos`.
+Operation `createRepo` by principal P.
 
 ```mermaid
 sequenceDiagram
@@ -65,7 +57,7 @@ sequenceDiagram
     participant store as object store
     participant pg as Postgres
 
-    client->>server: POST /api/v1/orgs/{org}/repos {name}
+    client->>server: createRepo
     server->>server: Cedar: P owns the org
     server->>vcs: RepoService.CreateRepo(orgId, repoId)
     vcs->>store: PUT t/{org}/r/{repo}/HEAD, If-None-Match: *
@@ -89,8 +81,7 @@ sequenceDiagram
 
 ### Delete a repository
 
-Command `deleteRepo(org, repo)` by principal P, served by `DELETE
-/api/v1/orgs/{org}/repos/{repo}`.
+Operation `deleteRepo` by principal P.
 
 1. Policy: P is an owner of the organization. Refused: 403 `forbidden`. A
    principal outside the organization gets 404 `not_found`, as every read
