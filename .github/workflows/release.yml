@@ -62,10 +62,10 @@ jobs:
             target: aarch64-apple-darwin
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: arduino/setup-protoc@v3
+      # The Rust that mise.toml pins, as CI builds with.
+      - uses: jdx/mise-action@v4
         with:
-          repo-token: ${{ github.token }}
+          install_args: rust
       # The tag is the version, so `jf --version` reports the release.
       - name: Build
         working-directory: rust

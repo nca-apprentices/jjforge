@@ -2,10 +2,6 @@
 # in shared/proto/.
 FROM rust:1.98-slim AS build
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends protobuf-compiler \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /src
 COPY shared/proto shared/proto
 COPY rust rust

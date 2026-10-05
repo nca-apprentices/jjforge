@@ -164,6 +164,9 @@ settings:
 
 catalogs:
   default:
+    '@redocly/cli':
+      specifier: 2.54.2
+      version: 2.54.2
     '@typespec/compiler':
       specifier: 1.16.0
       version: 1.16.0
@@ -181,6 +184,9 @@ importers:
 
   .:
     devDependencies:
+      '@redocly/cli':
+        specifier: 'catalog:'
+        version: 2.54.2
       '@typespec/compiler':
         specifier: 'catalog:'
         version: 1.16.0
@@ -341,6 +347,11 @@ packages:
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
+
+  '@redocly/cli@2.54.2':
+    resolution: {integrity: sha512-YQ53kSQV/zpYSdY3WiQvf7JxuVLD8jTEX37YOY6MS+G3tyHDCeONpUkAt6qr9n2/nmGm6m+A+PB/mGFvhkt1uQ==}
+    engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
+    hasBin: true
 
   '@scalar/helpers@0.11.1':
     resolution: {integrity: sha512-Knwbe0IYqFk0PPDoOKLasqglBHfyf9/zwWWqFsSNi/AtdjM29wSZXN6p8DFid6iB5B9epYH9YiSgJ6tpD00TEw==}
@@ -774,6 +785,8 @@ snapshots:
   '@isaacs/fs-minipass@4.0.1':
     dependencies:
       minipass: 7.1.3
+
+  '@redocly/cli@2.54.2': {}
 
   '@scalar/helpers@0.11.1': {}
 

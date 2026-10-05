@@ -7,4 +7,4 @@ pnpm --dir shared/api exec tsp format --check "**/*.tsp"
 
 # Redocly reports usage and checks for updates unless told not to.
 export REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true
-redocly lint shared/openapi.yaml --config shared/config/redocly.yaml
+pnpm --dir shared/api exec redocly lint ../openapi.yaml --config ../config/redocly.yaml

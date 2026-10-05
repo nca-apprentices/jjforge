@@ -76,7 +76,7 @@ jobs:
       - uses: jdx/mise-action@v4
         with:
           # Only the Rust tools. The rest of the toolchain isn't needed.
-          install_args: rust protoc cargo-deny github:bnjbvr/cargo-machete
+          install_args: rust cargo-deny github:bnjbvr/cargo-machete
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust

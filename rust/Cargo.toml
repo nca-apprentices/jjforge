@@ -21,6 +21,8 @@ metrics = "0.24.6"
 # The push gateway would pull in a TLS stack that /metrics doesn't need.
 metrics-exporter-prometheus = { version = "0.18.3", default-features = false, features = ["http-listener"] }
 prost = "0.14.4"
+# The protoc that tonic-prost-build runs, so no system protoc is needed.
+protoc-bin-vendored = "3.3.0"
 # The TLS stack jf uses: rustls on ring, with the roots of the platform.
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
 rustls = { version = "0.23.45", default-features = false, features = ["ring"] }

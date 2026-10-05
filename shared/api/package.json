@@ -5,6 +5,7 @@
   "type": "module",
   "tspMain": "src/main.tsp",
   "devDependencies": {
+    "@redocly/cli": "catalog:",
     "@typespec/compiler": "catalog:",
     "@typespec/http": "catalog:",
     "@typespec/openapi": "catalog:",

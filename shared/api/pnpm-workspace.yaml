@@ -2,6 +2,7 @@
 # makes `pnpm add` write new versions here too.
 catalogMode: strict
 catalog:
+  "@redocly/cli": 2.54.2
   "@typespec/compiler": 1.16.0
   "@typespec/http": 1.16.0
   "@typespec/openapi": 1.16.0
