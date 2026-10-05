@@ -1,6 +1,3 @@
 <!-- rumdl-disable MD041 -->
-Satisfies #
-
-- Spec changed: no
-- Design changed: no
-- ADR added: no
+<!-- A build PR closes its requirement. A spec PR is part of its epic. -->
+Closes #

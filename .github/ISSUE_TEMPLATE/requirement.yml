@@ -1,23 +1,14 @@
 name: Requirement
 description: What must be true, tested from the outside. Add it as a sub-issue of its epic.
-title: "R"
 type: Requirement
 body:
   - type: markdown
     attributes:
-      value: Start the title with the next free requirement ID, such as `R039`. [Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the rules.
+      value: "[Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the rules."
   - type: textarea
     id: statement
     attributes:
       label: Statement
-      description: What a person can do, in one or two sentences.
-    validations:
-      required: true
-  - type: textarea
-    id: acceptance
-    attributes:
-      label: Acceptance
-      description: One bullet per check that a test can make.
-      value: "- "
+      description: What a person can do, in one or two sentences. The spec page of the epic says the rest.
     validations:
       required: true

@@ -61,7 +61,7 @@ function resolve(link, file) {
   const [target, hash = ""] = link.split(/(?=#)/);
   const inDocs = path.posix.normalize(path.posix.join(path.posix.dirname(file), target));
   if (!inDocs.startsWith("../") && inDocs.endsWith(".md")) {
-    // Starlight lowercases a route, so design/E10-x.md is served at /design/e10-x/.
+    // Starlight lowercases a route, so a page Name.md is served at /name/.
     const route = inDocs.replace(/(^|\/)README\.md$/, "$1").replace(/\.md$/, "/").toLowerCase();
     return `/${route}${hash}`;
   }

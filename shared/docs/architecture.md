@@ -48,7 +48,7 @@ flowchart TB
 | `shared/e2e/http/`           | Hurl scenarios against the REST contract                                |
 | `shared/e2e/http/pending/`   | Scenarios whose operation still answers 501                             |
 | `shared/e2e/cli/`            | Bats scenarios against the `jf` command                                 |
-| `shared/docs/`               | These documents, with one design per epic in `design/`                  |
+| `shared/docs/`               | These documents, with one spec per epic in `specs/`                     |
 | `shared/site/`               | The docs site, built from `shared/docs/`                                |
 | `shared/deploy/chart/`       | The Helm chart, released with every tag                                 |
 | `shared/deploy/compose.yaml` | The evaluation tier: everything on one machine                          |
@@ -91,7 +91,7 @@ measurement store → spec plane → experimentation and promotion.
 
 Specs and measurements depend on stable change IDs and events. The registry
 depends on the permission model. Building the registry before the token model
-would force a rewrite of every component. The initiatives follow this order.
+would force a rewrite of every component. The milestones follow this order.
 
 ## Releases and deployment
 

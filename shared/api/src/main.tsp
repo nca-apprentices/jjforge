@@ -1,9 +1,8 @@
-// The REST contract. `mise run spec:build` compiles it to shared/openapi.yaml,
+// The REST contract. `mise run api:build` compiles it to shared/openapi.yaml,
 // which the server and the web app generate their code from.
 //
-// Every operation names the requirement issues it serves in x-requirements,
-// and `mise run spec:trace` checks that each one is a Requirement. An
-// operation that isn't built yet answers 501, see
+// The spec page of an epic in shared/docs/specs/ names the operations each
+// requirement adds. An operation that isn't built yet answers 501, see
 // shared/docs/adr/0011-controllers-implement-contracts.md.
 import "@typespec/http";
 import "@typespec/openapi";

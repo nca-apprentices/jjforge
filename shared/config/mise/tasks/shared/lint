@@ -3,13 +3,13 @@
 set -euo pipefail
 
 buf lint shared/proto
-mise run spec:lint
+mise run api:lint
 
 # Workflows, Dockerfiles, task scripts, and CLI scenarios.
 actionlint
 hadolint --config shared/config/hadolint.yaml jvm/Dockerfile rust/vcs/Dockerfile
 find shared/config/mise/tasks -type f -exec shellcheck {} +
-shellcheck shared/e2e/cli/*.bats
+find shared/e2e/cli -name '*.bats' -exec shellcheck {} +
 
 helm lint shared/deploy/chart
 helm template jjforge shared/deploy/chart >/dev/null
@@ -18,7 +18,6 @@ helm template jjforge shared/deploy/chart >/dev/null
 pnpm --dir web install --frozen-lockfile
 dprint check --config shared/config/dprint.json
 mise run prose
-mise run agents:lint
 
 # Every relative link and anchor in the Markdown. Offline, so a remote site
 # that is down never fails the check.

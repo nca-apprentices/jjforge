@@ -93,7 +93,7 @@ jobs:
         with:
           install_args: node pnpm
       - name: Compile the OpenAPI document
-        run: mise run spec:build
+        run: mise run api:build
       - name: Package
         run: |
           helm registry login ${{ env.REGISTRY }} --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"
