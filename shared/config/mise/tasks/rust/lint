@@ -7,6 +7,13 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace
 
+# A module keeps its submodules private, so a sibling reaches only its API,
+# as ADR 0003 decides. The generated code in proto/ is exempt.
+if rg --type rust --glob '!proto/**' '^\s*pub(\([^)]*\))?\s+mod\s' .; then
+  echo "error: declare submodules with \`mod\`, never \`pub mod\`" >&2
+  exit 1
+fi
+
 # Unused dependencies, then licenses, advisories, and sources per deny.toml.
 cargo machete
 cargo deny check

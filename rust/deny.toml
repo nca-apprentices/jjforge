@@ -32,6 +32,9 @@ allow = ["MPL-2.0"]
 multiple-versions = "warn"
 wildcards = "deny"
 allow-wildcard-paths = true
+# Each layer reaches jj-lib only through the one above it, as ADR 0003
+# decides.
+deny = [{ crate = "jj-lib", wrappers = ["jj-cli"] }]
 
 [sources]
 unknown-registry = "deny"
