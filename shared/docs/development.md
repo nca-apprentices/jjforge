@@ -7,16 +7,17 @@ toolchain, and `mise trust` once lets mise read `mise.toml`. The tasks live in
 ## Checking
 
 ```text
-mise run fmt     # format every file, then cargo fmt
-mise run lint    # every lint task below
-mise run test    # every test task below
+mise run fmt         # format every file, then cargo fmt
+mise run lint        # every lint task below
+mise run test        # every test task below
+mise run site:build  # the docs site in shared/site/, from shared/docs/
 ```
 
 Each top-level directory has its own tasks:
 
 ```text
-mise run shared:lint  # formatting, prose, links, buf, spec, workflows,
-                      # Dockerfiles, task scripts, helm
+mise run shared:lint  # formatting, prose, links and anchors, buf, spec,
+                      # workflows, Dockerfiles, task scripts, helm
 mise run jvm:lint     # detekt
 mise run jvm:test     # gradle build (tests, detekt, architecture, coverage)
 mise run web:lint     # tsc, biome
@@ -26,15 +27,23 @@ mise run rust:lint    # cargo fmt --check, clippy, rustdoc, machete, deny
 mise run rust:test    # cargo test
 ```
 
+The REST contract has its own tasks:
+
+```text
+mise run api:build     # compile shared/api/ to shared/openapi.yaml
+mise run api:lint      # TypeSpec formatting, then Redocly
+mise run api:breaking  # compare the REST contract with main using oasdiff
+```
+
 CI runs each namespace as a job.
-[ADR 0007](adr/0007-checked-code-rules.md) lists the rules they enforce.
+[ADR 0003](adr/0003-checked-code-rules.md) lists the rules they enforce.
 
 ## Running
 
 With podman, which builds both images from the repository root:
 
 ```text
-mise run up      # server on :8080, vcs and the twins of ADR 0009 behind it
+mise run up      # server on :8080, vcs and the twins of ADR 0004 behind it
 mise run e2e     # in a second terminal: web, server, vcs and cli
 mise run compose logs   # or any other docker-compose command, such as ps or down
 ```
@@ -56,67 +65,16 @@ curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '
 
 ## Trying the API
 
-`shared/e2e/` holds the end-to-end scenarios. `shared/e2e/http/` holds
-[Hurl](https://hurl.dev) files: requests with asserts on each response.
-`shared/e2e/cli/` holds [Bats](https://bats-core.readthedocs.io) files, which
-run the first `jf` on the `PATH`. `mise run e2e` runs both against
-`mise run up`, and they run against any other server too.
+`shared/e2e/` holds the scenarios. [Hurl](https://hurl.dev) files under
+`http/` assert on each response, and
+[Bats](https://bats-core.readthedocs.io) files under `cli/` run the first
+`jf` on the `PATH`. `mise run e2e` runs both against `mise run up`, and
+they run against any other server too:
 
 ```text
 hurl --test --variable server=https://jjforge.example.com shared/e2e/http/*.hurl
 JJFORGE_ENDPOINT=https://jjforge.example.com bats shared/e2e/cli
 ```
-
-`mise run lint` also checks every relative link and anchor in the Markdown
-with lychee. `mise run site:build` builds the docs site in `shared/site/` from
-these documents.
-
-## Specifying and building
-
-A requirement is specified in its epic's page under [specs/](specs/README.md)
-before it is built, as [ADR 0009](adr/0009-specified-tested-built.md)
-decides. The Spec workflow fails a PR that closes a requirement no spec page
-has a section for.
-
-A spec PR, for one or more requirements of an epic:
-
-1. Add each requirement's section to the epic's page, or create the page and
-   its row in the specs README, in the format the README gives.
-2. Write each scenario in `shared/e2e/http/pending/` or
-   `shared/e2e/cli/pending/`. It uses concrete values and checks the problem
-   code of every refusal. Link it from its section.
-3. Change `shared/api/` and `shared/proto/` until every assert is
-   expressible.
-4. Run `mise run lint` and `mise run api:breaking`.
-5. Title it `spec: <what people can do>`, and write `Part of #<epic>` in the
-   body.
-
-A build PR, for one requirement, by someone other than the spec's author:
-
-1. Move the scenario out of `pending/` and update its link. Start
-   `mise run up`, and watch `mise run e2e` fail.
-2. Build along the Flow section. A controller overrides the generated method,
-   as [ADR 0006](adr/0006-contract-in-typespec.md) decides.
-3. A scenario or a flow that can't be built as written goes back to a spec PR.
-   This PR changes nothing else in the spec.
-4. Run `mise run test`, `mise run lint`, and `mise run e2e`. Check that
-   `mise run compose logs` shows no error and that the state the Persistence
-   section names exists, as
-   [ADR 0009](adr/0009-specified-tested-built.md) decides.
-5. Title it `feat(<module>): <what a person can do>`, and write `Closes #<n>`
-   and what step 4 showed in the body.
-
-```text
-mise run api:build     # compile shared/api/ to shared/openapi.yaml
-mise run api:lint      # TypeSpec formatting, then Redocly
-mise run api:breaking  # compare the REST contract with main using oasdiff
-```
-
-CI fails a breaking REST change, because a version changes only by addition,
-as [ADR 0002](adr/0002-native-jj-without-git.md) decides. `buf breaking`
-guards every proto against
-`main`, because the server, vcs, and `jf` run different versions during a
-rolling deploy and long after it.
 
 ## Releasing
 

@@ -33,28 +33,6 @@ flowchart TB
     vcs --> store
 ```
 
-| Path                         | What it is                                                              |
-| ---------------------------- | ----------------------------------------------------------------------- |
-| `shared/api/`                | The public REST contract in TypeSpec                                    |
-| `shared/openapi.yaml`        | Compiled from `shared/api/` for the generators, ignored by git          |
-| `shared/proto/echo/v1/`      | The echo contract, removed once a real operation runs                   |
-| `shared/proto/source/v1/`    | The internal contract between the server and vcs                        |
-| `shared/proto/sync/v1/`      | The public sync protocol between `jf` and vcs                           |
-| `shared/proto/store/v1/`     | The native object format                                                |
-| `shared/e2e/http/`           | Hurl scenarios against the REST contract                                |
-| `shared/e2e/http/pending/`   | Scenarios whose operation still answers 501                             |
-| `shared/e2e/cli/`            | Bats scenarios against the `jf` command                                 |
-| `shared/docs/`               | These documents, with one spec per epic in `specs/`                     |
-| `shared/site/`               | The docs site, built from `shared/docs/`                                |
-| `shared/deploy/chart/`       | The Helm chart, released with every tag                                 |
-| `shared/deploy/compose.yaml` | The evaluation tier: everything on one machine                          |
-| `shared/config/`             | Tool configuration and the mise tasks                                   |
-| `rust/cli/`                  | The `jf` command                                                        |
-| `rust/vcs/`                  | The repository service                                                  |
-| `rust/proto/`                | The Rust stubs for `shared/proto/`                                      |
-| `jvm/`                       | Kotlin Spring Boot. `identity/`, `repos/`, and `source/` hold stubs     |
-| `web/`                       | A pnpm workspace: `apps/`, `features/`, and `shared/`                   |
-
 ## Building blocks
 
 | #   | Block                          | What it holds                                                         |

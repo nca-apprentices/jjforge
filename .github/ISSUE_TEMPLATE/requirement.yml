@@ -4,7 +4,7 @@ type: Requirement
 body:
   - type: markdown
     attributes:
-      value: "[Planning](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/planning.md) explains the rules."
+      value: "[Workflow](https://github.com/nca-apprentices/jjforge/blob/main/shared/docs/workflow.md) explains the rules."
   - type: textarea
     id: statement
     attributes:
