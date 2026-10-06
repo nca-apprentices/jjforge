@@ -29,7 +29,7 @@ pnpm
 podman
 Postgres
 proto
-rebases
+rebas(e|es)
 Redocly
 [Rr]eflog
 repos?
@@ -50,3 +50,7 @@ UUIDs
 Vite
 Dex
 Keycloak
+Gradle
+PR(s|'s)?
+untracked
+jf-pr

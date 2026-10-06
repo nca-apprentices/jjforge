@@ -5,6 +5,17 @@
 requirement goes from spec to code, and the
 [ADRs](shared/docs/adr/README.md) say why.
 
+## Skills
+
+Work that a skill covers goes through it.
+
+| Work                          | Skill         |
+| ----------------------------- | ------------- |
+| Specify an epic               | `/jf-specify` |
+| Build a requirement or a task | `/jf-impl`    |
+| Commit                        | `/jf-commit`  |
+| Open a pull request           | `/jf-pr`      |
+
 ## Writing
 
 `mise run prose` checks every Markdown file against the Google developer
