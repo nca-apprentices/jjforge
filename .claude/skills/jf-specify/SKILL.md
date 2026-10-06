@@ -7,8 +7,8 @@ description: Write or extend the spec PR of an epic, with its page in shared/doc
 
 The spec PR of [the workflow](../../../shared/docs/workflow.md#specifying-and-building).
 The [specs README](../../../shared/docs/specs/README.md#format) defines each
-section, and the [Orgs and repos](../../../shared/docs/specs/23-orgs-and-repos.md)
-page follows it.
+section, and [29-push-and-clone.md](../../../shared/docs/specs/29-push-and-clone.md)
+shows every section filled in.
 
 1. **Read.** The epic and every requirement under it:
    `gh issue view <epic>`, then its sub-issues through

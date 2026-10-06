@@ -1,0 +1,4 @@
+# Bats fails a test on any failed command, a failed cd included.
+disable=SC2164
+# The helpers source the seed variables next to the Hurl scenarios.
+source-path=SCRIPTDIR

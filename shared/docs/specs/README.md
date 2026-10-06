@@ -7,10 +7,12 @@ page is written and what holds it to this form.
 | Spec                                   | Epic                                                        |
 | -------------------------------------- | ----------------------------------------------------------- |
 | [Orgs and repos](23-orgs-and-repos.md) | [#23](https://github.com/nca-apprentices/jjforge/issues/23) |
+| [Push and clone](29-push-and-clone.md) | [#29](https://github.com/nca-apprentices/jjforge/issues/29) |
 
 ## Format
 
-[Orgs and repos](23-orgs-and-repos.md) shows the format. In order:
+[Orgs and repos](23-orgs-and-repos.md) shows the required sections, and
+[Push and clone](29-push-and-clone.md) the optional ones. In order:
 
 1. The filename, `<epic number>-<slug>.md`, the epic's name as the title,
    and a first paragraph that links the epic and
