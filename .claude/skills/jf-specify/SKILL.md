@@ -7,8 +7,8 @@ description: Write or extend the spec PR of an epic, with its page in shared/doc
 
 The spec PR of [the workflow](../../../shared/docs/workflow.md#specifying-and-building).
 The [specs README](../../../shared/docs/specs/README.md#format) defines each
-section, and [29-push-and-clone.md](../../../shared/docs/specs/29-push-and-clone.md)
-shows every section filled in.
+section, and the [Orgs and repos](../../../shared/docs/specs/23-orgs-and-repos.md)
+page follows it.
 
 1. **Read.** The epic and every requirement under it:
    `gh issue view <epic>`, then its sub-issues through
@@ -16,8 +16,10 @@ shows every section filled in.
    Done when you can name each requirement and each ADR.
 2. **Page.** Copy [template.md](template.md) to
    `shared/docs/specs/<epic>-<slug>.md` and add its row to the specs README.
-   Each requirement section says what a person can do and its limits, in
-   words that name no endpoint, command, or technology.
+   Each requirement section links its issue and derives its functional
+   requirements, operations, and types from it, as the format in the README
+   gives. Done when every functional requirement names a command or a
+   route, what it does, and each refusal.
 3. **Design.** Fill Flow, Persistence, Architecture, and Failures. Every
    refusal sits at the step that makes it, with its problem code.
 4. **Libraries.** For each library a path builds on, read its source at the
@@ -28,7 +30,8 @@ shows every section filled in.
    contract has a row.
 5. **Scenarios.** One file per requirement, `<n>-<slug>.hurl` in
    `shared/e2e/http/` or `<n>-<slug>.bats` in `shared/e2e/cli/`, with
-   `# pending` as the first line. Use concrete values, check the problem code
+   `# pending` as the first line. Each test name starts with the ID of the
+   functional requirement it checks. Use concrete values, check the problem code
    of every refusal and the exit code that `shared/docs/cli.md` gives it. A
    Bats file loads `forge` for its helpers.
 6. **Contract.** Change `shared/api/` and `shared/proto/` until every assert
