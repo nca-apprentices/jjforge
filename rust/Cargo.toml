@@ -42,6 +42,9 @@ tower = "0.5.3"
 # unwrap, since a panic there is the failure.
 [workspace.lints.rust]
 unsafe_code = "forbid"
+# An item outside a crate's API is `pub(crate)` or private, as ADR 0003
+# decides.
+unreachable_pub = "deny"
 
 [workspace.lints.clippy]
 pedantic = { level = "deny", priority = -1 }

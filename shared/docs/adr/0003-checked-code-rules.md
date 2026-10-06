@@ -90,13 +90,16 @@ flowchart LR
 
 ### vcs and `jf`, in `mise run rust:lint`
 
-| Rule                                                                                                                | Check         |
-| ------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Settings come from flags or the environment into one struct. An invalid value stops the binary with a usage message | clap          |
-| No `unwrap` or `expect` outside tests, no `unsafe`, and the `pedantic` group denied                                 | clippy        |
-| No rustdoc warning                                                                                                  | rustdoc       |
-| No unused dependency                                                                                                | cargo-machete |
-| No disallowed license, security advisory, or unknown source                                                         | cargo-deny    |
+| Rule                                                                                                                | Check                               |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Settings come from flags or the environment into one struct. An invalid value stops the binary with a usage message | clap                                |
+| No `unwrap` or `expect` outside tests, no `unsafe`, and the `pedantic` group denied                                 | clippy                              |
+| No rustdoc warning                                                                                                  | rustdoc                             |
+| No unused dependency                                                                                                | cargo-machete                       |
+| No disallowed license, security advisory, or unknown source                                                         | cargo-deny                          |
+| A crate is a module, and its root declares its API. A module declares its submodules with `mod`, never `pub mod`    | `rg`, outside the generated `proto` |
+| An item outside a crate's API is `pub(crate)` or private                                                            | the `unreachable_pub` lint          |
+| Only jj-cli and the store crate of ADR 0001 depend on jj-lib                                                        | cargo-deny `wrappers`               |
 
 ### The web app, in `mise run web:lint`
 
