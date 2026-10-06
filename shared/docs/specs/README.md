@@ -1,7 +1,7 @@
 # Specs
 
 One page per epic says what each of its requirements does and how the epic
-works inside. [ADR 0009](../adr/0009-specified-tested-built.md) decides when a
+works inside. [ADR 0004](../adr/0004-specified-tested-built.md) decides when a
 page is written and what holds it to this form.
 
 | Spec                                     | Epic                                                        |
@@ -26,7 +26,7 @@ page is written and what holds it to this form.
    its queries, and each event with its listeners.
 5. `## Architecture`: the modules the epic touches and the external systems
    its paths call, each with its twin, as
-   [ADR 0009](../adr/0009-specified-tested-built.md) decides.
+   [ADR 0004](../adr/0004-specified-tested-built.md) decides.
 6. `## Failures`: what each partial failure leaves behind and who repairs it,
    in prose.
 

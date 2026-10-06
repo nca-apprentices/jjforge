@@ -30,7 +30,7 @@ jobs:
         with:
           install_args: node pnpm github:oasdiff/oasdiff
       # A build PR closes its requirement, and the base branch must already
-      # hold a spec section headed with that number, as ADR 0009 decides.
+      # hold a spec section headed with that number, as ADR 0004 decides.
       # A closed task or bug needs no section.
       - name: Every closed requirement is specified
         run: |
@@ -49,7 +49,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           BASE: ${{ github.base_ref }}
           GH_TOKEN: ${{ github.token }}
-      # /api/v1 changes only by addition, as ADR 0002 decides.
+      # /api/v1 changes only by addition, as ADR 0001 decides.
       - name: No breaking change
         run: mise run api:breaking "origin/$BASE"
         env:

@@ -2,14 +2,14 @@
 
 The repositories of [#23](https://github.com/nca-apprentices/jjforge/issues/23).
 The server's `repos` module owns the Postgres schema `repos`, as
-[ADR 0004](../adr/0004-vcs-and-server.md) decides. The organization
+[ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides. The organization
 requirement, [#24](https://github.com/nca-apprentices/jjforge/issues/24),
 gets its section in its own spec PR.
 
 The scenarios use the seed that `mise run up` loads once
 [#6](https://github.com/nca-apprentices/jjforge/issues/6) and
 [#13](https://github.com/nca-apprentices/jjforge/issues/13) are built: an owner and a member of the organization `acme`, and an owner of
-`other`, as [ADR 0009](../adr/0009-specified-tested-built.md) decides.
+`other`, as [ADR 0004](../adr/0004-specified-tested-built.md) decides.
 
 ## Create a repository (#25)
 
@@ -66,12 +66,12 @@ sequenceDiagram
 ```
 
 1. Policy: P is an owner of the organization, decided by Cedar, as
-   [ADR 0005](../adr/0005-identity-and-tokens.md) decides. Refused: 403
+   [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides. Refused: 403
    `forbidden`.
 2. Storage: `RepoService.CreateRepo(orgId, repoId)`, with a new UUIDv7 as
    the repository ID. vcs writes `t/{org}/r/{repo}/HEAD` at the root
    operation with `If-None-Match: *`, as
-   [ADR 0003](../adr/0003-where-state-lives.md) decides.
+   [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
    The storage comes first, so a recorded repository can always be cloned.
 3. Row: insert into `repos.repo` and record the policy decision, in one
    transaction that also publishes the `RepoCreated` event. The unique index
@@ -109,7 +109,7 @@ The clone address is derived from the host and the IDs, not stored. The
 events `RepoCreated` and `RepoDeleted` are Spring Modulith events of the
 `repos` module, and the event publication registry keeps them in its own
 table until every listener completes, as
-[ADR 0004](../adr/0004-vcs-and-server.md) decides.
+[ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
 
 `getRepo` and `listRepos` read `repo`. `listRepos` orders by `(org_id, id)`,
 so the list is in creation order, and the `next` cursor encodes the last ID.
@@ -119,12 +119,12 @@ The policy decides visibility per request, and a denied read answers 404
 ## Architecture
 
 - The server's `repos` module: the controller that overrides the generated
-  methods, as [ADR 0006](../adr/0006-contract-in-typespec.md)
+  methods, as [ADR 0003](../adr/0003-checked-code-rules.md)
   decides, the commands, the queries, and the `RepoDeleted` listener.
 - vcs, over gRPC: `RepoService` in `source/v1` for the repository's storage,
-  as [ADR 0004](../adr/0004-vcs-and-server.md) decides.
+  as [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
 - Cedar in the server decides the policy and records each decision, as
-  [ADR 0005](../adr/0005-identity-and-tokens.md) decides.
+  [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
 - External systems and their twins in `shared/deploy/compose.yaml`: Postgres
   as `postgres`, the object store as `seaweedfs`, and the identity provider
   that signs the scenarios' people in as `oidc`.

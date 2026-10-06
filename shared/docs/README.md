@@ -1,26 +1,25 @@
 # jjforge documentation
 
 jjforge is a forge for [Jujutsu](https://github.com/jj-vcs/jj) repositories
-that grows into a modular platform for building software. Read the sections
-in order.
+that grows into a modular platform for building software. Today it is an
+echo server: every component exists, builds, deploys, and passes one message
+along. The operations of the first release answer 501 until they are built.
 
-## The system
-
-What jjforge is and how it works.
+## Using jjforge
 
 1. [Concepts](concepts.md): jj for git users, and what that means for the UI.
-2. [Architecture](architecture.md): how the parts fit together.
-3. [CLI conventions](cli.md): how `jf` behaves.
-4. [Specs](specs/README.md): what each epic's requirements do and how it
-   works inside, one page per epic.
+2. [The CLI](cli.md): the settings, output, and exit codes of `jf`.
 
-The [decisions](adr/README.md) say why. Each page links the ones it rests on.
+## Building jjforge
+
+1. [Architecture](architecture.md): the parts, the building blocks, and how
+   a release is deployed.
+2. [Workflow](workflow.md): how an issue becomes a spec, then code.
+3. [Development](development.md): the toolchain and its commands.
+
+## Reference
+
+- [Specs](specs/README.md): one page per epic.
+- [Decisions](adr/README.md): one record per decision.
+
 The contracts are [shared/api](../api/) and [shared/proto](../proto/).
-
-## The work
-
-[Planning](planning.md) says how work is planned and tracked.
-
-## Development
-
-[Development](development.md) says how to build, run, check, and release.

@@ -1,4 +1,4 @@
-// The only package that renders HTML elements or writes styles, as ADR 0008
+// The only package that renders HTML elements or writes styles, as ADR 0003
 // decides. Importing it loads the stylesheet.
 import "./styles.css";
 

@@ -14,7 +14,7 @@ if [[ -n $alerts ]]; then
   exit 1
 fi
 
-# A spec page has the four sections that ADR 0009 decides.
+# A spec page has the four sections that ADR 0004 decides.
 for page in shared/docs/specs/[0-9]*.md; do
   for section in Flow Persistence Architecture Failures; do
     if ! grep -q "^## $section\$" "$page"; then

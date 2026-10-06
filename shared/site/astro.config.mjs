@@ -14,21 +14,20 @@ export default defineConfig({
     starlight({
       title: "jjforge",
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/nca-apprentices/jjforge" }],
-      // The reading order of shared/docs/README.md.
+      // The reading order of shared/docs/README.md: the pages for people who
+      // use jjforge, then the pages for people who build it, then what both
+      // look up, each kind collapsed.
       sidebar: [
         { label: "Overview", link: "/" },
+        { label: "Using jjforge", items: ["concepts", "cli"] },
+        { label: "Building jjforge", items: ["architecture", "workflow", "development"] },
         {
-          label: "The system",
+          label: "Reference",
           items: [
-            "concepts",
-            "architecture",
-            "cli",
-            { label: "Specs", items: [{ autogenerate: { directory: "specs" } }] },
-            { label: "Architecture decisions", items: [{ autogenerate: { directory: "adr" } }] },
+            { label: "Specs", collapsed: true, items: [{ autogenerate: { directory: "specs" } }] },
+            { label: "Decisions", collapsed: true, items: [{ autogenerate: { directory: "adr" } }] },
           ],
         },
-        "planning",
-        "development",
       ],
       plugins: [starlightLinksValidator()],
     }),

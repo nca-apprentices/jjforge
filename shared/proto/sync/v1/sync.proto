@@ -7,7 +7,7 @@ option java_package = "dev.nca.jjforge.sync.v1";
 
 // The sync protocol between `jf` and vcs. It is public, and it is HTTP, not
 // gRPC, so a cache can serve immutable reads. See
-// shared/docs/adr/0002-native-jj-without-git.md.
+// shared/docs/adr/0001-native-jj-without-git.md.
 //
 // Every request carries a JWT as `Authorization: Bearer`. Bodies are
 // these messages, encoded, as `application/x-protobuf`. Errors are

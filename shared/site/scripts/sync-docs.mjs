@@ -3,6 +3,9 @@
 //
 // - turns the H1 into the `title` front matter Starlight needs,
 // - renames README.md to index.md, the page for its directory,
+// - shortens the sidebar entries of a directory: its index page is "Index",
+//   an ADR is its file name, such as "0001 Native jj without git", and the
+//   ADR template is hidden,
 // - points a link to another doc at its site route, such as
 //   adr/0001-x.md#context -> /adr/0001-x/#context,
 // - points any other relative link at the file on GitHub, such as
@@ -11,6 +14,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const GITHUB = "https://github.com/nca-apprentices/jjforge";
+const ADR_TEMPLATE = "0000";
 const site = path.resolve(import.meta.dirname, "..");
 const repo = path.resolve(site, "../..");
 const docs = path.join(repo, "shared/docs");
@@ -36,7 +40,28 @@ function convert(text, file) {
   }
 
   const body = text.replace(h1[0], "");
-  return `---\ntitle: ${JSON.stringify(h1[1])}\n---\n\n${rewriteLinks(body, file)}`;
+  return `---\ntitle: ${JSON.stringify(h1[1])}\n${sidebar(file)}---\n\n${rewriteLinks(body, file)}`;
+}
+
+// The `sidebar` front matter of a page in a directory, or nothing.
+function sidebar(file) {
+  if (/\/README\.md$/.test(file)) {
+    return "sidebar:\n  label: Index\n";
+  }
+
+  const adr = file.match(/^adr\/(\d{4})-(.+)\.md$/);
+  if (!adr) {
+    return "";
+  }
+
+  const [, number, slug] = adr;
+  if (number === ADR_TEMPLATE) {
+    return "sidebar:\n  hidden: true\n";
+  }
+
+  const words = slug.replaceAll("-", " ");
+  const label = `${number} ${words[0].toUpperCase()}${words.slice(1)}`;
+  return `sidebar:\n  label: ${JSON.stringify(label)}\n`;
 }
 
 // Rewrites inline links and link reference definitions outside code fences.

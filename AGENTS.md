@@ -1,8 +1,8 @@
 # Agent instructions
 
-[Development](shared/docs/development.md) says how to build and check jjforge
-and how a requirement goes from spec to code.
-[Planning](shared/docs/planning.md) says how work is planned, and the
+[Development](shared/docs/development.md) says how to build and check jjforge.
+[Workflow](shared/docs/workflow.md) says how work is planned and how a
+requirement goes from spec to code, and the
 [ADRs](shared/docs/adr/README.md) say why.
 
 ## Writing

@@ -7,7 +7,7 @@ option java_package = "dev.nca.jjforge.store.v1";
 
 // The native jj object format. vcs and the backend in `jf` read and write it,
 // and the sync protocol carries it. See
-// shared/docs/adr/0002-native-jj-without-git.md.
+// shared/docs/adr/0001-native-jj-without-git.md.
 //
 // An object is stored as an encoded `StoredObject`, and its ID is the BLAKE3
 // hash of those bytes: 32 bytes. Writers encode deterministically, and readers
@@ -128,7 +128,7 @@ message Operation {
   // the commit ID in hexadecimal. Always recorded.
   map<string, CommitIds> commit_predecessors = 7;
   // The segments that hold the objects this operation made visible. The
-  // store sets it when it writes the operation, as ADR 0003 decides, and
+  // store sets it when it writes the operation, as ADR 0002 decides, and
   // jj-lib never sees it.
   repeated bytes segment_ids = 8;
   // The rest is what jj keeps on a local operation.
