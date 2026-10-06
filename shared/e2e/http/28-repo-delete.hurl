@@ -1,3 +1,4 @@
+# pending
 # An owner deletes a repository, and its name is free again.
 
 # An owner creates a repository.

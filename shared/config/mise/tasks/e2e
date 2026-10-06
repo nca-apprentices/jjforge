@@ -6,16 +6,11 @@ set -euo pipefail
 # names a scenario creates unique, so the suite runs twice on one server.
 server="http://localhost:${JJFORGE_PORT:-8080}"
 run=$(date +%s)
-hurl --test --variable server="$server" --variable run="$run" shared/e2e/http/*.hurl
-
-# The pending scenarios, whose operations still answer 501. They report and
-# never fail: the PR that builds a requirement moves its file up, as ADR 0004
-# decides.
-if compgen -G 'shared/e2e/http/pending/*.hurl' >/dev/null; then
-  echo "pending scenarios, expected to fail until their operations are built:"
+# shellcheck disable=SC2329 # check calls it.
+hurl_run() {
   hurl --test --variable server="$server" --variable run="$run" \
-    --variables-file shared/e2e/http/pending/vars.env shared/e2e/http/pending/*.hurl || true
-fi
+    --variables-file shared/e2e/http/vars.env "$@"
+}
 
 # CLI: the scenarios in shared/e2e/cli/ run the first jf on PATH, so they test
 # a release as well as this tree. JF_BIN names a jf already built, as CI does.
@@ -24,10 +19,36 @@ if [[ -z ${JF_BIN:-} ]]; then
   cargo build --manifest-path rust/Cargo.toml -q --bin jf
   JF_BIN=$PWD/rust/target/debug/jf
 fi
-PATH="$(dirname "$JF_BIN"):$PATH" JJFORGE_ENDPOINT="$server" bats shared/e2e/cli
+# shellcheck disable=SC2329 # check calls it.
+bats_run() {
+  PATH="$(dirname "$JF_BIN"):$PATH" JJFORGE_ENDPOINT="$server" bats "$@"
+}
 
-# The pending CLI scenarios, like the pending REST ones.
-if compgen -G 'shared/e2e/cli/pending/*.bats' >/dev/null; then
-  echo "pending CLI scenarios, expected to fail until their commands are built:"
-  PATH="$(dirname "$JF_BIN"):$PATH" JJFORGE_ENDPOINT="$server" bats shared/e2e/cli/pending || true
-fi
+# A scenario with the line `# pending` waits for its build PR, as ADR 0004
+# decides, and must fail until then. One that passes fails the run, so the
+# build PR removes the line. The others must pass.
+status=0
+check() {
+  local runner=$1 file
+  local ready=()
+  shift
+  for file in "$@"; do
+    if ! grep -qx '# pending' "$file"; then
+      ready+=("$file")
+      continue
+    fi
+    if "$runner" "$file" >/dev/null 2>&1; then
+      echo "$file passes: remove its '# pending' line"
+      status=1
+      continue
+    fi
+    echo "$file is pending"
+  done
+  if ((${#ready[@]})); then
+    "$runner" "${ready[@]}" || status=1
+  fi
+}
+
+check hurl_run shared/e2e/http/*.hurl
+check bats_run shared/e2e/cli/*.bats
+exit "$status"

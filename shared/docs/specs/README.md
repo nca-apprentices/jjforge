@@ -17,8 +17,9 @@ page is written and what holds it to this form.
    names the module that owns it.
 2. One section per requirement, headed with its name and issue number, as in
    `## Create a repository (#25)`. The body says what a person can do and
-   limits such as size or latency. It ends with a link to its scenario in
-   `shared/e2e/`, which holds the requests and the problem codes.
+   limits such as size or latency. It ends with a link to each of its
+   scenarios, `<issue number>-<slug>` in `shared/e2e/`, which hold the
+   requests and the problem codes.
 3. `## Flow`: each write path as numbered steps from its operation, with
    each refusal at the step that makes it, and a Mermaid sequence diagram
    when the path crosses the server, vcs, and the store.

@@ -23,3 +23,18 @@ for page in shared/docs/specs/[0-9]*.md; do
     fi
   done
 done
+
+# Each requirement section `## <name> (#<n>)` has a scenario named
+# `<n>-<slug>` in shared/e2e/, and each such scenario has a section, as
+# ADR 0004 decides.
+sections=$(sed -nE 's/^## .*\(#([0-9]+)\)$/\1/p' shared/docs/specs/[0-9]*.md | sort -u)
+scenarios=$(find shared/e2e -name '[0-9]*-*' \( -name '*.hurl' -o -name '*.bats' \) -exec basename {} \; |
+  cut -d- -f1 | sort -u)
+for n in $(comm -23 <(echo "$sections") <(echo "$scenarios")); do
+  echo "#$n heads a spec section, but no scenario in shared/e2e/ is named $n-<slug>"
+  exit 1
+done
+for n in $(comm -13 <(echo "$sections") <(echo "$scenarios")); do
+  echo "shared/e2e/ has a scenario named $n-<slug>, but no spec section is headed (#$n)"
+  exit 1
+done

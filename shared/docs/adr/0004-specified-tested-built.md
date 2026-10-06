@@ -27,24 +27,22 @@ Every fact has one home, and nothing is restated:
 | ----------- | --------------------------------------------------------------- |
 | Status      | The requirement issue, which holds a statement and nothing else |
 | Description | The epic's spec page                                            |
-| Acceptance  | The scenario: a Hurl file for REST or a Bats file for `jf`      |
+| Acceptance  | The scenarios, in Hurl for REST and in Bats for `jf`            |
 | Shape       | The contract in `shared/api/` and `shared/proto/`               |
 
-- A spec page is `shared/docs/specs/<epic number>-<slug>.md`: one section
-  per requirement, headed `## <name> (#<n>)`, then Flow, Persistence,
-  Architecture, and Failures. [specs/README.md](../specs/README.md) gives the
-  format, and `mise run prose` fails a page without one of the four.
-- A scenario uses concrete values, and its section links it. One that needs
-  something the contract lacks changes the contract, never the scenario.
-- A spec PR specifies an epic with every requirement of it, at most one epic
-  ahead of its build.
-- A build PR builds one requirement, by someone other than the spec's
-  author, and its body says `Closes #<n>`. The Spec workflow fails it unless
-  `#<n>` heads a section of a spec page on the base branch.
-- A scenario whose operation answers 501 lives in `pending/` beside the
-  others, and `mise run e2e` runs it without failing. The build PR moves it
-  out and changes nothing else in the spec. A scenario or a flow that can't
-  be built as written is a gap, fixed in a spec PR.
+- One spec PR specifies an epic with every requirement in its page under
+  [specs/](../specs/README.md), at most one epic ahead of its build.
+  `mise run prose` holds the page to the format the README gives.
+- A scenario is named `<issue number>-<slug>` after its requirement, and
+  `mise run prose` fails a section without a scenario or a scenario without
+  a section. One that needs something the contract lacks changes the
+  contract, never the scenario.
+- A scenario holds the line `# pending` until its build PR, and
+  `mise run e2e` fails a pending scenario that passes.
+- One build PR per requirement, by someone other than the spec's author,
+  removes the line and builds it. The Spec workflow fails it unless the base
+  branch specifies the requirement and no scenario of it is still pending.
+  [Workflow](../workflow.md#specifying-and-building) gives the steps.
 - A requirement is built when its scenarios pass against the system built
   from the PR with its twins, and the stored state matches the Persistence
   section.
@@ -71,8 +69,8 @@ protocol, seeded with known data.
 ## Consequences
 
 A requirement has three states, each visible in the tree: unspecified,
-specified with a pending scenario, and built. A requirement that no request
-or `jf` command can observe says so in its section and names the test that
-checks it. `mise run up` needs more memory and starts slower with every
+specified with a pending scenario, and built. The checks keep the tree true.
+A requirement that no request or `jf` command can observe says so in its
+section and names the test that checks it. `mise run up` needs more memory and starts slower with every
 twin, and a behavior in which a twin differs from the real system is a bug
 in the twin's configuration, or a reason to replace it.

@@ -1,3 +1,4 @@
+# pending
 # An owner creates an empty repository, and members use it at once. The tokens
 # come from the seed that `mise run up` loads once #6 and #13 are built: an
 # owner and a member of the organization `acme`.

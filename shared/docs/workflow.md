@@ -8,10 +8,10 @@ no design text beyond its statement. The spec page of its epic, in
 
 ## Issues
 
-| Type        | Answers                                      | Done when                                                                        |
-| ----------- | -------------------------------------------- | -------------------------------------------------------------------------------- |
-| Epic        | What can be demonstrated when it is done     | Demo shown and exit criteria hold                                                |
-| Requirement | What must be true, tested from the outside   | Its build PR merged with `Closes #n`, so its scenario left `pending/` and passes |
+| Type        | Answers                                    | Done when                                                                       |
+| ----------- | ------------------------------------------ | ------------------------------------------------------------------------------- |
+| Epic        | What can be demonstrated when it is done   | Demo shown and exit criteria hold                                               |
+| Requirement | What must be true, tested from the outside | Its build PR merged with `Closes #n`, so its scenarios pass and none is pending |
 
 The other types are Task and Bug. A task is engineering work that no
 requirement states, such as moving the web app into its own image. A
@@ -45,9 +45,9 @@ One spec PR specifies a whole epic in its page under
 ```mermaid
 flowchart LR
     epic(["Epic"])
-    spec["Spec PR, by anyone<br/>the epic's page, scenarios in pending/, contract"]
+    spec["Spec PR, by anyone<br/>the epic's page, pending scenarios, contract"]
     specified(["Epic specified"])
-    build["Build PR per requirement, not by the spec's author<br/>scenario out of pending/, code"]
+    build["Build PR per requirement, not by the spec's author<br/>scenarios no longer pending, code"]
     built(["Requirement built"])
     epic --> spec --> specified --> build --> built
     build -. "a scenario or a flow that can't be built as written" .-> spec
@@ -62,16 +62,17 @@ In a spec PR:
 
 1. Write the epic's page with a section for every requirement, in the format
    the specs README gives, and add its row there.
-2. Write each scenario in `shared/e2e/http/pending/` or
-   `shared/e2e/cli/pending/`. It uses concrete values and checks the problem
-   code of every refusal. Link it from its section.
+2. Write each requirement's scenarios as `<issue number>-<slug>.hurl` in
+   `shared/e2e/http/` or `<issue number>-<slug>.bats` in `shared/e2e/cli/`,
+   with `# pending` as the first line. A scenario uses concrete values and
+   checks the problem code of every refusal. Link it from its section.
 3. Change `shared/api/` and `shared/proto/` until every assert is
    expressible.
 4. Run `mise run lint` and `mise run api:breaking`.
 
 In a build PR:
 
-1. Move the scenario out of `pending/` and update its link. Start
+1. Remove the `# pending` line from the requirement's scenarios. Start
    `mise run up`, and watch `mise run e2e` fail.
 2. Build along the Flow section. A controller overrides the generated method,
    as [ADR 0003](adr/0003-checked-code-rules.md) decides. Nothing else in the
@@ -80,10 +81,13 @@ In a build PR:
    `mise run compose logs` shows no error and that the state the Persistence
    section names exists.
 
-CI adds three checks:
+`mise run prose` fails a requirement section without a scenario, and a
+scenario without a section. `mise run e2e` fails a pending scenario that
+passes. CI adds three checks:
 
 - The Spec workflow fails a build PR whose `Closes #<n>` names a requirement
-  that no spec page on the base branch has a section for.
+  that no spec page on the base branch has a section for, or that still has
+  a pending scenario.
 - It fails a breaking REST change, because a version changes only by
   addition, as [ADR 0001](adr/0001-native-jj-without-git.md) decides.
 - `buf breaking` guards every proto against `main`, because the server, vcs,

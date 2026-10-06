@@ -17,14 +17,14 @@ An owner adds an empty repository to their organization, and members use it at
 once. A clone works as soon as the answer arrives. Only an owner creates one,
 as [#15](https://github.com/nca-apprentices/jjforge/issues/15) decides.
 
-Scenario: [repo-create.hurl](../../e2e/http/pending/repo-create.hurl).
+Scenario: [25-repo-create.hurl](../../e2e/http/25-repo-create.hurl).
 
 ## A repository name is unique within its organization (#26)
 
 Two repositories in one organization never share a name. The same name in
 another organization is a different name.
 
-Scenario: [repo-name-unique.hurl](../../e2e/http/pending/repo-name-unique.hurl).
+Scenario: [26-repo-name-unique.hurl](../../e2e/http/26-repo-name-unique.hurl).
 
 ## A person sees only the organizations and repositories they belong to (#27)
 
@@ -32,7 +32,7 @@ Lists show only the person's organizations and their repositories. An
 organization or a repository the person doesn't belong to looks as if it
 doesn't exist, so an outsider learns nothing from the answer.
 
-Scenario: [repo-visibility.hurl](../../e2e/http/pending/repo-visibility.hurl).
+Scenario: [27-repo-visibility.hurl](../../e2e/http/27-repo-visibility.hurl).
 
 ## Delete a repository (#28)
 
@@ -41,7 +41,7 @@ read, cloned, or pushed to, and its name is free for a new repository. Only an
 owner deletes one, as
 [#15](https://github.com/nca-apprentices/jjforge/issues/15) decides.
 
-Scenario: [repo-delete.hurl](../../e2e/http/pending/repo-delete.hurl).
+Scenario: [28-repo-delete.hurl](../../e2e/http/28-repo-delete.hurl).
 
 ## Flow
 

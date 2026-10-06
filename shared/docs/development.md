@@ -69,7 +69,8 @@ curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '
 `http/` assert on each response, and
 [Bats](https://bats-core.readthedocs.io) files under `cli/` run the first
 `jf` on the `PATH`. `mise run e2e` runs both against `mise run up`, and
-they run against any other server too:
+they run against any other server too. A scenario with the line `# pending`
+fails until its requirement is built:
 
 ```text
 hurl --test --variable server=https://jjforge.example.com shared/e2e/http/*.hurl
