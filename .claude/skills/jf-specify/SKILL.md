@@ -40,8 +40,8 @@ shows every section filled in.
    `## Open questions` with the issue that answers it.
 8. **Check.** `mise run prose`, `mise run lint`, and `mise run api:breaking`
    pass.
-9. **Ship.** Commit with `/jf-commit` and open the PR with `/jf-pr`, as a
-   draft while the page has open questions.
+9. **Ship.** Commit with `/jf-commit` and open the PR with `/jf-pr`. A page
+   with open questions merges, and its requirements wait for the answers.
 
 Next, once the PR merges: `/jf-impl <n>` for each requirement, by someone
 other than the spec's author.

@@ -86,8 +86,8 @@ scenario without a section. `mise run e2e` fails a pending scenario that
 passes. CI adds three checks:
 
 - The Spec workflow fails a build PR whose `Closes #<n>` names a requirement
-  that no spec page on the base branch has a section for, or that still has
-  a pending scenario.
+  that no spec page on the base branch has a section for, whose page still
+  has open questions, or that still has a pending scenario.
 - It fails a breaking REST change, because a version changes only by
   addition, as [ADR 0001](adr/0001-native-jj-without-git.md) decides.
 - `buf breaking` guards every proto against `main`, because the server, vcs,

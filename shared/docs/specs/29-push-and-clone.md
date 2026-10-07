@@ -4,9 +4,11 @@ The native sync of [#29](https://github.com/nca-apprentices/jjforge/issues/29).
 vcs owns it, and `jf` speaks it over `sync/v1`, as
 [ADR 0001](../adr/0001-native-jj-without-git.md) decides. The repository
 lives in the object store, as
-[ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides. The spike
-[#62](https://github.com/nca-apprentices/jjforge/issues/62) answers each
-open question on this page before it merges.
+[ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
+
+Each open question at the end of this page names the issue of the spike
+[#62](https://github.com/nca-apprentices/jjforge/issues/62) that answers it.
+No requirement on this page is built until that section is gone.
 
 The scenarios create their repositories through the REST API of
 [#23](https://github.com/nca-apprentices/jjforge/issues/23), and sign in as
@@ -230,8 +232,9 @@ Scenario: [103-change-history.bats](../../e2e/cli/103-change-history.bats).
 
 - Reading a repository that git backs. `jf` has no git in it, as
   [ADR 0001](../adr/0001-native-jj-without-git.md) decides, so an import
-  reads only a repository on jj's own backend until the open question on
-  import is answered.
+  reads only a repository on jj's own backend until
+  [#120](https://github.com/nca-apprentices/jjforge/issues/120) answers how
+  to import one that git backs.
 - Protected bookmarks and the landing token, which the review epic
   specifies.
 - Collecting unreachable objects. Nothing is collected, as
@@ -432,3 +435,4 @@ the store for the next push.
 - The limits on push latency, retries, and upload size.
   [#110](https://github.com/nca-apprentices/jjforge/issues/110) answers it.
 - How a person imports a repository that git backs, since `jf` has no git.
+  [#120](https://github.com/nca-apprentices/jjforge/issues/120) answers it.
