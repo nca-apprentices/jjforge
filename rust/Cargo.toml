@@ -14,6 +14,10 @@ publish = false
 [workspace.dependencies]
 jjforge-proto = { path = "proto" }
 
+# One jj version per jf release, as ADR 0001 decides. Without git, because
+# jjforge has none.
+jj-cli = { version = "=0.45.1", default-features = false }
+
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive", "env"] }
 http = "1.5.0"
@@ -27,6 +31,7 @@ protoc-bin-vendored = "3.3.0"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
 rustls = { version = "0.23.45", default-features = false, features = ["ring"] }
 serde = { version = "1.0.229", features = ["derive"] }
+tempfile = "3.27.0"
 tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
 tonic = "0.14.6"
 tonic-prost = "0.14.6"

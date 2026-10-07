@@ -1,18 +1,27 @@
-//! `jf echo <message>` sends the message through the forge's REST API and
-//! prints the answer. It proves the client reaches the server, which passes
-//! the message through vcs, and nothing more.
+//! `jf` is jj, built on jj-cli's `CliRunner`, with the forge's commands added,
+//! as ADR 0001 decides. `jf echo <message>` sends the message through the
+//! forge's REST API and prints the answer. It proves the client reaches the
+//! server, which passes the message through vcs, and nothing more.
 
-use clap::Parser;
+use std::io::Write as _;
+use std::process::ExitCode;
+
+use clap::Args;
+use clap::FromArgMatches as _;
 use clap::Subcommand;
+use jj_cli::cli_util::CliRunner;
+use jj_cli::cli_util::CommandHelper;
+use jj_cli::command_error::CommandError;
+use jj_cli::command_error::cli_error;
+use jj_cli::command_error::user_error;
+use jj_cli::ui::Ui;
 use reqwest::Url;
 use serde::Deserialize;
 use serde::Serialize;
 
-/// The jjforge command-line client. Bad usage exits with status 2, as
-/// shared/docs/cli.md describes.
-#[derive(Parser)]
-#[command(name = "jf", version, about)]
-struct Cli {
+/// The forge to talk to, an option of every command.
+#[derive(Args)]
+struct Forge {
     /// The forge to talk to.
     #[arg(
         long,
@@ -21,11 +30,10 @@ struct Cli {
         global = true
     )]
     endpoint: Url,
-
-    #[command(subcommand)]
-    command: Command,
 }
 
+/// The commands `jf` adds to jj's. Bad usage exits with status 2, as
+/// shared/docs/cli.md describes.
 #[derive(Subcommand)]
 enum Command {
     /// Sends a message through the forge and prints the answer.
@@ -42,12 +50,29 @@ struct Echo {
     message: String,
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let cli = Cli::parse();
-    let Command::Echo { words } = cli.command;
+fn main() -> ExitCode {
+    // jj-cli hands a global option to its own callback, before the command
+    // runs, so `run` reads `Forge` from the matches instead. The about text
+    // comes last, because each addition replaces it with its doc comment.
+    CliRunner::init()
+        .add_global_args(|_: &mut Ui, _: Forge| Ok(()))
+        .add_subcommand(run)
+        .name("jf")
+        .about("The jjforge command-line client")
+        .version(env!("CARGO_PKG_VERSION"))
+        .run()
+        .into()
+}
 
-    println!("{}", echo(&cli.endpoint, words.join(" ")).await?);
+async fn run(ui: &mut Ui, helper: &CommandHelper, command: Command) -> Result<(), CommandError> {
+    let forge = Forge::from_arg_matches(helper.matches()).map_err(cli_error)?;
+    let Command::Echo { words } = command;
+
+    // jj-cli runs commands on its own executor, and reqwest needs tokio.
+    let answer = tokio::runtime::Runtime::new()?
+        .block_on(echo(&forge.endpoint, words.join(" ")))
+        .map_err(user_error)?;
+    writeln!(ui.stdout(), "{answer}")?;
     Ok(())
 }
 
@@ -78,20 +103,29 @@ mod tests {
 
     use super::*;
 
+    /// Parses `args` as jj-cli does for the options and commands `jf` adds.
+    fn parse(args: &[&str]) -> Result<(Forge, Command), clap::Error> {
+        let matches = Command::augment_subcommands(Forge::augment_args(clap::Command::new("jf")))
+            .try_get_matches_from(args)?;
+        Ok((
+            Forge::from_arg_matches(&matches)?,
+            Command::from_arg_matches(&matches)?,
+        ))
+    }
+
     #[test]
     fn echo_needs_a_message() {
-        assert!(Cli::try_parse_from(["jf", "echo"]).is_err());
+        assert!(parse(&["jf", "echo"]).is_err());
     }
 
     #[test]
     fn endpoint_must_be_an_address() {
-        assert!(Cli::try_parse_from(["jf", "--endpoint", "not an address", "echo", "hi"]).is_err());
+        assert!(parse(&["jf", "--endpoint", "not an address", "echo", "hi"]).is_err());
     }
 
     #[test]
     fn echo_joins_the_words() {
-        let cli = Cli::try_parse_from(["jf", "echo", "hello", "there"]).unwrap();
-        let Command::Echo { words } = cli.command;
+        let (_, Command::Echo { words }) = parse(&["jf", "echo", "hello", "there"]).unwrap();
 
         assert_eq!(words.join(" "), "hello there");
     }
