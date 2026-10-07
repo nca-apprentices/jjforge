@@ -9,7 +9,7 @@ Authorization: Bearer {{acme_owner}}
 }
 HTTP 201
 
-# The same name in the same organization is a conflict.
+# 26.1 The same name in the same organization is a conflict.
 POST {{server}}/api/v1/orgs/acme/repos
 Authorization: Bearer {{acme_owner}}
 {
@@ -20,7 +20,7 @@ HTTP 409
 header "Content-Type" == "application/problem+json"
 jsonpath "$.code" == "name_taken"
 
-# The same name in another organization succeeds.
+# 26.2 The same name in another organization succeeds.
 POST {{server}}/api/v1/orgs/other/repos
 Authorization: Bearer {{other_owner}}
 {

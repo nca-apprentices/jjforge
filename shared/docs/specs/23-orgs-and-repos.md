@@ -13,33 +13,77 @@ The scenarios use the seed that `mise run up` loads once
 
 ## Create a repository (#25)
 
-An owner adds an empty repository to their organization, and members use it at
-once. A clone works as soon as the answer arrives. Only an owner creates one,
-as [#15](https://github.com/nca-apprentices/jjforge/issues/15) decides.
+[#25](https://github.com/nca-apprentices/jjforge/issues/25) states the
+requirement.
+
+| ID   | Functional requirement                                                                                                               |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 25.1 | `createRepo` by an owner answers 201 with the `Repo`, whose `cloneUrl` is `https://{host}/sync/v1/{orgId}/{repoId}`.                 |
+| 25.2 | vcs writes the repository's `HEAD` at the root operation before the server answers, so `GET {cloneUrl}/head` answers 200 at once.    |
+| 25.3 | A member of the organization reads the new repository with `getRepo`.                                                                |
+| 25.4 | A member who isn't an owner gets 403 `forbidden`, as [#15](https://github.com/nca-apprentices/jjforge/issues/15) decides.            |
+
+- Operations: `createRepo`, `getRepo`, `RepoService.CreateRepo`, and
+  `GET {cloneUrl}/head`.
+- Types: `RepoCreate`, `Repo`, `Problem`, `source.v1.CreateRepoRequest`,
+  and the `repos` module's `RepoCommands` and `RepoCreated`.
+- Flow: [create a repository](#create-a-repository).
 
 Scenario: [25-repo-create.hurl](../../e2e/http/25-repo-create.hurl).
 
 ## A repository name is unique within its organization (#26)
 
-Two repositories in one organization never share a name. The same name in
-another organization is a different name.
+[#26](https://github.com/nca-apprentices/jjforge/issues/26) states the
+requirement.
+
+| ID   | Functional requirement                                                                                                  |
+| ---- | ----------------------------------------------------------------------------------------------------------------------- |
+| 26.1 | `createRepo` with a name the organization already holds answers 409 `name_taken` and inserts no row.                    |
+| 26.2 | `createRepo` with a name another organization holds answers 201.                                                        |
+| 26.3 | The unique index on `(org_id, name)` decides, so two creates of one name at once answer one 201 and one 409.            |
+
+- Operations: `createRepo`.
+- Types: `RepoCreate`, `Problem`, and the `repos.repo` table.
+- Flow: [create a repository](#create-a-repository), step 3.
 
 Scenario: [26-repo-name-unique.hurl](../../e2e/http/26-repo-name-unique.hurl).
 
 ## A person sees only the organizations and repositories they belong to (#27)
 
-Lists show only the person's organizations and their repositories. An
-organization or a repository the person doesn't belong to looks as if it
-doesn't exist, so an outsider learns nothing from the answer.
+[#27](https://github.com/nca-apprentices/jjforge/issues/27) states the
+requirement.
+
+| ID   | Functional requirement                                                                                                            |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 27.1 | `getOrg`, `listRepos`, and `getRepo` by a principal outside the organization answer 404 `not_found`, never 403.                   |
+| 27.2 | `listOrgs` answers only the organizations the principal belongs to.                                                               |
+| 27.3 | `listRepos` by a member answers the organization's repositories in creation order, one page at a time, with an opaque `next`.     |
+
+- Operations: `listOrgs`, `getOrg`, `listRepos`, and `getRepo`.
+- Types: `OrgPage`, `Org`, `RepoPage`, `Repo`, `Problem`, and the `repos`
+  module's `RepoQueries`.
+- Flow: the [Persistence](#persistence) section gives the queries.
 
 Scenario: [27-repo-visibility.hurl](../../e2e/http/27-repo-visibility.hurl).
 
 ## Delete a repository (#28)
 
-An owner removes a repository and everything in it. Afterwards it can't be
-read, cloned, or pushed to, and its name is free for a new repository. Only an
-owner deletes one, as
-[#15](https://github.com/nca-apprentices/jjforge/issues/15) decides.
+[#28](https://github.com/nca-apprentices/jjforge/issues/28) states the
+requirement.
+
+| ID   | Functional requirement                                                                                                           |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 28.1 | `deleteRepo` by an owner answers 204, after one transaction deletes the row and publishes `RepoDeleted`.                         |
+| 28.2 | Afterwards `getRepo` answers 404 `not_found`, and `createRepo` with the same name answers 201.                                   |
+| 28.3 | A second `deleteRepo` answers 404 `not_found`.                                                                                   |
+| 28.4 | A member who isn't an owner gets 403 `forbidden`, as [#15](https://github.com/nca-apprentices/jjforge/issues/15) decides.        |
+| 28.5 | The listener of `RepoDeleted` removes everything under `t/{org}/r/{repo}/` through `RepoService.DeleteRepo`, retried until done. |
+
+- Operations: `deleteRepo`, `getRepo`, `createRepo`, and
+  `RepoService.DeleteRepo`.
+- Types: `Problem`, `source.v1.DeleteRepoRequest`, and the `repos` module's
+  `RepoCommands`, `RepoDeleted`, and `RepoStorageListener`.
+- Flow: [delete a repository](#delete-a-repository).
 
 Scenario: [28-repo-delete.hurl](../../e2e/http/28-repo-delete.hurl).
 
@@ -118,16 +162,25 @@ The policy decides visibility per request, and a denied read answers 404
 
 ## Architecture
 
-- The server's `repos` module: the controller that overrides the generated
-  methods, as [ADR 0003](../adr/0003-checked-code-rules.md)
-  decides, the commands, the queries, and the `RepoDeleted` listener.
-- vcs, over gRPC: `RepoService` in `source/v1` for the repository's storage,
-  as [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
-- Cedar in the server decides the policy and records each decision, as
-  [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
-- External systems and their twins in `shared/deploy/compose.yaml`: Postgres
-  as `postgres`, the object store as `seaweedfs`, and the identity provider
-  that signs the scenarios' people in as `oidc`.
+The paths cross two server modules and vcs. A module exposes only its
+top-level package, as [ADR 0002](../adr/0002-state-boundaries-and-tokens.md)
+decides.
+
+| Module or crate | Item                         | Kind                   | Role                                                                                                                                             |
+| --------------- | ---------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `repos`         | `ReposController`            | class                  | Overrides the generated `ReposApi` methods, as [ADR 0003](../adr/0003-checked-code-rules.md) decides, and calls `RepoCommands` or `RepoQueries`. |
+| `repos`         | `RepoCommands`               | service                | `create` and `delete`: the policy, the storage, the row, and the event, in the order the Flow section gives.                                     |
+| `repos`         | `RepoQueries`                | service                | `get` and `list`, with the cursor of the Persistence section.                                                                                    |
+| `repos`         | `RepoRepository`             | Spring Data repository | The rows of `repos.repo`.                                                                                                                        |
+| `repos`         | `RepoStorage`                | class                  | The gRPC client of `RepoService` in vcs.                                                                                                         |
+| `repos`         | `RepoCreated`, `RepoDeleted` | event                  | Published in the transaction that changes the row.                                                                                               |
+| `repos`         | `RepoStorageListener`        | class                  | Calls `RepoStorage.delete` for each `RepoDeleted`.                                                                                               |
+| `identity`      | `Policy`                     | service                | Decides with Cedar and records each decision.                                                                                                    |
+| vcs             | `source`                     | module                 | `RepoService.CreateRepo` and `DeleteRepo`, on the store crate's `Repo::create` and `Repo::delete`.                                               |
+
+External systems and their twins in `shared/deploy/compose.yaml`: Postgres
+as `postgres`, the object store as `seaweedfs`, and the identity provider
+that signs the scenarios' people in as `oidc`.
 
 ## Failures
 
@@ -139,3 +192,10 @@ A crash after the delete transaction and before the storage is removed
 leaves the `RepoDeleted` publication incomplete. The event publication
 registry resubmits it on the next start, and `DeleteRepo` is idempotent, so
 the storage goes away.
+
+## Tests
+
+- An integration test against the `postgres` twin creates one name from two
+  threads at once and gets one row, as 26.3 requires.
+- An integration test deletes a repository, stops the server before the
+  listener runs, restarts it, and finds the prefix gone, as 28.5 requires.

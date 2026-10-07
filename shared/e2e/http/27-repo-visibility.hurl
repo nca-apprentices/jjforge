@@ -10,7 +10,7 @@ Authorization: Bearer {{acme_owner}}
 }
 HTTP 201
 
-# The owner of another organization doesn't see it.
+# 27.1 The owner of another organization doesn't see it.
 GET {{server}}/api/v1/orgs/acme/repos/secret-{{run}}
 Authorization: Bearer {{other_owner}}
 HTTP 404
@@ -28,7 +28,7 @@ GET {{server}}/api/v1/orgs/acme/repos
 Authorization: Bearer {{other_owner}}
 HTTP 404
 
-# Their list of organizations holds only their own.
+# 27.2 Their list of organizations holds only their own.
 GET {{server}}/api/v1/orgs
 Authorization: Bearer {{other_owner}}
 HTTP 200
@@ -36,7 +36,7 @@ HTTP 200
 jsonpath "$.items[*].name" includes "other"
 jsonpath "$.items[*].name" not includes "acme"
 
-# A member of acme sees the repository in the list.
+# 27.3 A member of acme sees the repository in the list.
 GET {{server}}/api/v1/orgs/acme/repos
 Authorization: Bearer {{acme_member}}
 HTTP 200
