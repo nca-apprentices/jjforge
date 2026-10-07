@@ -1,4 +1,4 @@
-package dev.nca.jjforge.echo
+package dev.nca.jjforge.echo.internal
 
 import jakarta.validation.constraints.NotBlank
 import org.springframework.boot.context.properties.ConfigurationProperties

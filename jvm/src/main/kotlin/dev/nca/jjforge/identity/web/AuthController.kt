@@ -1,4 +1,4 @@
-package dev.nca.jjforge.identity
+package dev.nca.jjforge.identity.web
 
 import dev.nca.jjforge.api.AuthApi
 import org.springframework.web.bind.annotation.RestController

@@ -1,5 +1,6 @@
-package dev.nca.jjforge.echo
+package dev.nca.jjforge.echo.web
 
+import dev.nca.jjforge.echo.internal.VcsClient
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`

@@ -19,7 +19,8 @@ Each top-level directory has its own tasks:
 mise run shared:lint  # formatting, prose, links and anchors, buf, spec,
                       # workflows, Dockerfiles, task scripts, helm
 mise run jvm:lint     # detekt
-mise run jvm:test     # gradle build (tests, detekt, architecture, coverage)
+mise run jvm:test     # gradle build (tests, detekt, architecture, coverage),
+                      # with Postgres in a container
 mise run web:lint     # tsc, biome
 mise run web:test     # vitest, web build
 mise run rust:fmt     # cargo fmt

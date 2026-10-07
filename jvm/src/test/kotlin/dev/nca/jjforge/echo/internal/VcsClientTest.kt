@@ -1,4 +1,4 @@
-package dev.nca.jjforge.echo
+package dev.nca.jjforge.echo.internal
 
 import dev.nca.jjforge.echo.v1.EchoRequest
 import dev.nca.jjforge.echo.v1.EchoResponse

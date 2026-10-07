@@ -1,10 +1,10 @@
 package dev.nca.jjforge
 
-import dev.nca.jjforge.identity.AuthController
-import dev.nca.jjforge.identity.OrgsController
-import dev.nca.jjforge.repos.ReposController
-import dev.nca.jjforge.source.FilesController
-import dev.nca.jjforge.source.HistoryController
+import dev.nca.jjforge.identity.web.AuthController
+import dev.nca.jjforge.identity.web.OrgsController
+import dev.nca.jjforge.repos.web.ReposController
+import dev.nca.jjforge.source.web.FilesController
+import dev.nca.jjforge.source.web.HistoryController
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
