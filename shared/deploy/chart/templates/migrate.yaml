@@ -1,0 +1,55 @@
+# Migrates the database before the server's pods roll out. Helm runs the hook
+# before each install and upgrade, and Argo CD runs it as a PreSync hook. The
+# old pods serve until the rollout replaces them, so a migration keeps the
+# previous release working. A failed Job stays for its logs.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "jjforge.fullname" . }}-migrate
+  labels:
+    {{- include "jjforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        {{- include "jjforge.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: migrate
+            {{- include "jjforge.database" . | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          # The JVM's hsperfdata goes to /tmp.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}

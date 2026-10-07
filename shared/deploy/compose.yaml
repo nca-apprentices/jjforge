@@ -4,6 +4,12 @@
 # the twins of ADR 0004.
 name: jjforge
 
+# The connection to the postgres twin, for the server and its migration, as
+# the image's own superuser.
+x-database: &database
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres
+  SPRING_DATASOURCE_USERNAME: postgres
+
 services:
   server:
     image: ghcr.io/nca-apprentices/jjforge-server:${JJFORGE_VERSION:-latest}
@@ -11,13 +17,29 @@ services:
       context: ../..
       dockerfile: jvm/Dockerfile
     depends_on:
-      - vcs
-      - postgres
-      - oidc
+      vcs:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+      oidc:
+        condition: service_started
     environment:
+      <<: *database
+      SPRING_FLYWAY_ENABLED: "false"
       JJFORGE_VCS_TARGET: vcs:50052
     ports:
       - "${JJFORGE_PORT:-8080}:8080"
+
+  # Migrates the database and exits before the server starts, as the chart's
+  # migration Job does.
+  migrate:
+    image: ghcr.io/nca-apprentices/jjforge-server:${JJFORGE_VERSION:-latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *database
+      SPRING_PROFILES_ACTIVE: migrate
 
   vcs:
     image: ghcr.io/nca-apprentices/jjforge-vcs:${JJFORGE_VERSION:-latest}
@@ -30,13 +52,17 @@ services:
       VCS_ADDR: 0.0.0.0:50052
 
   # The server's state of ADR 0002. A twin holds test data only, so it lives
-  # as long as the container.
+  # as long as the container, and it trusts every connection, so no password
+  # exists. The check goes over TCP, which the image's setup server doesn't
+  # listen on.
   postgres:
     image: postgres:18
     environment:
-      POSTGRES_DB: jjforge
-      POSTGRES_USER: jjforge
-      POSTGRES_PASSWORD: jjforge
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test: pg_isready --host 127.0.0.1
+      interval: 1s
+      retries: 30
 
   # The object store of ADR 0002, through its S3 API on port 8333. Without a
   # signing key, SeaweedFS logs an error that its unused STS service has none.

@@ -50,12 +50,12 @@ mise run compose logs   # or any other docker-compose command, such as ps or dow
 
 Set `JJFORGE_PORT` for both when something else holds port 8080.
 
-Without containers:
+Without building the images:
 
 ```text
 mise run api:build
 (cd rust && cargo run --bin vcs)
-gradle -p jvm bootRun
+gradle -p jvm bootTestRun   # with Postgres in a container
 (cd rust && cargo run --bin jf -- echo hi)
 curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '{"message":"hi"}'
 ```

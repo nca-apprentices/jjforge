@@ -34,6 +34,10 @@ spec:
         - name: server
           image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}
           env:
+            {{- include "jjforge.database" . | nindent 12 }}
+            # The migration Job migrates, so a rollout never does.
+            - name: SPRING_FLYWAY_ENABLED
+              value: "false"
             - name: JJFORGE_VCS_TARGET
               value: {{ include "jjforge.fullname" . }}-vcs:50052
           ports:
