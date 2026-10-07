@@ -31,8 +31,8 @@ jobs:
           install_args: node pnpm github:oasdiff/oasdiff
       # A build PR closes its requirement, and the base branch must already
       # hold a spec section headed with that number, as ADR 0004 decides.
-      # The PR builds it, so its scenarios are no longer pending. A closed
-      # task or bug needs neither.
+      # Its page has no open questions left, and the PR builds it, so its
+      # scenarios are no longer pending. A closed task or bug needs neither.
       - name: Every closed requirement is specified and built
         run: |
           closes=$(grep -Eio '(close[sd]?|fix(e[sd])?|resolve[sd]?) #[0-9]+' <<<"$PR_BODY" | grep -Eo '[0-9]+' || true)
@@ -43,6 +43,11 @@ jobs:
             fi
             if ! git grep -qE "^##+ .*\(#$n\)" "origin/$BASE" -- 'shared/docs/specs/*.md'; then
               echo "::error::#$n closes with this PR, but no spec page on $BASE has a section headed with (#$n)"
+              exit 1
+            fi
+            page=$(git grep -lE "^##+ .*\(#$n\)" "origin/$BASE" -- 'shared/docs/specs/*.md' | head -1)
+            if git show "$page" | grep -qx '## Open questions'; then
+              echo "::error::#$n closes with this PR, but ${page#*:} still has open questions"
               exit 1
             fi
             scenarios=$(find shared/e2e -name "$n-*" \( -name '*.hurl' -o -name '*.bats' \))

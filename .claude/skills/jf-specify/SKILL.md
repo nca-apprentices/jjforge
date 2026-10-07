@@ -7,8 +7,8 @@ description: Write or extend the spec PR of an epic, with its page in shared/doc
 
 The spec PR of [the workflow](../../../shared/docs/workflow.md#specifying-and-building).
 The [specs README](../../../shared/docs/specs/README.md#format) defines each
-section, and the [Orgs and repos](../../../shared/docs/specs/23-orgs-and-repos.md)
-page follows it.
+section, and [29-push-and-clone.md](../../../shared/docs/specs/29-push-and-clone.md)
+shows every section filled in.
 
 1. **Read.** The epic and every requirement under it:
    `gh issue view <epic>`, then its sub-issues through
@@ -40,8 +40,8 @@ page follows it.
    `## Open questions` with the issue that answers it.
 8. **Check.** `mise run prose`, `mise run lint`, and `mise run api:breaking`
    pass.
-9. **Ship.** Commit with `/jf-commit` and open the PR with `/jf-pr`, as a
-   draft while the page has open questions.
+9. **Ship.** Commit with `/jf-commit` and open the PR with `/jf-pr`. A page
+   with open questions merges, and its requirements wait for the answers.
 
 Next, once the PR merges: `/jf-impl <n>` for each requirement, by someone
 other than the spec's author.

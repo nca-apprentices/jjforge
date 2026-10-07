@@ -24,6 +24,5 @@ description: Open a pull request in this repository, alone or stacked on another
    `gh pr edit <n> --base main`, because GitHub closes a PR whose base
    branch is deleted. After the squash merge, rebase with
    `git rebase --onto main <old base commit>` and push.
-5. **Open.** `gh pr create --base <base> --title <title> --body-file <file>`,
-   with `--draft` for a spec page that still has open questions. Print the
-   URL.
+5. **Open.** `gh pr create --base <base> --title <title> --body-file <file>`.
+   Print the URL.

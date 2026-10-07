@@ -7,10 +7,12 @@ page is written and what holds it to this form.
 | Spec                                   | Epic                                                        |
 | -------------------------------------- | ----------------------------------------------------------- |
 | [Orgs and repos](23-orgs-and-repos.md) | [#23](https://github.com/nca-apprentices/jjforge/issues/23) |
+| [Push and clone](29-push-and-clone.md) | [#29](https://github.com/nca-apprentices/jjforge/issues/29) |
 
 ## Format
 
-[Orgs and repos](23-orgs-and-repos.md) shows the format. In order:
+[Orgs and repos](23-orgs-and-repos.md) shows the required sections, and
+[Push and clone](29-push-and-clone.md) the optional ones. In order:
 
 1. The filename, `<epic number>-<slug>.md`, the epic's name as the title,
    and a first paragraph that links the epic and
@@ -49,8 +51,9 @@ page is written and what holds it to this form.
    in prose.
 10. `## Tests`, optional: the tests besides the scenarios, such as
     conformance tests of a library's traits, and what each one proves.
-11. `## Open questions`, only in a draft: each question with the issue that
-    answers it. The page merges without it.
+11. `## Open questions`: each question with the issue that answers it. A
+    page with open questions merges, and no requirement on it is built
+    until the section is gone. The Spec workflow checks that.
 
 A read-only epic keeps the four required sections and says in each what the
 read paths need from it.
