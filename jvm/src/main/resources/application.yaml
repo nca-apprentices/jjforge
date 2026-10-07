@@ -1,6 +1,7 @@
 spring:
   application:
-    name: jjforge
+    # The service.name of every span and log line, as ADR 0005 decides.
+    name: jjforge-server
   threads:
     virtual:
       enabled: true
@@ -19,6 +20,33 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+  # Every trace is kept until the trace store's volume asks for less. Only W3C
+  # Trace Context travels, because every binary would forward baggage that a
+  # caller sets.
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: w3c
+    baggage:
+      enabled: false
+  # Metrics stay with the scrape, as ADR 0005 decides. The OpenTelemetry
+  # starter's OTLP registry would push them as well.
+  otlp:
+    metrics:
+      export:
+        enabled: false
+
+# One JSON object per line, with the trace of the request that wrote it under
+# the names that VictoriaLogs links to the trace.
+logging:
+  structured:
+    format:
+      console: ecs
+    json:
+      rename:
+        traceId: trace_id
+        spanId: span_id
 
 jjforge:
   vcs:

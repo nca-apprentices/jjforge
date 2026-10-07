@@ -14,8 +14,10 @@ services:
       - vcs
       - postgres
       - oidc
+      - traces
     environment:
       JJFORGE_VCS_TARGET: vcs:50052
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://traces:10428/insert/opentelemetry/v1/traces
     ports:
       - "${JJFORGE_PORT:-8080}:8080"
 
@@ -26,8 +28,10 @@ services:
       dockerfile: rust/vcs/Dockerfile
     depends_on:
       - seaweedfs
+      - traces
     environment:
       VCS_ADDR: 0.0.0.0:50052
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://traces:10428/insert/opentelemetry/v1/traces
 
   # The server's state of ADR 0002. A twin holds test data only, so it lives
   # as long as the container.
@@ -54,3 +58,14 @@ services:
       JSON_CONFIG_PATH: /config/oidc.json
     volumes:
       - ./twins/oidc.json:/config/oidc.json:ro
+
+  # The trace store of ADR 0005. In the cluster an OpenTelemetry Collector
+  # stands in front of it, and here both binaries write to it. `mise run e2e`
+  # reads traces from it, and its UI is at /select/vmui.
+  # A trace ID waits 20 seconds for the index by default, longer than the
+  # check waits.
+  traces:
+    image: victoriametrics/victoria-traces:v0.12.0
+    command: -insert.indexFlushInterval=1s
+    ports:
+      - "${JJFORGE_TRACES_PORT:-10428}:10428"

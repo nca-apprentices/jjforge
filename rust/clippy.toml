@@ -1,3 +1,11 @@
 # A panic in a test is the test failing, so tests may unwrap.
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
+
+# Every request of jf carries its trace, as ADR 0005 decides, so only
+# `forge::Client` builds an HTTP client.
+disallowed-methods = [
+  { path = "reqwest::Client::new", reason = "use forge::Client, which carries the trace" },
+  { path = "reqwest::Client::builder", reason = "use forge::Client, which carries the trace" },
+  { path = "reqwest::get", reason = "use forge::Client, which carries the trace" },
+]

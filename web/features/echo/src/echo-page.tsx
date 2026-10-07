@@ -4,7 +4,8 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 
 /**
- * Sends a message through the server and vcs and shows what came back.
+ * Sends a message through the server and vcs and shows what came back, with
+ * the trace ID that finds the request in the trace store.
  * @public
  */
 export function EchoPage() {
@@ -28,7 +29,8 @@ export function EchoPage() {
         </form.Field>
         <Button type="submit">Echo</Button>
       </Form>
-      <Output>{send.isError ? String(send.error) : send.data}</Output>
+      <Output>{send.isError ? String(send.error) : send.data?.message}</Output>
+      {send.data?.traceId && <Output>Trace {send.data.traceId}</Output>}
     </Page>
   );
 }

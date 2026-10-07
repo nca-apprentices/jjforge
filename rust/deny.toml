@@ -27,6 +27,15 @@ allow = [
 crate = "option-ext"
 allow = ["MPL-2.0"]
 
+# The gRPC trace layer of vcs is in the public domain.
+[[licenses.exceptions]]
+crate = "tonic-tracing-opentelemetry"
+allow = ["CC0-1.0"]
+
+[[licenses.exceptions]]
+crate = "tracing-opentelemetry-instrumentation-sdk"
+allow = ["CC0-1.0"]
+
 [bans]
 # Two versions of one crate build slower but work, so they only warn.
 multiple-versions = "warn"

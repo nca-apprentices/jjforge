@@ -38,6 +38,9 @@ spec:
               value: 0.0.0.0:50052
             - name: VCS_METRICS_ADDR
               value: 0.0.0.0:9090
+            {{- with include "jjforge.telemetryEnv" . }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
           ports:
             - name: grpc
               containerPort: 50052

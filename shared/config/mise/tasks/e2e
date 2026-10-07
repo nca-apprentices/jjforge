@@ -51,4 +51,11 @@ check() {
 
 check hurl_run shared/e2e/http/*.hurl
 check bats_run shared/e2e/cli/*.bats
+
+# Telemetry: the trace of a request, from the twin of the trace store that
+# `mise run up` starts. Another server has no twin to ask, so this runs here
+# only.
+traces="http://localhost:${JJFORGE_TRACES_PORT:-10428}"
+hurl --test --variable server="$server" --variable traces="$traces" \
+  --variable trace="$(openssl rand -hex 16)" shared/e2e/traces/*.hurl || status=1
 exit "$status"

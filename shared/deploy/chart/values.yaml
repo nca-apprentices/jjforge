@@ -22,6 +22,13 @@ vcs:
     requests: { cpu: 50m, memory: 32Mi }
     limits: { memory: 128Mi }
 
+# Where the server and vcs send traces over OTLP/HTTP, as ADR 0005 decides,
+# such as http://telemetry.observability.svc:4318/v1/traces. Empty sends none.
+telemetry:
+  tracesEndpoint: ""
+  # The deployment.environment.name of every span, such as prod.
+  environment: ""
+
 ingress:
   enabled: true
   className: traefik

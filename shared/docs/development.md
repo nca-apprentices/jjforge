@@ -50,6 +50,11 @@ mise run compose logs   # or any other docker-compose command, such as ps or dow
 
 Set `JJFORGE_PORT` for both when something else holds port 8080.
 
+`jf echo hi` prints the trace ID of its request on stderr, and so does the
+echo page. The twin of the trace store shows that trace at
+`http://localhost:10428/select/vmui`, from the server through vcs.
+`JJFORGE_TRACES_PORT` moves the twin to another port.
+
 Without containers:
 
 ```text

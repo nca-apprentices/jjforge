@@ -4,7 +4,8 @@ HTTP 200
 [Asserts]
 body contains "id=\"root\""
 
-# POST /api/v1/echo answers with the message, by way of vcs.
+# POST /api/v1/echo answers with the message, by way of vcs. Like every
+# response, it names the trace of the request.
 POST {{server}}/api/v1/echo
 {
   "message": "hello"
@@ -12,3 +13,4 @@ POST {{server}}/api/v1/echo
 HTTP 200
 [Asserts]
 jsonpath "$.message" == "hello"
+header "traceresponse" matches /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/
