@@ -40,6 +40,9 @@ spec:
               value: "false"
             - name: JJFORGE_VCS_TARGET
               value: {{ include "jjforge.fullname" . }}-vcs:50052
+            {{- with include "jjforge.telemetryEnv" . }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 8080

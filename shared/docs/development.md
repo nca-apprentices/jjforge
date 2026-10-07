@@ -51,6 +51,11 @@ mise run compose logs   # or any other docker-compose command, such as ps or dow
 
 Set `JJFORGE_PORT` for both when something else holds port 8080.
 
+`jf echo hi` prints the trace ID of its request on stderr, and so does the
+echo page. The twin of the trace store shows that trace at
+`http://localhost:10428/select/vmui`, from the server through vcs.
+`JJFORGE_TRACES_PORT` moves the twin to another port.
+
 Without building the images:
 
 ```text
@@ -77,6 +82,22 @@ fails until its requirement is built:
 hurl --test --variable server=https://jjforge.example.com shared/e2e/http/*.hurl
 JJFORGE_ENDPOINT=https://jjforge.example.com bats shared/e2e/cli
 ```
+
+## Previews
+
+A PR with the `preview` label runs on the cluster next to `jjforge-dev`, at
+`https://jjforge-pr-<n>.nca-apprentices.dev`, behind the GitHub login of
+nca-apprentices. The Preview workflow pushes the images of each new commit,
+and Argo CD deploys them within two minutes. The PR shows the deployment, and
+`success` means the head commit is live. A preview uses the database and
+stores of `jjforge-dev`, and disappears when the PR merges, closes, or loses
+the label. Fork PRs get none.
+
+Its logs are in [VictoriaLogs](https://ops.nca-apprentices.dev/logs/select/vmui/)
+under `kubernetes.pod_labels.app.kubernetes.io/instance` `jjforge-pr-<n>`, and
+its traces in Grafana under `deployment.environment.name` `pr-<n>`.
+The [operations guide](https://github.com/nca-apprentices/infra/blob/main/docs/operations.md#previews)
+of infra says how the cluster runs it.
 
 ## Releasing
 

@@ -1,4 +1,4 @@
-package dev.nca.jjforge.echo.internal
+package dev.nca.jjforge.echo.client
 
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test

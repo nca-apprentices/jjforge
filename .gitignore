@@ -1,6 +1,7 @@
 # Local state, never committed
 .env
 .claude-notes/
+.claude/worktrees/
 .DS_Store
 
 # Editor config

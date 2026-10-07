@@ -1,6 +1,7 @@
 package dev.nca.jjforge.echo.web
 
-import dev.nca.jjforge.echo.internal.VcsClient
+import dev.nca.jjforge.echo.application.EchoService
+import dev.nca.jjforge.echo.client.VcsClient
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
@@ -12,7 +13,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders
 
 class EchoControllerTest {
     private val vcs = mock(VcsClient::class.java)
-    private val mvc = MockMvcBuilders.standaloneSetup(EchoController(vcs)).build()
+    private val mvc = MockMvcBuilders.standaloneSetup(EchoController(EchoService(vcs))).build()
 
     @Test
     fun `returns what vcs answers`() {

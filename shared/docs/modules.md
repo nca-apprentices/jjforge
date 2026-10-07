@@ -11,4 +11,5 @@ flowchart LR
     identity
     repos
     source
+    telemetry
 ```

@@ -54,3 +54,6 @@ Gradle
 PR(s|'s)?
 untracked
 jf-pr
+Grafana
+Logback
+Traefik
