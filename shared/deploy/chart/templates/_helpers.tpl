@@ -6,6 +6,18 @@
 {{- printf "%s-%s" .Release.Name (include "jjforge.name" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/* The OpenTelemetry settings that both binaries read, as ADR 0005 decides. */}}
+{{- define "jjforge.telemetryEnv" -}}
+{{- with .Values.telemetry.tracesEndpoint -}}
+- name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  value: {{ . | quote }}
+{{ end -}}
+{{- with .Values.telemetry.environment -}}
+- name: OTEL_RESOURCE_ATTRIBUTES
+  value: deployment.environment.name={{ . }}
+{{ end -}}
+{{- end -}}
+
 {{- define "jjforge.labels" -}}
 app.kubernetes.io/name: {{ include "jjforge.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}

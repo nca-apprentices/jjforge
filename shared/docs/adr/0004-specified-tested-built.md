@@ -55,6 +55,7 @@ protocol, seeded with known data.
 | Postgres                | Postgres                                                                     |
 | S3 object store         | SeaweedFS                                                                    |
 | OpenID Connect provider | `mock-oauth2-server` from NAV. Keycloak starts slowly, Dex serves one issuer |
+| Trace store             | VictoriaTraces, which indexes a trace after 1 second instead of 20           |
 
 - A twin is taken off the shelf, and written here only when nothing
   conforms. `shared/deploy/compose.yaml` runs every twin from the start,

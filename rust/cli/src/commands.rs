@@ -52,12 +52,13 @@ pub(crate) fn add(runner: CliRunner<'_>) -> CliRunner<'_> {
 async fn run(ui: &mut Ui, helper: &CommandHelper, command: Command) -> Result<(), CommandError> {
     let forge = Forge::from_arg_matches(helper.matches()).map_err(cli_error)?;
     let Command::Echo { words } = command;
+    let client = forge::Client::new(forge.endpoint).map_err(user_error)?;
 
-    // jj-cli runs commands on its own executor, and reqwest needs tokio.
-    let answer = tokio::runtime::Runtime::new()?
-        .block_on(forge::echo(&forge.endpoint, words.join(" ")))
-        .map_err(user_error)?;
-    writeln!(ui.stdout(), "{answer}")?;
+    // jj-cli runs commands on its own executor, and reqwest needs tokio. The
+    // trace ID goes to stderr either way, so a person can quote it.
+    let answer = tokio::runtime::Runtime::new()?.block_on(client.echo(words.join(" ")));
+    writeln!(ui.stderr(), "trace id: {}", client.trace())?;
+    writeln!(ui.stdout(), "{}", answer.map_err(user_error)?)?;
     Ok(())
 }
 

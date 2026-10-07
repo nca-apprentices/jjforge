@@ -5,22 +5,22 @@
 # `run --separate-stderr` needs Bats 1.5.
 bats_require_minimum_version 1.5.0
 
-@test "echo prints the message the forge answers" {
+@test "echo prints the message the forge answers, and its trace on stderr" {
   run --separate-stderr jf echo hello
   [ "$status" -eq 0 ]
   [ "$output" = "hello" ]
-  [ -z "$stderr" ]
+  [[ $stderr =~ ^trace\ id:\ [0-9a-f]{32}$ ]]
 }
 
 @test "echo joins the words with spaces" {
-  run jf echo hello there
+  run --separate-stderr jf echo hello there
   [ "$status" -eq 0 ]
   [ "$output" = "hello there" ]
 }
 
 @test "--endpoint overrides JJFORGE_ENDPOINT" {
   local forge=$JJFORGE_ENDPOINT
-  JJFORGE_ENDPOINT=http://127.0.0.1:1 run jf --endpoint "$forge" echo hi
+  JJFORGE_ENDPOINT=http://127.0.0.1:1 run --separate-stderr jf --endpoint "$forge" echo hi
   [ "$status" -eq 0 ]
   [ "$output" = "hi" ]
 }
