@@ -19,8 +19,10 @@ description: Open a pull request in this repository, alone or stacked on another
        without a colon, the form the Spec workflow reads.
      - `Part of #<epic>` for a spec PR, which finishes no issue.
      - `Ref #<n>` for each issue it advances without finishing.
-4. **Stack.** A stacked PR's notes start with `Stacked on #<PR below>`. After
-   the PR below squash-merges, rebase with
+4. **Stack.** A stacked PR's notes start with `Stacked on #<PR below>`.
+   Before the PR below merges, point this one at `main` with
+   `gh pr edit <n> --base main`, because GitHub closes a PR whose base
+   branch is deleted. After the squash merge, rebase with
    `git rebase --onto main <old base commit>` and push.
 5. **Open.** `gh pr create --base <base> --title <title> --body-file <file>`,
    with `--draft` for a spec page that still has open questions. Print the
