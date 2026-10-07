@@ -10,6 +10,9 @@ metadata:
     {{- with .Values.ingress.middlewares }}
     traefik.ingress.kubernetes.io/router.middlewares: {{ range $i, $name := . }}{{ if $i }},{{ end }}{{ $.Release.Namespace }}-{{ $name }}@kubernetescrd{{ end }}
     {{- end }}
+    {{- with .Values.ingress.tls.issuer }}
+    cert-manager.io/cluster-issuer: {{ . }}
+    {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   {{- if .Values.ingress.tls.enabled }}
