@@ -1,0 +1,29 @@
+# Editors follow the formatters that `mise run fmt` runs, so a file is
+# written the way `mise run lint` checks it. ktlint reads this file too.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# detekt's MaxLineLength, which ktlint wraps at.
+[*.{kt,kts}]
+indent_size = 4
+max_line_length = 120
+
+# rustfmt's defaults.
+[*.rs]
+indent_size = 4
+max_line_length = 100
+
+# Biome's lineWidth in web/biome.json.
+[*.{ts,tsx,json}]
+max_line_length = 80
+
+# rumdl's line length, which tables don't count against.
+[*.md]
+max_line_length = 80
