@@ -39,3 +39,7 @@ ingress:
   tls:
     enabled: true
     secretName: jjforge-tls
+    # A cert-manager ClusterIssuer, such as letsencrypt, that issues the
+    # certificate into secretName and deletes it along with the Ingress. Empty
+    # leaves the secret to someone else.
+    issuer: ""

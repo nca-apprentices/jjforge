@@ -82,6 +82,22 @@ hurl --test --variable server=https://jjforge.example.com shared/e2e/http/*.hurl
 JJFORGE_ENDPOINT=https://jjforge.example.com bats shared/e2e/cli
 ```
 
+## Previews
+
+A PR with the `preview` label runs on the cluster next to `jjforge-dev`, at
+`https://jjforge-pr-<n>.nca-apprentices.dev`, behind the GitHub login of
+nca-apprentices. The Preview workflow pushes the images of each new commit,
+and Argo CD deploys them within two minutes. The PR shows the deployment, and
+`success` means the head commit is live. A preview uses the database and
+stores of `jjforge-dev`, and disappears when the PR merges, closes, or loses
+the label. Fork PRs get none.
+
+Its logs are in [VictoriaLogs](https://ops.nca-apprentices.dev/logs/select/vmui/)
+under `kubernetes.pod_labels.app.kubernetes.io/instance` `jjforge-pr-<n>`, and
+its traces in Grafana under `deployment.environment.name` `pr-<n>`.
+The [operations guide](https://github.com/nca-apprentices/infra/blob/main/docs/operations.md#previews)
+of infra says how the cluster runs it.
+
 ## Releasing
 
 A `v*` tag publishes, all with the same version, the server and vcs images to
