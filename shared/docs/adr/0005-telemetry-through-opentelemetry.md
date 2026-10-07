@@ -105,18 +105,23 @@ flowchart LR
 - Each request a binary serves gets a server span. Each call that leaves the
   process gets a client span, whether HTTP, gRPC, SQL, or the object store.
   Spans follow the OpenTelemetry semantic conventions.
+- Tracing is cross-cutting, so no endpoint can forget it. The libraries and
+  one place per binary trace every request, and the checks below refuse
+  tracing code anywhere else.
 - The server uses `spring-boot-starter-opentelemetry`, and Spring gRPC traces
   its calls to vcs.
 - vcs records spans with `tracing` and exports them through
   `tracing-opentelemetry` and `opentelemetry-otlp`.
-  `tonic-tracing-opentelemetry` continues a trace at each gRPC edge.
+  `tonic-tracing-opentelemetry` in `main` continues a trace at every gRPC
+  service.
 - `jf` exports nothing, because it runs on people's machines. It starts a
-  trace per command and sends `traceparent` with every request, so the server
-  and vcs continue the trace of `jf`.
+  trace per command, and the one client it builds sends `traceparent` with
+  every request, so the server and vcs continue the trace of `jf`.
 - The web app sends no trace context while the OpenTelemetry browser
   instrumentation is experimental. The server starts the trace.
-- A problem response carries the request's trace ID as `trace_id`. `jf`
-  prints it on failure and the web app shows it, so a person can quote it.
+- The server names the trace of every response in a `traceresponse` header,
+  from W3C Trace Context Level 2, whatever answers it. `jf` prints its trace
+  ID on failure and the web app shows the header's, so a person can quote it.
 - Every binary samples by its parent, and a new trace by the ratio of its
   trace ID, set to 1.0 until the trace store's volume asks for less. When
   it drops, the Collector samples by the whole trace and keeps every error.
@@ -163,6 +168,9 @@ flowchart LR
 | ------------------------------------------------------------------------------------ | ---------------------------------------- |
 | The server logs through SLF4J, never through `System.out` or `java.util.logging`     | `ArchitectureTest`, ArchUnit             |
 | vcs logs through `tracing`, never through `println!` or `eprintln!`                  | clippy `print_stdout` and `print_stderr` |
+| Only the server's `telemetry` module uses a tracing API                              | `ArchitectureTest`, ArchUnit             |
+| Every response of the server names its trace                                         | `TraceResponseTest`                      |
+| Only `Trace::client` builds an HTTP client in `jf`                                   | clippy `disallowed-methods`              |
 | A request that carries `traceparent` has spans of the server and vcs under its trace | `mise run e2e`, which queries the twin   |
 
 ## Consequences
@@ -174,7 +182,6 @@ flowchart LR
   which costs at most 7 days of them.
 - A caller outside the cluster decides whether its trace is kept. That holds
   while the ratio is 1.0. Lowering it changes this record.
-- The problem schema in `shared/api/` gains `trace_id`.
 - A SQL client span needs an instrumented data source, chosen with the first
   module that uses Postgres.
 - Once the trace SDK of opentelemetry-rust is stable, vcs moves its edges to
