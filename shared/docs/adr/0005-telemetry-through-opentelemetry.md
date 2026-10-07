@@ -170,7 +170,7 @@ flowchart LR
 | vcs logs through `tracing`, never through `println!` or `eprintln!`                  | clippy `print_stdout` and `print_stderr` |
 | Only the server's `telemetry` module uses a tracing API                              | `ArchitectureTest`, ArchUnit             |
 | Every response of the server names its trace                                         | `TraceResponseTest`                      |
-| Only `Trace::client` builds an HTTP client in `jf`                                   | clippy `disallowed-methods`              |
+| Only `forge::Client` builds an HTTP client in `jf`                                   | clippy `disallowed-methods`              |
 | A request that carries `traceparent` has spans of the server and vcs under its trace | `mise run e2e`, which queries the twin   |
 
 ## Consequences
