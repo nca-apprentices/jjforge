@@ -35,21 +35,22 @@ the database. The URL leaves out the password, so a log line that names the
 URL never shows it.
 */}}
 {{- define "jjforge.database" -}}
+{{- $secret := required "server.database.secretName is required" .Values.server.database.secretName -}}
 - name: DATABASE_HOST
   valueFrom:
-    secretKeyRef: { name: {{ .Values.server.database.secretName }}, key: host }
+    secretKeyRef: { name: {{ $secret }}, key: host }
 - name: DATABASE_PORT
   valueFrom:
-    secretKeyRef: { name: {{ .Values.server.database.secretName }}, key: port }
+    secretKeyRef: { name: {{ $secret }}, key: port }
 - name: DATABASE_NAME
   valueFrom:
-    secretKeyRef: { name: {{ .Values.server.database.secretName }}, key: dbname }
+    secretKeyRef: { name: {{ $secret }}, key: dbname }
 - name: SPRING_DATASOURCE_URL
   value: jdbc:postgresql://$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)
 - name: SPRING_DATASOURCE_USERNAME
   valueFrom:
-    secretKeyRef: { name: {{ .Values.server.database.secretName }}, key: username }
+    secretKeyRef: { name: {{ $secret }}, key: username }
 - name: SPRING_DATASOURCE_PASSWORD
   valueFrom:
-    secretKeyRef: { name: {{ .Values.server.database.secretName }}, key: password }
+    secretKeyRef: { name: {{ $secret }}, key: password }
 {{- end -}}
