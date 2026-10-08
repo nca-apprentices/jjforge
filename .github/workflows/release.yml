@@ -7,6 +7,8 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
+  attestations: write
 
 env:
   REGISTRY: ghcr.io
@@ -49,6 +51,13 @@ jobs:
           platforms: linux/${{ matrix.arch }}
           tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/jjforge-${{ matrix.component }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+      # Every artifact carries a signed provenance attestation, so
+      # `gh attestation verify` ties it to this run.
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository_owner }}/jjforge-${{ matrix.component }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
       # The digest travels to the manifests job as an empty file named after it.
       - name: Record the digest
         run: |
@@ -117,6 +126,9 @@ jobs:
       # platform.
       - name: Name
         run: cp rust/target/release/jf jf-${{ matrix.target }}
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: jf-${{ matrix.target }}
       - uses: actions/upload-artifact@v7
         with:
           name: jf-${{ matrix.target }}
@@ -144,6 +156,11 @@ jobs:
           cp shared/openapi.yaml .
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            openapi.yaml
+            jjforge-*.tgz
       - uses: actions/upload-artifact@v7
         with:
           name: chart
