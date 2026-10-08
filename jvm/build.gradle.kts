@@ -33,6 +33,14 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
+    implementation("org.springframework.modulith:spring-modulith-starter-core")
+    implementation("org.springframework.modulith:spring-modulith-starter-jdbc")
+    // Runs each module's migrations from its own folder.
+    runtimeOnly("org.springframework.modulith:spring-modulith-runtime")
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
+    runtimeOnly("org.flywaydb:flyway-database-postgresql")
+    runtimeOnly("org.postgresql:postgresql")
+
     implementation("org.springframework.boot:spring-boot-starter-grpc-client")
     // The runtime must be at least the protoc that generated the stubs, and the
     // Spring Boot BOM alone pins an older one.
@@ -42,6 +50,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("org.springframework.modulith:spring-modulith-starter-test")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

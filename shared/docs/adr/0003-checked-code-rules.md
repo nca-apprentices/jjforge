@@ -75,18 +75,54 @@ flowchart LR
 - Kotlin compiles with the `no-compatibility` JVM default mode. The other
   modes copy each default method, with its route, into the controller.
 
+### A server module
+
+Every module of [ADR 0002](0002-state-boundaries-and-tokens.md) has the same
+packages. Spring Modulith keeps other modules out of every package but the
+top-level one, and `ArchitectureTest` holds each layer to the arrows below.
+
+| Package       | Holds                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| `<module>`    | The API: the interfaces, events, and values another module uses, and `ModuleMetadata`. No Spring component |
+| `web`         | Controllers of the contract and request filters. Only `web` reads the REST models                          |
+| `application` | Services, transactions, and event listeners. It implements the API                                         |
+| `domain`      | Entities, values, and rules, with no Spring, Jakarta, SQL, or gRPC type                                    |
+| `persistence` | Spring Data repositories and the rows of the module's schema                                               |
+| `client`      | gRPC and HTTP clients and their `*Properties`. Only `client` reads the gRPC messages                       |
+
+```mermaid
+flowchart LR
+    web --> application
+    application --> persistence
+    application --> client
+    web --> domain
+    application --> domain
+    persistence --> domain
+    client --> domain
+```
+
+Every layer may use its module's API and the API of each module that
+`ModuleMetadata` allows. The API uses no layer. A layer may hold packages of
+its own.
+
 ### The server, in `gradle build`
 
-| Rule                                                                                                                                              | Check                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Settings live in `@Validated` `@ConfigurationProperties` classes named `*Properties`, constrained with Jakarta Validation. Nothing reads `@Value` | `ArchitectureTest`, ArchUnit   |
-| A component gets its dependencies through its constructor, never an `@Autowired` or `lateinit` field                                              | `ArchitectureTest`, ArchUnit   |
-| A controller serves the contract, as the contract section decides                                                                                 | `ControllerContractTest`       |
-| A module uses another only through its top-level package                                                                                          | `ModulesTest`, Spring Modulith |
-| Complexity, naming, and likely bugs                                                                                                               | detekt 2                       |
-| Formatting                                                                                                                                        | ktlint                         |
-| No compiler warning                                                                                                                               | the Kotlin compiler            |
-| 80 percent line coverage of the hand-written code                                                                                                 | Kover                          |
+| Rule                                                                                                                                                                                   | Check                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Settings live in `@Validated` `@ConfigurationProperties` classes named `*Properties`, constrained with Jakarta Validation. Nothing reads `@Value`                                      | `ArchitectureTest`, ArchUnit    |
+| A component gets its dependencies through its constructor, never an `@Autowired` or `lateinit` field                                                                                   | `ArchitectureTest`, ArchUnit    |
+| A controller serves the contract, as the contract section decides                                                                                                                      | `ControllerContractTest`        |
+| A module has the packages of [a server module](#a-server-module), and each layer uses only the layers its arrows allow                                                                 | `ArchitectureTest`, ArchUnit    |
+| Another module sees only a module's top-level package                                                                                                                                  | `ModulesTest`, Spring Modulith  |
+| A module depends only on the modules that `allowedDependencies` in its `ModuleMetadata` names, and names none until a requirement needs one                                            | `ModulesTest`, Spring Modulith  |
+| [Server modules](../modules.md) shows the module graph of the code                                                                                                                     | `ModulesTest`                   |
+| Modules talk through events. A listener is an `@ApplicationModuleListener`, never an `@EventListener`                                                                                  | `ArchitectureTest`, ArchUnit    |
+| HTTP calls go through `RestClient`, SQL through `JdbcClient` or Spring Data, and time through `java.time`                                                                              | `ArchitectureTest`, ArchUnit    |
+| A module's migrations live in `db/migration/<module>` and name only its schema. Every table lives in a module's schema, apart from the event publication registry and Flyway's history | `SchemasTest`, against Postgres |
+| Complexity, naming, and likely bugs                                                                                                                                                    | detekt 2                        |
+| Formatting                                                                                                                                                                             | ktlint                          |
+| No compiler warning                                                                                                                                                                    | the Kotlin compiler             |
+| 80 percent line coverage of the hand-written code                                                                                                                                      | Kover                           |
 
 ### vcs and `jf`, in `mise run rust:lint`
 

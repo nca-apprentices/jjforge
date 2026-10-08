@@ -28,3 +28,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Values.server.image.tag | default .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{/*
+The connection to Postgres, from the app secret that CloudNativePG keeps for
+the database. The URL leaves out the password, so a log line that names the
+URL never shows it.
+*/}}
+{{- define "jjforge.database" -}}
+{{- $secret := required "server.database.secretName is required" .Values.server.database.secretName -}}
+- name: DATABASE_HOST
+  valueFrom:
+    secretKeyRef: { name: {{ $secret }}, key: host }
+- name: DATABASE_PORT
+  valueFrom:
+    secretKeyRef: { name: {{ $secret }}, key: port }
+- name: DATABASE_NAME
+  valueFrom:
+    secretKeyRef: { name: {{ $secret }}, key: dbname }
+- name: SPRING_DATASOURCE_URL
+  value: jdbc:postgresql://$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)
+- name: SPRING_DATASOURCE_USERNAME
+  valueFrom:
+    secretKeyRef: { name: {{ $secret }}, key: username }
+- name: SPRING_DATASOURCE_PASSWORD
+  valueFrom:
+    secretKeyRef: { name: {{ $secret }}, key: password }
+{{- end -}}

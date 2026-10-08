@@ -9,10 +9,12 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.system.CapturedOutput
 import org.springframework.boot.test.system.OutputCaptureExtension
+import org.springframework.context.annotation.Import
 import kotlin.test.assertEquals
 
 /** A log line is one JSON object with the trace that wrote it, as ADR 0005 decides. */
 @SpringBootTest
+@Import(TestcontainersConfiguration::class)
 @ExtendWith(OutputCaptureExtension::class)
 class LoggingTest
     @Autowired

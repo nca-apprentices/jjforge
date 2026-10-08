@@ -1,10 +1,12 @@
-package dev.nca.jjforge.telemetry
+package dev.nca.jjforge.telemetry.web
 
+import dev.nca.jjforge.TestcontainersConfiguration
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
+import org.springframework.context.annotation.Import
 import org.springframework.web.client.RestClient
 import kotlin.test.assertEquals
 
@@ -13,6 +15,7 @@ import kotlin.test.assertEquals
  * endpoint has to remember to, as ADR 0005 decides.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(TestcontainersConfiguration::class)
 class TraceResponseTest
     @Autowired
     constructor(

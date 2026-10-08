@@ -19,7 +19,8 @@ Each top-level directory has its own tasks:
 mise run shared:lint  # formatting, prose, links and anchors, buf, spec,
                       # workflows, Dockerfiles, task scripts, helm
 mise run jvm:lint     # detekt
-mise run jvm:test     # gradle build (tests, detekt, architecture, coverage)
+mise run jvm:test     # gradle build (tests, detekt, architecture, coverage),
+                      # with Postgres in a container
 mise run web:lint     # tsc, biome
 mise run web:test     # vitest, web build
 mise run rust:fmt     # cargo fmt
@@ -55,12 +56,12 @@ echo page. The twin of the trace store shows that trace at
 `http://localhost:10428/select/vmui`, from the server through vcs.
 `JJFORGE_TRACES_PORT` moves the twin to another port.
 
-Without containers:
+Without building the images:
 
 ```text
 mise run api:build
 (cd rust && cargo run --bin vcs)
-gradle -p jvm bootRun
+gradle -p jvm bootTestRun   # with Postgres in a container
 (cd rust && cargo run --bin jf -- echo hi)
 curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '{"message":"hi"}'
 ```
@@ -88,9 +89,10 @@ A PR with the `preview` label runs on the cluster next to `jjforge-dev`, at
 `https://jjforge-pr-<n>.nca-apprentices.dev`, behind the GitHub login of
 nca-apprentices. The Preview workflow pushes the images of each new commit,
 and Argo CD deploys them within two minutes. The PR shows the deployment, and
-`success` means the head commit is live. A preview uses the database and
-stores of `jjforge-dev`, and disappears when the PR merges, closes, or loses
-the label. Fork PRs get none.
+`success` means the head commit is live. A preview uses the stores of
+`jjforge-dev` and a database of its own, `jjforge-pr-<n>-db`, so its
+migrations never reach the database of `jjforge-dev`. It disappears, with its
+database, when the PR merges, closes, or loses the label. Fork PRs get none.
 
 Its logs are in [VictoriaLogs](https://ops.nca-apprentices.dev/logs/select/vmui/)
 under `kubernetes.pod_labels.app.kubernetes.io/instance` `jjforge-pr-<n>`, and

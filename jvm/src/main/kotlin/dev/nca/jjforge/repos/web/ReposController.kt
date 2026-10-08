@@ -1,4 +1,4 @@
-package dev.nca.jjforge.repos
+package dev.nca.jjforge.repos.web
 
 import dev.nca.jjforge.api.ReposApi
 import org.springframework.web.bind.annotation.RestController

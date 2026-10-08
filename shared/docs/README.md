@@ -14,8 +14,10 @@ along. The operations of the first release answer 501 until they are built.
 
 1. [Architecture](architecture.md): the parts, the building blocks, and how
    a release is deployed.
-2. [Workflow](workflow.md): how an issue becomes a spec, then code.
-3. [Development](development.md): the toolchain and its commands.
+2. [Server modules](modules.md): the server's modules and their
+   dependencies, read from the code.
+3. [Workflow](workflow.md): how an issue becomes a spec, then code.
+4. [Development](development.md): the toolchain and its commands.
 
 ## Reference
 

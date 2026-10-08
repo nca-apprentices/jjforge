@@ -1,5 +1,6 @@
-package dev.nca.jjforge.echo
+package dev.nca.jjforge.echo.client
 
+import dev.nca.jjforge.TestcontainersConfiguration
 import dev.nca.jjforge.echo.v1.EchoRequest
 import dev.nca.jjforge.echo.v1.EchoResponse
 import dev.nca.jjforge.echo.v1.EchoServiceGrpc
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -28,6 +30,7 @@ import kotlin.test.assertEquals
  * production, and so does a call to vcs that drops the caller's trace.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(TestcontainersConfiguration::class)
 class VcsClientTest
     @Autowired
     constructor(

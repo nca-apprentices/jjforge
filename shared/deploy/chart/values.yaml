@@ -9,6 +9,11 @@ server:
     repository: ghcr.io/nca-apprentices/jjforge-server
     tag: ""
   replicas: 1
+  # The app secret of the CloudNativePG cluster that the infra repository runs
+  # for this release, such as jjforge-db-app. No default, so a release never
+  # migrates a database it wasn't given.
+  database:
+    secretName: ""
   resources:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { memory: 1Gi }

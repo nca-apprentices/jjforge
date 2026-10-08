@@ -5,6 +5,19 @@ spring:
   threads:
     virtual:
       enabled: true
+  # Each module migrates its own schema from db/migration/<module>, and
+  # db/migration/__root holds the event publication registry. Flyway owns the
+  # registry's table, so Spring Modulith doesn't create it. A publication
+  # stays until its listener completes, and a restart resubmits it.
+  modulith:
+    runtime:
+      flyway-enabled: true
+    events:
+      jdbc:
+        schema-initialization:
+          enabled: false
+      completion-mode: delete
+      republish-outstanding-events-on-restart: true
 
 # The actuator listens on a port of its own, which the Service and the Ingress
 # don't route to, so the internet never sees /actuator/prometheus.
@@ -51,3 +64,11 @@ logging:
 jjforge:
   vcs:
     target: ${JJFORGE_VCS_TARGET:localhost:50052}
+---
+# The migration Job: no web server, and the process exits after Flyway.
+spring:
+  config:
+    activate:
+      on-profile: migrate
+  main:
+    web-application-type: none

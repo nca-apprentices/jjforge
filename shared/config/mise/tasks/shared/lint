@@ -11,8 +11,9 @@ hadolint --config shared/config/hadolint.yaml jvm/Dockerfile rust/vcs/Dockerfile
 find shared/config/mise/tasks -type f -exec shellcheck {} +
 find shared/e2e/cli -name '*.bats' -exec shellcheck {} +
 
-helm lint shared/deploy/chart
-helm template jjforge shared/deploy/chart >/dev/null
+# The chart requires the secret a release names, so the checks name one.
+helm lint shared/deploy/chart --set server.database.secretName=jjforge-db-app
+helm template jjforge shared/deploy/chart --set server.database.secretName=jjforge-db-app >/dev/null
 
 # The web formatter needs the web packages installed.
 pnpm --dir web install --frozen-lockfile

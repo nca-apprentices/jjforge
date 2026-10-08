@@ -1,4 +1,4 @@
-package dev.nca.jjforge.telemetry
+package dev.nca.jjforge.telemetry.web
 
 import io.micrometer.tracing.Tracer
 import jakarta.servlet.FilterChain
