@@ -7,7 +7,6 @@
     "shared/api/pnpm-lock.yaml",
     "shared/deploy/chart/templates/**",
     "shared/openapi.yaml",
-    "shared/site/pnpm-lock.yaml",
     "web/pnpm-lock.yaml",
     "web/shared/api/src/contract.gen.ts"
   ],

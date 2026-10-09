@@ -1,5 +1,3 @@
 # Build output, and the copy of shared/docs that scripts/sync-docs.mjs writes
-.astro/
 dist/
-node_modules/
-src/content/docs/
+docs/

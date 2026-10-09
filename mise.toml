@@ -29,6 +29,10 @@ rumdl = "0.2.77"
 shfmt = "3.14.1"
 vale = "3.22.0"
 
+# The docs site in site:build. mise installs zensical with uv.
+uv = "0.12.22"
+"pipx:zensical" = "0.0.69"
+
 # The local stack and its scenarios. `mise run up` drives podman through its
 # Docker-compatible socket, and `mise run e2e` runs shared/e2e/.
 docker-compose = "5.5.1"

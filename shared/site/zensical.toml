@@ -1,0 +1,58 @@
+# The docs site, published to GitHub Pages, in the look of
+# https://awslabs.github.io/aidlc-workflows. `mise run site:build` copies
+# shared/docs into docs/ first, and --strict fails the build on a link to a
+# page or heading that doesn't exist.
+[project]
+site_name = "jjforge"
+site_url = "https://jjforge-docs.nca-apprentices.dev/"
+repo_url = "https://github.com/nca-apprentices/jjforge"
+repo_name = "nca-apprentices/jjforge"
+site_dir = "dist"
+
+# The reading order of shared/docs/README.md: the pages for people who use
+# jjforge, then the pages for people who build it, then what both look up.
+# Directories don't expand here, so scripts/sync-docs.mjs fails on a page
+# missing from this list.
+nav = [
+  { "Overview" = "README.md" },
+  { "Using jjforge" = ["concepts.md", "cli.md"] },
+  { "Building jjforge" = ["architecture.md", "workflow.md", "development.md"] },
+  { "Reference" = [
+    { "Specs" = [
+      "specs/README.md",
+      "specs/23-orgs-and-repos.md",
+      "specs/29-push-and-clone.md",
+    ] },
+    { "Decisions" = [
+      "adr/README.md",
+      { "0001 Native jj without git" = "adr/0001-native-jj-without-git.md" },
+      { "0002 State boundaries and tokens" = "adr/0002-state-boundaries-and-tokens.md" },
+      { "0003 Checked code rules" = "adr/0003-checked-code-rules.md" },
+      { "0004 Specified, tested, built" = "adr/0004-specified-tested-built.md" },
+      { "0005 Telemetry through OpenTelemetry" = "adr/0005-telemetry-through-opentelemetry.md" },
+    ] },
+  ] },
+]
+
+[project.theme]
+features = [
+  "navigation.indexes",
+  "navigation.sections",
+  "navigation.top",
+  "search.suggest",
+  "content.code.copy",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "indigo"
+accent = "cyan"
+toggle.icon = "material/brightness-7"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "indigo"
+accent = "cyan"
+toggle.icon = "material/brightness-4"
+toggle.name = "Switch to light mode"
