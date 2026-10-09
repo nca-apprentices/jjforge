@@ -16,7 +16,7 @@ site_dir = "dist"
 nav = [
   { "Overview" = "README.md" },
   { "Using jjforge" = ["concepts.md", "cli.md"] },
-  { "Building jjforge" = ["architecture.md", "workflow.md", "development.md"] },
+  { "Building jjforge" = ["architecture.md", "modules.md", "workflow.md", "development.md"] },
   { "Reference" = [
     { "Specs" = [
       "specs/README.md",
