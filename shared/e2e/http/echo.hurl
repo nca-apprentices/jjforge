@@ -14,3 +14,12 @@ HTTP 200
 [Asserts]
 jsonpath "$.message" == "hello"
 header "traceresponse" matches /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/
+
+# A long message comes back whole, with no cap.
+POST {{server}}/api/v1/echo
+{
+  "message": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+HTTP 200
+[Asserts]
+jsonpath "$.message" == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
