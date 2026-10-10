@@ -1,0 +1,115 @@
+name: Review
+
+# Reviews each PR that is ready for review with Claude Code by the jf-review
+# skill. `@claude review` in the Claude workflow reviews it again after new
+# commits.
+#
+# pull_request_target runs this file from main, and only main may use the
+# claude-review environment that holds the token, so no PR changes what runs
+# with it. A PR from a branch of this repository is code from a person with
+# write access: Claude checks it out, runs the stack and its jf, and so runs
+# that code next to the token. A PR from a fork runs nothing: Claude reads
+# main and the PR's diff and can only comment. The denied paths hold the
+# tokens, so a PR that tells Claude to read them gets nothing to post.
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  issues: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Review
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.user.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    environment: claude-review
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.number }}
+      FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+      COMPOSE_FILE: shared/deploy/compose.yaml
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+      # Hides the tokens from Claude's commands and their process IDs, so a
+      # prompt injection in an issue or comment can't hand one to a command.
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FORK == 'false' && github.event.pull_request.head.sha || '' }}
+          persist-credentials: false
+      # Claude gets no GitHub token in its commands, so the job fetches what
+      # the skill reads and posts what Claude returns.
+      - name: Fetch the PR
+        run: |
+          mkdir -p review/issues
+          gh pr view "$PR" --json title,body,headRefName,closingIssuesReferences,reviewDecision,mergeStateStatus,statusCheckRollup,reviews,comments > review/pr.json
+          gh pr diff "$PR" > review/pr.diff
+          gh api graphql -F n="$PR" -F query=@.claude/skills/jf-review/threads.graphql > review/threads.json
+          for n in $(jq -r '.closingIssuesReferences[].number' review/pr.json); do
+            gh issue view "$n" --json title,body,comments > "review/issues/$n.json"
+          done
+      - uses: jdx/mise-action@v4
+        if: env.FORK == 'false'
+      # The scrub needs bubblewrap, which the action installs only for
+      # users without write access. Ubuntu 24.04 blocks the user namespaces
+      # it uses until the sysctl allows them.
+      - name: Install bubblewrap
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515 # v1.0.245
+        id: claude
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The job's own token, so Claude holds only the permissions above.
+          github_token: ${{ github.token }}
+          prompt: |
+            Review PR #${{ github.event.number }} by .claude/skills/jf-review/SKILL.md.
+            review/ holds what steps 1 and 2 read: the PR with its reviews, comments, and checks in pr.json,
+            its diff in pr.diff, its review threads in threads.json, and the issues it closes in issues/.
+            The branch is checked out unless the PR comes from a fork. On a checked-out branch, steps 3
+            and 5 are required: start the stack, run the scenarios, and prove each finding with a script.
+            Post each finding with mcp__github_inline_comment__create_inline_comment and confirmed: true.
+            Return the Blocking part of the report as summary, and the answer to each unresolved
+            thread as replies, with the databaseId of the thread's first comment as comment_id.
+          claude_args: >-
+            ${{ env.FORK == 'false'
+            && '--allowedTools Bash,Read,Glob,Grep,Write,mcp__github_inline_comment__create_inline_comment
+            --disallowedTools Edit,NotebookEdit,WebFetch,WebSearch'
+            || '--allowedTools Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment
+            --disallowedTools Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch' }}
+            --json-schema '{"type":"object","properties":{"summary":{"type":"string"},"replies":{"type":"array","items":{"type":"object","properties":{"comment_id":{"type":"integer"},"body":{"type":"string"}},"required":["comment_id","body"]}}},"required":["summary","replies"]}'
+          # Image builds and the scenarios outlast the default Bash timeout.
+          settings: |
+            {
+              "env": { "BASH_MAX_TIMEOUT_MS": "1800000" },
+              "permissions": {
+                "deny": [
+                  "Read(//proc/**)",
+                  "Read(~/.claude/**)",
+                  "Read(//home/runner/work/_temp/**)",
+                  "Read(./.git/**)"
+                ]
+              }
+            }
+      - name: Post the summary and the replies
+        env:
+          OUTPUT: ${{ steps.claude.outputs.structured_output }}
+        run: |
+          jq -er .summary <<<"$OUTPUT" | gh pr comment "$PR" --body-file -
+          jq -c '.replies[]' <<<"$OUTPUT" | while read -r reply; do
+            id=$(jq -r .comment_id <<<"$reply")
+            jq -r .body <<<"$reply" |
+              gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/comments/$id/replies" -F body=@- --silent
+          done
