@@ -1,20 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
+    "github>nca-apprentices/.github",
     ":pinAllExceptPeerDependencies",
-    "docker:pinDigests",
-    "helpers:pinGitHubActionDigestsToSemver"
+    "docker:pinDigests"
   ],
-  "timezone": "Europe/Zurich",
-  "schedule": ["* 0-5 1,15 * *"],
-  "minimumReleaseAge": "7 days",
-  "internalChecksFilter": "strict",
-  "prHourlyLimit": 0,
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["* 0-5 1,15 * *"]
-  },
   "packageRules": [
     {
       "description": "Cargo.toml names the exact version in use, and Cargo.lock pins it.",
