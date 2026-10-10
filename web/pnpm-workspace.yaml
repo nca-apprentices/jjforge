@@ -33,4 +33,4 @@ catalogs:
   # openapi-typescript runs on the TypeScript 5 JavaScript API, which
   # TypeScript 7 no longer has.
   openapi-typescript:
-    typescript: 7.0.2
+    typescript: 5.9.3

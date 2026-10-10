@@ -1,6 +1,6 @@
 # Built from the repository root: the stubs crate in rust/ compiles the contract
 # in shared/proto/.
-FROM rust:1.98.1-slim AS build
+FROM rust:1.99.0-slim@sha256:2752b332db73fdbb7dc576f06c82ed1f312005784ef913d7e04a28f5f55dc581 AS build
 
 WORKDIR /src
 COPY shared/proto shared/proto

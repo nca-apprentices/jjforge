@@ -1,5 +1,5 @@
 [tools]
-java = "25.0.2"
+java = "25.0.4"
 gradle = "9.8.0"
 node = "24.21.0"
 pnpm = "12.9.0"
