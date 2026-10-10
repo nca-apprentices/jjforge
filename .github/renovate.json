@@ -16,6 +16,12 @@
       "matchPackageNames": ["*"],
       "groupName": "dependencies",
       "separateMajorMinor": false
+    },
+    {
+      "description": "openapi-typescript runs on the TypeScript 5 JavaScript API, which TypeScript 7 no longer has.",
+      "matchDepTypes": ["pnpm.catalog.openapi-typescript"],
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<6"
     }
   ],
   "customManagers": [
