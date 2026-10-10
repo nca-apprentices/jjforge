@@ -23,13 +23,7 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number }}
 
-permissions:
-  actions: read
-  checks: read
-  contents: write
-  id-token: write
-  issues: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   claude:
@@ -46,6 +40,13 @@ jobs:
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))))
     runs-on: ubuntu-latest
     environment: claude-review
+    permissions:
+      actions: read
+      checks: read
+      contents: write
+      id-token: write
+      issues: write
+      pull-requests: write
     timeout-minutes: 60
     env:
       COMPOSE_FILE: shared/deploy/compose.yaml
@@ -66,11 +67,11 @@ jobs:
           if [[ $fork == true ]]; then
             gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "Claude doesn't run on a PR from a fork."
           fi
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.pr.outputs.fork != 'true'
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         if: steps.pr.outputs.fork != 'true'
       # The scrub needs bubblewrap, which the action installs only for
       # users without write access. Ubuntu 24.04 blocks the user namespaces

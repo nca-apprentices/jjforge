@@ -13,7 +13,8 @@ name: Review
 # diff and can only comment. The denied paths hold the tokens, so a PR that
 # tells Claude to read them gets nothing to post.
 on:
-  pull_request_target:
+  # Starts only the dispatch job, which checks out nothing.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [opened, ready_for_review, reopened]
   issue_comment:
     types: [created]
@@ -24,13 +25,7 @@ on:
         required: true
         type: number
 
-permissions:
-  actions: read
-  checks: read
-  contents: read
-  id-token: write
-  issues: read
-  pull-requests: write
+permissions: {}
 
 jobs:
   # Anthropic's token exchange refuses the OIDC token of pull_request_target
@@ -81,12 +76,12 @@ jobs:
         run: |
           gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid,isCrossRepository \
             --jq '"sha=\(.headRefOid)\nfork=\(.isCrossRepository)"' >>"$GITHUB_OUTPUT"
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.pr.outputs.fork == 'false'
         with:
           ref: ${{ steps.pr.outputs.sha }}
           persist-credentials: false
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         if: steps.pr.outputs.fork == 'false'
         with:
           install_args: rust
@@ -102,7 +97,7 @@ jobs:
             docker build --tag "$image" --file "${component#*:}" . >"build/$name.log" 2>&1 &&
               docker save --output "build/$name.tar" "$image" || true
           done
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.pr.outputs.fork == 'false'
         with:
           name: review-build
@@ -122,6 +117,13 @@ jobs:
       cancel-in-progress: true
     runs-on: ubuntu-latest
     environment: claude-review
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      id-token: write
+      issues: read
+      pull-requests: write
     timeout-minutes: 60
     env:
       PR: ${{ inputs.pr || github.event.issue.number }}
@@ -138,10 +140,10 @@ jobs:
     # come from main. The PR's branch is only data in pr/, and its code runs
     # only in containers and in Claude's sandboxed commands.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: env.FORK == 'false'
         with:
           ref: ${{ needs.build.outputs.sha }}
@@ -160,11 +162,11 @@ jobs:
           for n in $(jq -r '.closingIssuesReferences[].number' review/pr.json); do
             gh issue view "$n" --json title,body,comments > "review/issues/$n.json"
           done
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         if: env.FORK == 'false'
         with:
           install_args: docker-compose hurl bats
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: env.FORK == 'false'
         with:
           name: review-build

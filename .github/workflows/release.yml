@@ -15,11 +15,9 @@ on:
 concurrency:
   group: ${{ github.workflow }}
 
-permissions:
-  contents: write
-  packages: write
-  id-token: write
-  attestations: write
+# Each job names what its token may do. The jobs that hold the release
+# secrets get a token that can do nothing.
+permissions: {}
 
 env:
   REGISTRY: ghcr.io
@@ -30,6 +28,8 @@ jobs:
     name: Tag
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Tag main's head
         env:
@@ -50,6 +50,11 @@ jobs:
     name: Image
     needs: [tag]
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     strategy:
       matrix:
         component: [server, vcs]
@@ -64,14 +69,16 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         id: build
         with:
           context: .
@@ -81,7 +88,7 @@ jobs:
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
       # Every artifact carries a signed provenance attestation, so
       # `gh attestation verify` ties it to this run.
-      - uses: actions/attest-build-provenance@v4
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository_owner }}/jjforge-${{ matrix.component }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -93,7 +100,7 @@ jobs:
           touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: digest-${{ matrix.component }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/digests/*
@@ -104,16 +111,18 @@ jobs:
     name: Image manifest
     needs: [images]
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     strategy:
       matrix:
         component: [server, vcs]
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: digest-${{ matrix.component }}-*
           path: digests
           merge-multiple: true
-      - uses: docker/login-action@v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -130,6 +139,10 @@ jobs:
     name: Client binaries
     needs: [tag]
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       matrix:
         include:
@@ -140,9 +153,11 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # The Rust that mise.toml pins, as CI builds with.
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install_args: rust
       # `jf --version` reports the release.
@@ -155,10 +170,10 @@ jobs:
       # platform.
       - name: Name
         run: cp rust/target/release/jf jf-${{ matrix.target }}
-      - uses: actions/attest-build-provenance@v4
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: jf-${{ matrix.target }}
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: jf-${{ matrix.target }}
           path: jf-${{ matrix.target }}
@@ -167,12 +182,19 @@ jobs:
     name: Helm chart and OpenAPI
     needs: [tag]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     env:
       MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: azure/setup-helm@v5
-      - uses: jdx/mise-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install_args: node pnpm
       - name: Compile the OpenAPI document
@@ -186,12 +208,12 @@ jobs:
           cp shared/openapi.yaml .
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - uses: actions/attest-build-provenance@v4
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             openapi.yaml
             jjforge-*.tgz
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: chart
           path: |
@@ -204,19 +226,21 @@ jobs:
     name: GitHub release
     needs: [manifests, client, chart]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       # Only this workflow's own artifacts: the image jobs also upload
       # .dockerbuild records, which don't belong in the release.
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: jf-*
           path: dist
           merge-multiple: true
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: chart
           path: dist
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ inputs.version }}
           generate_release_notes: true
@@ -230,15 +254,17 @@ jobs:
     name: Deploy
     needs: [release]
     runs-on: ubuntu-latest
+    permissions: {}
     # Holds the App's key. Only main may use it, so no branch reads it.
     environment: release
     steps:
-      - uses: actions/create-github-app-token@v3
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: token
         with:
           client-id: ${{ vars.INFRA_TRIGGER_CLIENT_ID }}
           private-key: ${{ secrets.INFRA_TRIGGER_PRIVATE_KEY }}
           repositories: infra
+          permission-issues: write
       - name: Trigger Renovate in infra
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
@@ -257,14 +283,18 @@ jobs:
     name: Homebrew formula
     needs: [release]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # Holds the deploy key. Only main may use it, so no branch reads it.
     environment: release
     steps:
-      - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install: false
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: jf-*
           path: dist
