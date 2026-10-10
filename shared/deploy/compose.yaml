@@ -80,7 +80,7 @@ services:
   # The OpenID Connect provider of each organization, one issuer per
   # organization, such as http://oidc:8080/acme.
   oidc:
-    image: ghcr.io/navikt/mock-oauth2-server:6.0.4
+    image: ghcr.io/navikt/mock-oauth2-server:6.0.5
     environment:
       JSON_CONFIG_PATH: /config/oidc.json
     volumes:

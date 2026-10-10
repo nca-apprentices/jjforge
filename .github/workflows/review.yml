@@ -81,7 +81,7 @@ jobs:
         with:
           ref: ${{ steps.pr.outputs.sha }}
           persist-credentials: false
-      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         if: steps.pr.outputs.fork == 'false'
         with:
           install_args: rust
@@ -162,7 +162,7 @@ jobs:
           for n in $(jq -r '.closingIssuesReferences[].number' review/pr.json); do
             gh issue view "$n" --json title,body,comments > "review/issues/$n.json"
           done
-      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         if: env.FORK == 'false'
         with:
           install_args: docker-compose hurl bats
@@ -196,7 +196,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends bubblewrap socat
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # No github_token, so the review comes from the Claude App.
-      - uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515 # v1.0.245
+      - uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # The dispatch job starts the review as github-actions.

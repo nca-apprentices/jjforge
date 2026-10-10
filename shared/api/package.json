@@ -11,5 +11,5 @@
     "@typespec/openapi": "catalog:",
     "@typespec/openapi3": "catalog:"
   },
-  "packageManager": "pnpm@12.9.0"
+  "packageManager": "pnpm@12.11.2"
 }

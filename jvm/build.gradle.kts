@@ -1,11 +1,11 @@
 import org.springframework.boot.gradle.plugin.SpringBootPlugin
 
 plugins {
-    kotlin("jvm") version "2.4.20"
-    kotlin("plugin.spring") version "2.4.20"
+    kotlin("jvm") version "2.4.21"
+    kotlin("plugin.spring") version "2.4.21"
     id("org.springframework.boot") version "4.1.1"
     id("com.google.protobuf") version "0.10.0"
-    id("org.openapi.generator") version "7.25.0"
+    id("org.openapi.generator") version "7.26.0"
     id("dev.detekt") version "2.0.0-alpha.6"
     id("org.jetbrains.kotlinx.kover") version "0.9.11"
 }
@@ -15,7 +15,7 @@ version = "0.1.0"
 description = "jjforge server, reduced to an echo endpoint"
 
 val protobufVersion = "4.36.2"
-val grpcVersion = "1.84.0"
+val grpcVersion = "1.84.2"
 
 repositories {
     mavenCentral()

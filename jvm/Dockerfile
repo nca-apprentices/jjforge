@@ -16,7 +16,7 @@ WORKDIR /src/web
 COPY web ./
 RUN pnpm install --frozen-lockfile && pnpm build
 
-FROM gradle:9.8.0-jdk25@sha256:7086a4cd10d568b35cafd6d5d30323865f3ce1f23ccddc9570ff3e3c9c8cd6e9 AS build
+FROM gradle:9.8.1-jdk25@sha256:e4f9e3d037cc0c7d8fc42cd97edb976dfd19a5b7314212b88b6de3807d13cd47 AS build
 WORKDIR /src
 COPY shared/proto shared/proto
 COPY --from=web /src/shared/openapi.yaml shared/openapi.yaml
@@ -25,7 +25,7 @@ COPY --from=web /src/web/apps/web/dist jvm/src/main/resources/static
 RUN --mount=type=cache,target=/cache/gradle \
     GRADLE_USER_HOME=/cache/gradle gradle --no-daemon -p jvm bootJar
 
-FROM eclipse-temurin:25.0.4_7-jre@sha256:bb036ed6cfdc57e3da7c22634d15f1b840d2caf76183861c80e81ca4b5104abb
+FROM eclipse-temurin:25.0.4.1_1-jre@sha256:fcd7fd7b387f94bb2ac461478a7436ad8e349924c374ea8313919624dceae636
 COPY --from=build /src/jvm/build/libs/jjforge-server-*.jar /app/jjforge-server.jar
 EXPOSE 8080
 USER 65532
