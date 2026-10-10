@@ -1,0 +1,111 @@
+name: Claude
+
+# Answers `@claude` in issues, PRs, and reviews with Claude Code. The action
+# answers only people with write access. It pushes as the Claude GitHub App,
+# so its commits run CI, and it can push to a PR's branch, never to main.
+#
+# Comment events run this file from main, and only main may use the
+# claude-review environment that holds the token. On a branch of this
+# repository Claude may run any command, so it runs the PR's code next to the
+# token, as the Review workflow does. A PR from a fork gets no Claude: the
+# action checks out its head, and Claude Code would run the hooks in its
+# .claude/settings.json. The Review workflow reviews it from main. The denied
+# paths hold the tokens.
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number }}
+
+permissions:
+  actions: read
+  checks: read
+  contents: write
+  id-token: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  claude:
+    name: Claude
+    # A bot's comment never triggers Claude, so Claude's own comments that
+    # quote `@claude` don't start a loop. `@claude review` on a PR goes to the
+    # Review workflow, which starts the stack.
+    if: >-
+      !endsWith(github.actor, '[bot]') && (
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') &&
+      !(github.event.issue.pull_request && startsWith(github.event.comment.body, '@claude review'))) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))))
+    runs-on: ubuntu-latest
+    environment: claude-review
+    timeout-minutes: 60
+    env:
+      COMPOSE_FILE: shared/deploy/compose.yaml
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+      # Hides the tokens from Claude's commands and their process IDs, so a
+      # prompt injection in an issue or comment can't hand one to a command.
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+    steps:
+      - name: Find whether the PR comes from a fork
+        id: pr
+        if: github.event.issue.pull_request || github.event.pull_request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: |
+          fork=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json isCrossRepository --jq .isCrossRepository)
+          echo "fork=$fork" >>"$GITHUB_OUTPUT"
+          if [[ $fork == true ]]; then
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "Claude doesn't run on a PR from a fork."
+          fi
+      - uses: actions/checkout@v7
+        if: steps.pr.outputs.fork != 'true'
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v4
+        if: steps.pr.outputs.fork != 'true'
+      # The scrub needs bubblewrap, which the action installs only for
+      # users without write access. Ubuntu 24.04 blocks the user namespaces
+      # it uses until the sysctl allows them.
+      - name: Install bubblewrap
+        if: steps.pr.outputs.fork != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # No github_token, so the action pushes and comments as the Claude App.
+      # It commits through the API, so the App's token stays out of .git/config.
+      - uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515 # v1.0.245
+        if: steps.pr.outputs.fork != 'true'
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_commit_signing: true
+          claude_args: >-
+            --allowedTools Bash,Read,Glob,Grep,Write,Edit,mcp__github_inline_comment__create_inline_comment
+            --append-system-prompt 'Follow AGENTS.md. A request to review a PR goes through
+            .claude/skills/jf-review/SKILL.md, and a commit follows .claude/skills/jf-commit/SKILL.md.
+            Push only to the branch of the PR or to a new branch, never to main.'
+          # The scenarios outlast the default Bash timeout. The scrub leaves
+          # the GitHub tokens in Claude's commands, so the settings blank them.
+          # The action's MCP servers get the App token in their own env.
+          settings: |
+            {
+              "env": { "BASH_MAX_TIMEOUT_MS": "1800000", "GITHUB_TOKEN": "", "GH_TOKEN": "" },
+              "permissions": {
+                "deny": [
+                  "Read(//proc/**)",
+                  "Read(~/.claude/**)",
+                  "Read(//home/runner/work/_temp/**)",
+                  "Read(./.git/**)"
+                ]
+              }
+            }

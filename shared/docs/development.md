@@ -100,6 +100,29 @@ its traces in Grafana under `deployment.environment.name` `pr-<n>`.
 The [operations guide](https://github.com/nca-apprentices/infra/blob/main/docs/operations.md#previews)
 of infra says how the cluster runs it.
 
+## Reviews
+
+`/jf-review <n>` reviews a PR in a Claude Code session. It runs the stack
+from the PR's branch, backs each finding with a Hurl or Bats script that
+fails, answers the open review threads, and says what blocks the merge. The
+`jf-review` agent runs the same skill in the background, so the stack's logs
+stay out of the session.
+
+Two workflows run the same skill:
+
+- **Review** runs the skill on each PR that is ready for review, and again
+  on a comment that starts with `@claude review`. The job starts the stack,
+  and the Claude GitHub App posts the review. A PR from a fork gets a review
+  of its diff only, and runs no code.
+- **Claude** answers `@claude` from anyone with write access in an issue, a
+  PR, or a review, such as `@claude fix the failing scenario`. It pushes to the PR's branch as the
+  Claude GitHub App, so its commits run CI. It doesn't run on a PR from a
+  fork.
+
+On a branch of this repository, both run the PR's code next to the token
+from `claude setup-token`. Only `main` may use the `claude-review`
+environment that holds it.
+
 ## Releasing
 
 A `v*` tag publishes, all with the same version, the server and vcs images to

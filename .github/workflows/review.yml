@@ -1,0 +1,135 @@
+name: Review
+
+# Reviews each PR that is ready for review with Claude Code by the jf-review
+# skill, and again when someone with write access comments `@claude review`.
+# The review comes from the Claude GitHub App.
+#
+# Both events run this file from main, and only main may use the
+# claude-review environment that holds the token, so no PR changes what runs
+# with it. A PR from a branch of this repository is code from a person with
+# write access: the job builds and starts its stack, and Claude runs its
+# scenarios and jf, so its code runs next to the token. A PR from a fork runs
+# nothing: Claude reads main and the PR's diff and can only comment. The
+# denied paths hold the tokens, so a PR that tells Claude to read them gets
+# nothing to post.
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  id-token: write
+  issues: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Review
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+      !github.event.pull_request.draft && github.event.pull_request.user.type != 'Bot') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '@claude review') && !endsWith(github.actor, '[bot]'))
+    # In the job, so a comment that triggers no review cancels none.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.number || github.event.issue.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    environment: claude-review
+    timeout-minutes: 60
+    env:
+      PR: ${{ github.event.number || github.event.issue.number }}
+      # The second file publishes Postgres, so Claude can query it without
+      # Docker.
+      COMPOSE_FILE: shared/deploy/compose.yaml:review/compose.yaml
+      JF_BIN: ${{ github.workspace }}/rust/target/debug/jf
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+      # Hides the tokens from Claude's commands and their process IDs, so a
+      # prompt injection in an issue or comment can't hand one to a command.
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+    steps:
+      - name: Find the PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid,isCrossRepository \
+            --jq '"sha=\(.headRefOid)\nfork=\(.isCrossRepository)"' >>"$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.pr.outputs.fork == 'false' && steps.pr.outputs.sha || '' }}
+          persist-credentials: false
+      # Claude gets no GitHub token in its commands, so the job fetches what
+      # the skill reads.
+      - name: Fetch the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p review/issues
+          gh pr view "$PR" --json title,body,headRefName,closingIssuesReferences,reviewDecision,mergeStateStatus,statusCheckRollup,reviews,comments > review/pr.json
+          gh pr diff "$PR" > review/pr.diff
+          gh api graphql -F n="$PR" -F query=@.claude/skills/jf-review/threads.graphql > review/threads.json
+          for n in $(jq -r '.closingIssuesReferences[].number' review/pr.json); do
+            gh issue view "$n" --json title,body,comments > "review/issues/$n.json"
+          done
+      - uses: jdx/mise-action@v4
+        if: steps.pr.outputs.fork == 'false'
+      # Claude's commands can't reach Docker, so the job starts the stack and
+      # streams its logs to a file. A stack that fails to start is a finding,
+      # so the review goes on.
+      - name: Start the stack
+        if: steps.pr.outputs.fork == 'false'
+        continue-on-error: true
+        run: |
+          printf 'services:\n  postgres:\n    ports: ["5432:5432"]\n' > review/compose.yaml
+          cargo build --manifest-path rust/Cargo.toml --bin jf
+          docker-compose up --build --detach > review/up.log 2>&1
+          curl --fail --silent --show-error --retry 120 --retry-delay 1 --retry-all-errors \
+            --json '{"message":"up"}' http://localhost:8080/api/v1/echo >> review/up.log 2>&1
+          nohup docker-compose logs --follow --no-color > review/stack.log 2>&1 &
+      # The scrub needs bubblewrap, which the action installs only for
+      # users without write access. Ubuntu 24.04 blocks the user namespaces
+      # it uses until the sysctl allows them.
+      - name: Install bubblewrap
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # No github_token, so the review comes from the Claude App.
+      - uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515 # v1.0.245
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Review PR #${{ env.PR }} by .claude/skills/jf-review/SKILL.md.
+            review/ holds what steps 1 and 2 read: the PR with its reviews, comments, and checks in pr.json,
+            its diff in pr.diff, its review threads in threads.json, and the issues it closes in issues/.
+            The branch is checked out unless the PR comes from a fork. On a checked-out branch the job
+            has started the stack, which step 3 says how to use, and steps 3 and 5 are required.
+            Post the report as one review: create a pending review, add each finding as a comment on its
+            line, add the answer to each unresolved thread as a comment on that thread's line that starts
+            with @ and the thread author's login, and submit it with event COMMENT and the Blocking part as its body.
+          claude_args: >-
+            ${{ steps.pr.outputs.fork == 'false'
+            && '--allowedTools Bash,Read,Glob,Grep,Write,mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review
+            --disallowedTools Edit,NotebookEdit,WebFetch,WebSearch'
+            || '--allowedTools Read,Glob,Grep,mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review
+            --disallowedTools Bash,Write,Edit,NotebookEdit,WebFetch,WebSearch' }}
+          # The scenarios outlast the default Bash timeout. The scrub leaves
+          # the GitHub tokens in Claude's commands, so the settings blank them.
+          # The action's MCP servers get the App token in their own env.
+          settings: |
+            {
+              "env": { "BASH_MAX_TIMEOUT_MS": "1800000", "GITHUB_TOKEN": "", "GH_TOKEN": "" },
+              "permissions": {
+                "deny": [
+                  "Read(//proc/**)",
+                  "Read(~/.claude/**)",
+                  "Read(//home/runner/work/_temp/**)",
+                  "Read(./.git/**)"
+                ]
+              }
+            }
