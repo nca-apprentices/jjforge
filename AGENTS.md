@@ -13,6 +13,7 @@ Work that a skill covers goes through it.
 | ----------------------------- | ------------- |
 | Specify an epic               | `/jf-specify` |
 | Build a requirement or a task | `/jf-impl`    |
+| Review a pull request         | `/jf-review`  |
 | Commit                        | `/jf-commit`  |
 | Open a pull request           | `/jf-pr`      |
 
