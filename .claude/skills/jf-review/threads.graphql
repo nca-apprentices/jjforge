@@ -1,0 +1,23 @@
+# The review threads of a PR, with each comment's ID for a reply.
+query ($n: Int!) {
+  repository(owner: "nca-apprentices", name: "jjforge") {
+    pullRequest(number: $n) {
+      reviewThreads(first: 100) {
+        nodes {
+          isResolved
+          path
+          line
+          comments(first: 50) {
+            nodes {
+              databaseId
+              author {
+                login
+              }
+              body
+            }
+          }
+        }
+      }
+    }
+  }
+}
