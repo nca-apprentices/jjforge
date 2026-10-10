@@ -1,13 +1,13 @@
 [tools]
 java = "25.0.2"
-gradle = "9.7.1"
+gradle = "9.8.0"
 node = "24.21.0"
-pnpm = "12.6.0"
-rust = { version = "1.98.1", components = "clippy,rustfmt" }
+pnpm = "12.9.0"
+rust = { version = "1.99.0", components = "clippy,rustfmt" }
 
 # Contracts: `buf lint` in shared:lint and the OpenAPI diff in api:breaking.
 buf = "1.73.0"
-"github:oasdiff/oasdiff" = "1.32.1"
+"github:oasdiff/oasdiff" = "1.33.0"
 
 # Static checks in shared:lint: workflows, scripts, Dockerfiles, the chart,
 # and Markdown links.
@@ -23,19 +23,19 @@ cargo-deny = "0.20.2"
 
 # Formatting and prose. dprint runs ktlint, rumdl, and shfmt for `mise run
 # fmt`, and vale checks the prose.
-dprint = "0.57.4"
+dprint = "0.59.0"
 ktlint = "1.8.0"
-rumdl = "0.2.77"
+rumdl = "0.2.78"
 shfmt = "3.14.1"
-vale = "3.22.0"
+vale = "3.24.0"
 
 # The docs site in site:build. mise installs zensical with uv.
-uv = "0.12.22"
+uv = "0.12.23"
 "pipx:zensical" = "0.0.69"
 
 # The local stack and its scenarios. `mise run up` drives podman through its
 # Docker-compatible socket, and `mise run e2e` runs shared/e2e/.
-docker-compose = "5.5.1"
+docker-compose = "5.6.0"
 hurl = "8.0.1"
 bats = "1.14.0"
 

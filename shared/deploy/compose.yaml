@@ -72,7 +72,7 @@ services:
   # The object store of ADR 0002, through its S3 API on port 8333. Without a
   # signing key, SeaweedFS logs an error that its unused STS service has none.
   seaweedfs:
-    image: chrislusf/seaweedfs:4.48
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     command: server -dir=/data -s3
     environment:
       WEED_JWT_FILER_SIGNING_KEY: twin-only-key-that-signs-nothing-real
@@ -92,7 +92,7 @@ services:
   # A trace ID waits 20 seconds for the index by default, longer than the
   # check waits.
   traces:
-    image: victoriametrics/victoria-traces:v0.12.0
+    image: victoriametrics/victoria-traces:v0.12.0@sha256:80919fcc85cc6dd87f598d20ccf42d0ab1120de8f25d4dcf08c5ea2515a496ba
     command: -insert.indexFlushInterval=1s
     ports:
       - "${JJFORGE_TRACES_PORT:-10428}:10428"

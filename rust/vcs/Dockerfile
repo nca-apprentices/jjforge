@@ -9,7 +9,7 @@ COPY rust rust
 WORKDIR /src/rust
 RUN cargo build --release --bin vcs
 
-FROM gcr.io/distroless/cc-debian13:nonroot
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2
 
 COPY --from=build /src/rust/target/release/vcs /usr/local/bin/vcs
 
