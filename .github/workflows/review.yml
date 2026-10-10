@@ -6,12 +6,12 @@ name: Review
 #
 # Every event runs this file from main, and only main may use the
 # claude-review environment that holds the token, so no PR changes what runs
-# with it. A PR from a branch of this repository is code from a person with
-# write access: the job builds and starts its stack, and Claude runs its
-# scenarios and jf, so its code runs next to the token. A PR from a fork runs
-# nothing: Claude reads main and the PR's diff and can only comment. The
-# denied paths hold the tokens, so a PR that tells Claude to read them gets
-# nothing to post.
+# with it. For a PR from a branch of this repository, a job without secrets
+# builds its jf and images. The review job runs them only in containers that
+# main's compose file defines and in Claude's sandboxed commands, never on the
+# runner itself. A PR from a fork runs nothing: Claude reads main and the PR's
+# diff and can only comment. The denied paths hold the tokens, so a PR that
+# tells Claude to read them gets nothing to post.
 on:
   pull_request_target:
     types: [opened, ready_for_review, reopened]
@@ -50,29 +50,29 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.number }}
 
-  review:
-    name: Review
+  # Builds the PR's jf and images in a job without secrets and with a
+  # read-only token, so the PR's code never runs on the runner that holds the
+  # Claude token. A build that fails leaves its log for the review.
+  build:
+    name: Build
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '@claude review') && !endsWith(github.actor, '[bot]'))
-    # In the job, so a comment that triggers no review cancels none.
+    # In the jobs, so a comment that triggers no review cancels none.
     concurrency:
       group: ${{ github.workflow }}-${{ inputs.pr || github.event.issue.number }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    environment: claude-review
-    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      sha: ${{ steps.pr.outputs.sha }}
+      fork: ${{ steps.pr.outputs.fork }}
     env:
       PR: ${{ inputs.pr || github.event.issue.number }}
-      # The second file publishes Postgres, so Claude can query it without
-      # Docker.
-      COMPOSE_FILE: shared/deploy/compose.yaml:review/compose.yaml
-      JF_BIN: ${{ github.workspace }}/rust/target/debug/jf
       MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
-      # Hides the tokens from Claude's commands and their process IDs, so a
-      # prompt injection in an issue or comment can't hand one to a command.
-      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
     steps:
       - name: Find the PR
         id: pr
@@ -82,8 +82,70 @@ jobs:
           gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid,isCrossRepository \
             --jq '"sha=\(.headRefOid)\nfork=\(.isCrossRepository)"' >>"$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
+        if: steps.pr.outputs.fork == 'false'
         with:
-          ref: ${{ steps.pr.outputs.fork == 'false' && steps.pr.outputs.sha || '' }}
+          ref: ${{ steps.pr.outputs.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@v4
+        if: steps.pr.outputs.fork == 'false'
+        with:
+          install_args: rust
+      - name: Build
+        if: steps.pr.outputs.fork == 'false'
+        run: |
+          mkdir build
+          cargo build --manifest-path rust/Cargo.toml --bin jf >build/jf.log 2>&1 &&
+            cp rust/target/debug/jf build/ || true
+          for component in server:jvm/Dockerfile vcs:rust/vcs/Dockerfile; do
+            name=${component%%:*}
+            image=ghcr.io/nca-apprentices/jjforge-$name:latest
+            docker build --tag "$image" --file "${component#*:}" . >"build/$name.log" 2>&1 &&
+              docker save --output "build/$name.tar" "$image" || true
+          done
+      - uses: actions/upload-artifact@v7
+        if: steps.pr.outputs.fork == 'false'
+        with:
+          name: review-build
+          path: build/
+          retention-days: 1
+
+  review:
+    name: Review
+    needs: [build]
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '@claude review') && !endsWith(github.actor, '[bot]'))
+    # In the jobs, so a comment that triggers no review cancels none.
+    concurrency:
+      group: ${{ github.workflow }}-${{ inputs.pr || github.event.issue.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    environment: claude-review
+    timeout-minutes: 60
+    env:
+      PR: ${{ inputs.pr || github.event.issue.number }}
+      FORK: ${{ needs.build.outputs.fork }}
+      # The second file publishes Postgres, so Claude can query it without
+      # Docker.
+      COMPOSE_FILE: shared/deploy/compose.yaml:review/compose.yaml
+      JF_BIN: ${{ github.workspace }}/review/build/jf
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+      # Hides the tokens from Claude's commands and their process IDs, so a
+      # prompt injection in an issue or comment can't hand one to a command.
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+    # main is the workspace, so the tools, the compose file, and the skill
+    # come from main. The PR's branch is only data in pr/, and its code runs
+    # only in containers and in Claude's sandboxed commands.
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        if: env.FORK == 'false'
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+          path: pr
           persist-credentials: false
       # Claude gets no GitHub token in its commands, so the job fetches what
       # the skill reads.
@@ -99,17 +161,27 @@ jobs:
             gh issue view "$n" --json title,body,comments > "review/issues/$n.json"
           done
       - uses: jdx/mise-action@v4
-        if: steps.pr.outputs.fork == 'false'
-      # Claude's commands can't reach Docker, so the job starts the stack and
-      # streams its logs to a file. A stack that fails to start is a finding,
-      # so the review goes on.
+        if: env.FORK == 'false'
+        with:
+          install_args: docker-compose hurl bats
+      - uses: actions/download-artifact@v8
+        if: env.FORK == 'false'
+        with:
+          name: review-build
+          path: review/build
+      # Claude's commands can't reach Docker, so the job starts the stack from
+      # the PR's images and streams its logs to a file. A stack that fails to
+      # start is a finding, so the review goes on.
       - name: Start the stack
-        if: steps.pr.outputs.fork == 'false'
+        if: env.FORK == 'false'
         continue-on-error: true
         run: |
           printf 'services:\n  postgres:\n    ports: ["5432:5432"]\n' > review/compose.yaml
-          cargo build --manifest-path rust/Cargo.toml --bin jf
-          docker-compose up --build --detach > review/up.log 2>&1
+          chmod +x review/build/jf || true
+          for image in review/build/*.tar; do
+            docker load --input "$image"
+          done > review/up.log 2>&1
+          docker-compose up --no-build --detach >> review/up.log 2>&1
           curl --fail --silent --show-error --retry 120 --retry-delay 1 --retry-all-errors \
             --json '{"message":"up"}' http://localhost:8080/api/v1/echo >> review/up.log 2>&1
           nohup docker-compose logs --follow --no-color > review/stack.log 2>&1 &
@@ -131,14 +203,15 @@ jobs:
             Review PR #${{ env.PR }} by .claude/skills/jf-review/SKILL.md.
             review/ holds what steps 1 and 2 read: the PR with its reviews, comments, and checks in pr.json,
             its diff in pr.diff, its review threads in threads.json, and the issues it closes in issues/.
-            The branch is checked out unless the PR comes from a fork. On a checked-out branch the job
-            has started the stack, which step 3 says how to use, and steps 3 and 5 are required.
+            Unless the PR comes from a fork, its branch is checked out in pr/, the job has started the
+            stack from it, which step 3 says how to use, and steps 3 and 5 are required. The stack runs
+            with main's compose file, so say so when the PR changes shared/deploy/compose.yaml.
             Post the report as one review: create a pending review, add each finding as a comment on its
             line, add the answer to each unresolved thread as a comment on that thread's line that starts
             with @ and the thread author's login, and submit it with event COMMENT and the Blocking part as its body.
           claude_args: >-
             --model claude-opus-5-5
-            ${{ steps.pr.outputs.fork == 'false'
+            ${{ env.FORK == 'false'
             && '--allowedTools Bash,Read,Glob,Grep,Write,mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review
             --disallowedTools Edit,NotebookEdit,WebFetch,WebSearch'
             || '--allowedTools Read,Glob,Grep,mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review

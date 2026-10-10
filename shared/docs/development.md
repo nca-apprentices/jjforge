@@ -115,13 +115,15 @@ Two workflows run the same skill:
   and the Claude GitHub App posts the review. A PR from a fork gets a review
   of its diff only, and runs no code.
 - **Claude** answers `@claude` from anyone with write access in an issue, a
-  PR, or a review, such as `@claude fix the failing scenario`. It pushes to the PR's branch as the
-  Claude GitHub App, so its commits run CI. It doesn't run on a PR from a
-  fork.
+  PR, or a review, such as `@claude fix the failing scenario`. It pushes to
+  the PR's branch as the Claude GitHub App, so its commits run CI. It doesn't
+  run on a PR from a fork.
 
-On a branch of this repository, both run the PR's code next to the token
-from `claude setup-token`. Only `main` may use the `claude-review`
-environment that holds it.
+The token from `claude setup-token` lives in the `claude-review`
+environment, which only `main` may use. The Review workflow builds a PR in a
+job without the token, and runs its code only in containers and in the
+sandbox around Claude's commands. Neither workflow runs the code of a PR
+from a fork.
 
 ## Releasing
 
@@ -136,4 +138,5 @@ The release also writes `Formula/jf.rb` in
 so `brew install nca-apprentices/tap/jf` installs the new `jf` on macOS
 (Apple silicon) and Linux. `mise run release:formula <tag> <dir>` prints the
 same formula from a directory of `jf-<target>` binaries. The tap's deploy key,
-stored as the secret `HOMEBREW_TAP_DEPLOY_KEY`, lets the release push to it.
+stored as the secret `HOMEBREW_TAP_DEPLOY_KEY` in the `release` environment,
+lets the release push to it. Only a `v*` tag may use that environment.

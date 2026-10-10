@@ -43,10 +43,12 @@ and its summary says so.
    mise run compose exec -T postgres psql -U postgres -c '<query>'
    ```
 
-   In the Review workflow, Docker is out of reach, and the job has already
-   started the stack and built `jf` as `JF_BIN`. `review/up.log` holds the
-   start, `review/stack.log` grows with the logs, and
-   `psql -h localhost -U postgres` reaches the database. Read every log line
+   In the Review workflow, the branch is in `pr/` and Docker is out of
+   reach. The job has built its `jf` as `JF_BIN` and started the stack from
+   its images. `review/build/` holds the build logs, `review/up.log` the
+   start, and `review/stack.log` grows with the logs. Run the scenarios from
+   `pr/` with `bash ../shared/config/mise/tasks/e2e`, and reach the database
+   with `psql -h localhost -U postgres`. Read every log line
    at warning level or higher, and check that the rows and objects the
    spec's Persistence section names exist after the scenarios run. Done
    when you know which scenarios pass, which log lines are errors, and

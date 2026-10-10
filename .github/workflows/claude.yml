@@ -5,12 +5,11 @@ name: Claude
 # so its commits run CI, and it can push to a PR's branch, never to main.
 #
 # Comment events run this file from main, and only main may use the
-# claude-review environment that holds the token. On a branch of this
-# repository Claude may run any command, so it runs the PR's code next to the
-# token, as the Review workflow does. A PR from a fork gets no Claude: the
-# action checks out its head, and Claude Code would run the hooks in its
-# .claude/settings.json. The Review workflow reviews it from main. The denied
-# paths hold the tokens.
+# claude-review environment that holds the token. The action checks out the
+# PR's branch, so the settings turn off the hooks and MCP servers that the
+# branch's .claude/ could add, and Claude runs the branch's code only in its
+# sandboxed commands. A PR from a fork gets no Claude, and the Review workflow
+# reviews it from main. The denied paths hold the tokens.
 on:
   issue_comment:
     types: [created]
@@ -101,6 +100,8 @@ jobs:
           settings: |
             {
               "env": { "BASH_MAX_TIMEOUT_MS": "1800000", "GITHUB_TOKEN": "", "GH_TOKEN": "" },
+              "disableAllHooks": true,
+              "enableAllProjectMcpServers": false,
               "permissions": {
                 "deny": [
                   "Read(//proc/**)",

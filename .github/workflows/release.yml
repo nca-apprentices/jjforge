@@ -199,6 +199,8 @@ jobs:
     name: Deploy
     needs: [release]
     runs-on: ubuntu-latest
+    # Holds the App's key. Only a v* tag may use it, so no branch reads it.
+    environment: release
     steps:
       - uses: actions/create-github-app-token@v3
         id: token
@@ -218,11 +220,14 @@ jobs:
 
   # Writes Formula/jf.rb in nca-apprentices/homebrew-tap, so
   # `brew install nca-apprentices/tap/jf` installs this release. The tap's
-  # deploy key, stored as a secret here, can push to the tap and nothing else.
+  # deploy key, stored in the release environment, can push to the tap and
+  # nothing else.
   homebrew:
     name: Homebrew formula
     needs: [release]
     runs-on: ubuntu-latest
+    # Holds the deploy key. Only a v* tag may use it, so no branch reads it.
+    environment: release
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
