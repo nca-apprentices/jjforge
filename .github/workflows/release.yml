@@ -1,8 +1,19 @@
 name: Release
 
+# `gh workflow run release.yml -f version=v1.2.3` releases main's head. A
+# tag would run the workflow file of the commit it names, so the release
+# starts from main instead, and only main may use the release environment
+# that holds the secrets. The workflow creates the tag itself.
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, such as v1.2.3
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}
 
 permissions:
   contents: write
@@ -12,8 +23,24 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
+  VERSION: ${{ inputs.version }}
 
 jobs:
+  tag:
+    name: Tag
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tag main's head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::$VERSION is not a version such as v1.2.3"
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$VERSION" -f sha="$GITHUB_SHA" --silent
+
   # One version ships everything: server image, vcs image, client binaries,
   # chart and OpenAPI document all carry the same tag.
   #
@@ -21,6 +48,7 @@ jobs:
   # by digest only. The manifests job then puts both digests under the tag.
   images:
     name: Image
+    needs: [tag]
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
@@ -96,10 +124,11 @@ jobs:
           IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/jjforge-${{ matrix.component }}
         run: |
           digests=(*)
-          docker buildx imagetools create --tag "$IMAGE:$GITHUB_REF_NAME" "${digests[@]/#/$IMAGE@sha256:}"
+          docker buildx imagetools create --tag "$IMAGE:$VERSION" "${digests[@]/#/$IMAGE@sha256:}"
 
   client:
     name: Client binaries
+    needs: [tag]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -116,11 +145,11 @@ jobs:
       - uses: jdx/mise-action@v4
         with:
           install_args: rust
-      # The tag is the version, so `jf --version` reports the release.
+      # `jf --version` reports the release.
       - name: Build
         working-directory: rust
         run: |
-          sed -i.bak "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" Cargo.toml
+          sed -i.bak "s/^version = .*/version = \"${VERSION#v}\"/" Cargo.toml
           cargo build --release --bin jf
       # Each binary is named after its target, so the release lists one per
       # platform.
@@ -136,6 +165,7 @@ jobs:
 
   chart:
     name: Helm chart and OpenAPI
+    needs: [tag]
     runs-on: ubuntu-latest
     env:
       MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
@@ -150,8 +180,8 @@ jobs:
       - name: Package
         run: |
           helm registry login ${{ env.REGISTRY }} --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"
-          helm package shared/deploy/chart --version "${GITHUB_REF_NAME#v}" --app-version "$GITHUB_REF_NAME"
-          helm push jjforge-"${GITHUB_REF_NAME#v}".tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+          helm package shared/deploy/chart --version "${VERSION#v}" --app-version "$VERSION"
+          helm push jjforge-"${VERSION#v}".tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
           # At the root, so the release lists it by its own name.
           cp shared/openapi.yaml .
         env:
@@ -188,6 +218,7 @@ jobs:
           path: dist
       - uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ inputs.version }}
           generate_release_notes: true
           files: dist/*
 
@@ -199,7 +230,7 @@ jobs:
     name: Deploy
     needs: [release]
     runs-on: ubuntu-latest
-    # Holds the App's key. Only a v* tag may use it, so no branch reads it.
+    # Holds the App's key. Only main may use it, so no branch reads it.
     environment: release
     steps:
       - uses: actions/create-github-app-token@v3
@@ -226,7 +257,7 @@ jobs:
     name: Homebrew formula
     needs: [release]
     runs-on: ubuntu-latest
-    # Holds the deploy key. Only a v* tag may use it, so no branch reads it.
+    # Holds the deploy key. Only main may use it, so no branch reads it.
     environment: release
     steps:
       - uses: actions/checkout@v7
@@ -239,7 +270,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Render the formula
-        run: mise run release:formula "$GITHUB_REF_NAME" dist >jf.rb
+        run: mise run release:formula "$VERSION" dist >jf.rb
       - name: Push it to the tap
         env:
           DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
@@ -256,6 +287,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Formula/jf.rb
-          git commit -m "feat(jf): release $GITHUB_REF_NAME"
+          git commit -m "feat(jf): release $VERSION"
           # The first release pushes into an empty tap, which has no branch yet.
           git push origin HEAD:main
