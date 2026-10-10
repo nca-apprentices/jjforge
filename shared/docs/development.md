@@ -130,8 +130,8 @@ from a fork.
 `gh workflow run release.yml -f version=v1.2.3` releases the head of `main`.
 The Release workflow tags it and publishes, all with the same version, the
 server and vcs images to `ghcr.io/nca-apprentices`, the CLI binaries, and the
-chart to `oci://ghcr.io/nca-apprentices/charts/jjforge`. Only the workflow
-may create a `v*` tag.
+chart to `oci://ghcr.io/nca-apprentices/charts/jjforge`. The `release-tags`
+rule set keeps a `v*` tag from moving or disappearing once it exists.
 [Architecture](architecture.md#releases-and-deployment) says how it is
 deployed.
 
