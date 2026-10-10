@@ -4,7 +4,7 @@
 
 # The SPA is served by the server, so it is built into the jar rather than
 # deployed as a second thing to keep in sync.
-FROM node:24-slim AS web
+FROM node:24.21.0-slim AS web
 RUN corepack enable
 # The web install generates the API client from the compiled contract, so the
 # contract is compiled first. Corepack reads the pinned pnpm version from the
@@ -16,7 +16,7 @@ WORKDIR /src/web
 COPY web ./
 RUN pnpm install --frozen-lockfile && pnpm build
 
-FROM gradle:9-jdk25 AS build
+FROM gradle:9.7.1-jdk25 AS build
 WORKDIR /src
 COPY shared/proto shared/proto
 COPY --from=web /src/shared/openapi.yaml shared/openapi.yaml
@@ -25,7 +25,7 @@ COPY --from=web /src/web/apps/web/dist jvm/src/main/resources/static
 RUN --mount=type=cache,target=/cache/gradle \
     GRADLE_USER_HOME=/cache/gradle gradle --no-daemon -p jvm bootJar
 
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:25.0.2_10-jre
 COPY --from=build /src/jvm/build/libs/jjforge-server-*.jar /app/jjforge-server.jar
 EXPOSE 8080
 USER 65532

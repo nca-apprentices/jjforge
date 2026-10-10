@@ -1,6 +1,6 @@
 # Built from the repository root: the stubs crate in rust/ compiles the contract
 # in shared/proto/.
-FROM rust:1.98-slim AS build
+FROM rust:1.98.1-slim AS build
 
 WORKDIR /src
 COPY shared/proto shared/proto
