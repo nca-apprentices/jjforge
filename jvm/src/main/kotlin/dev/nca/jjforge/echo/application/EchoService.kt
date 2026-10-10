@@ -8,5 +8,9 @@ import org.springframework.stereotype.Service
 class EchoService(
     private val vcs: VcsClient,
 ) {
-    fun echo(message: String): String = vcs.echo(message)
+    fun echo(message: String): String = vcs.echo(message.take(MAX_LENGTH))
+
+    private companion object {
+        const val MAX_LENGTH = 64
+    }
 }
