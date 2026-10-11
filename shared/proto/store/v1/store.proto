@@ -21,6 +21,7 @@ message StoredObject {
     Operation operation = 4;
     View view = 5;
     Symlink symlink = 6;
+    CopyHistory copy_history = 7;
   }
 }
 
@@ -30,6 +31,17 @@ message File {
 
 message Symlink {
   string target = 1;
+}
+
+// The history of one file across copies and renames. Its ID is the copy ID
+// that `FileRef` names.
+message CopyHistory {
+  string current_path = 1;
+  // The copy IDs of the files this one came from. Empty for a new file, one for
+  // a copy or rename, several for a merge of files.
+  repeated bytes parent_ids = 2;
+  // Gives a new file at the same path a different ID.
+  bytes salt = 3;
 }
 
 message Tree {
@@ -85,12 +97,14 @@ message Commit {
   // without this field, in that backend's format, such as SSH or GPG. Empty
   // when unsigned.
   bytes signature = 7;
-  // One label per term of `root_tree` when the commit is conflicted. Empty
+  // One label per term of `root_tree` when the commit is conflicted, in jj's
+  // order: the first add, then each remove followed by the next add. Empty
   // when it is resolved.
   repeated string conflict_labels = 8;
 }
 
 // Where a bookmark points. More than one add means the bookmark is conflicted.
+// An empty term means absent.
 message RefTarget {
   repeated bytes adds = 1;
   repeated bytes removes = 2;
@@ -110,6 +124,9 @@ message View {
 message RemoteView {
   map<string, RefTarget> bookmarks = 1;
   map<string, RefTarget> tags = 2;
+  // The bookmarks and tags that jj merges into the local ones, sorted.
+  repeated string tracked_bookmarks = 3;
+  repeated string tracked_tags = 4;
 }
 
 message Operation {
@@ -125,7 +142,8 @@ message Operation {
   // that delegated to it, outermost first, both from the verified token.
   map<string, string> attributes = 6;
   // For each commit this operation wrote, the commits it replaced, keyed by
-  // the commit ID in hexadecimal. Always recorded.
+  // the commit ID in hexadecimal. Meaningful only when
+  // `stores_commit_predecessors` is set.
   map<string, CommitIds> commit_predecessors = 7;
   // The segments that hold the objects this operation made visible. The
   // store sets it when it writes the operation, as ADR 0002 decides, and
@@ -136,6 +154,11 @@ message Operation {
   string username = 10;
   bool is_snapshot = 11;
   optional string workspace_name = 12;
+  // Minutes east of UTC where the operation started and ended.
+  int32 start_tz_offset_minutes = 13;
+  int32 end_tz_offset_minutes = 14;
+  // False when the operation was written before jj recorded predecessors.
+  bool stores_commit_predecessors = 15;
 }
 
 message CommitIds {

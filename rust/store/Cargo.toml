@@ -1,0 +1,17 @@
+[package]
+name = "jjforge-store"
+description = "The jj objects of a repository in the store.v1 format"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+jjforge-proto.workspace = true
+jj-lib.workspace = true
+prost.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
