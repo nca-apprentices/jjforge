@@ -5,10 +5,11 @@ options, its rules, and what follows.
 
 - A new record starts from [the template](0000-template.md), is proposed in
   its own PR, and is accepted when the PR merges.
-- Until the first release, an accepted record is edited or deleted when its
-  decision changes, because nothing shipped depends on the old decision.
-- From the first release on, an accepted record is never edited. A new
-  record supersedes it, and the old one's status names its successor.
+- Until 1.0.0, an accepted record is edited or deleted when its decision
+  changes, because nothing stable depends on the old decision. Git history
+  keeps the old wording.
+- From 1.0.0 on, an accepted record is never edited. A new record
+  supersedes it, and the old one's status names its successor.
 
 | ADR                                             | Decision                                                       | Status   |
 | ----------------------------------------------- | -------------------------------------------------------------- | -------- |

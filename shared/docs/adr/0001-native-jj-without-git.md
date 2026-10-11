@@ -26,13 +26,15 @@ every byte through the server, and HTTP caches can't cache gRPC.
 
 - jjforge has no git in it: no git object format, no git smart HTTP, and no
   colocated repositories.
-- A repository holds six kinds of objects, encoded with Protocol Buffers and
-  named by the BLAKE3 hash of their bytes, as
+- A repository holds seven kinds of objects, encoded with Protocol Buffers
+  and named by the BLAKE3 hash of their bytes, as
   [proto/store/v1](../../proto/store/v1/) describes: file, symbolic link,
-  tree, commit, operation, and view. The change ID is a field of the commit,
-  a conflict is a merge of trees, and the operation records the principal
-  and its delegation chain from the verified token. The format holds every
-  field of jj-lib's `Commit`, `View`, and `Operation` except the git ones.
+  tree, copy history, commit, operation, and view. The change ID is a field
+  of the commit, a conflict is a merge of trees, and the operation records
+  the principal and its delegation chain from the verified token. The format
+  holds every field of jj-lib's `Commit`, `View`, and `Operation` except the
+  git ones and the `predecessors` of a commit, which jj deprecates. The
+  `commit_predecessors` of the operation record them instead.
 - One Rust crate implements the three traits for this format, for vcs and
   `jf` alike. The head moves by compare-and-swap, and jj-lib merges divergent
   heads itself.
