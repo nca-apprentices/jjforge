@@ -81,10 +81,13 @@ jobs:
         with:
           ref: ${{ steps.pr.outputs.sha }}
           persist-credentials: false
+      # The PR's build could change the installed tools, and a cache saved
+      # here would serve them to main.
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         if: steps.pr.outputs.fork == 'false'
         with:
           install_args: rust
+          cache: false
       - name: Build
         if: steps.pr.outputs.fork == 'false'
         run: |
