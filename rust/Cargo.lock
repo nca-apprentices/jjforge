@@ -1816,6 +1816,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "jjforge-store"
+version = "0.1.0"
+dependencies = [
+ "jj-lib",
+ "jjforge-proto",
+ "prost",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "jni"
 version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

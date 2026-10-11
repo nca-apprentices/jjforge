@@ -17,7 +17,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = tonic_prost_build::Config::new();
     config.protoc_executable(protoc_bin_vendored::protoc_bin_path()?);
 
+    // An object's ID is the hash of its bytes, so its maps encode in key
+    // order, never in a HashMap's random one.
     tonic_prost_build::configure()
+        .btree_map(".store.v1")
         .build_client(true)
         .build_server(true)
         .compile_with_config(config, &files, &[proto_root])?;
