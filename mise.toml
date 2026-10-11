@@ -1,8 +1,8 @@
 [tools]
 java = "25.0.4"
-gradle = "9.8.0"
+gradle = "9.8.1"
 node = "24.21.0"
-pnpm = "12.9.0"
+pnpm = "12.11.2"
 rust = { version = "1.99.0", components = "clippy,rustfmt" }
 
 # Contracts: `buf lint` in shared:lint and the OpenAPI diff in api:breaking.
@@ -23,14 +23,14 @@ cargo-deny = "0.20.2"
 
 # Formatting and prose. dprint runs ktlint, rumdl, and shfmt for `mise run
 # fmt`, and vale checks the prose.
-dprint = "0.59.0"
+dprint = "0.61.1"
 ktlint = "1.8.0"
-rumdl = "0.2.78"
+rumdl = "0.2.79"
 shfmt = "3.14.1"
 vale = "3.24.0"
 
 # The docs site in site:build. mise installs zensical with uv.
-uv = "0.12.23"
+uv = "0.13.0"
 "pipx:zensical" = "0.0.69"
 
 # The local stack and its scenarios. `mise run up` drives podman through its

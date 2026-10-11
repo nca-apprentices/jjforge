@@ -33,6 +33,16 @@
         "\"npm:(?<depName>(@[^/\"]+/)?[^@\"]+)@(?<currentValue>[^\"/@]+)\""
       ],
       "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "The Vale style package that shared:lint checks the prose against.",
+      "managerFilePatterns": ["/^shared/config/vale/vale\\.ini$/"],
+      "matchStrings": [
+        "errata-ai/Google/releases/download/(?<currentValue>v[\\d.]+)/"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "errata-ai/Google"
     }
   ]
 }
