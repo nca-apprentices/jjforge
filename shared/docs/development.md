@@ -94,7 +94,7 @@ and Argo CD deploys them within two minutes. The PR shows the deployment, and
 migrations never reach the database of `jjforge-dev`. It disappears, with its
 database, when the PR merges, closes, or loses the label. Fork PRs get none.
 
-Its logs are in [VictoriaLogs](https://ops.nca-apprentices.dev/logs/select/vmui/)
+Its logs are in [VictoriaLogs](https://logs.nca-apprentices.dev/select/vmui/)
 under `kubernetes.pod_labels.app.kubernetes.io/instance` `jjforge-pr-<n>`, and
 its traces in Grafana under `deployment.environment.name` `pr-<n>`.
 The [operations guide](https://github.com/nca-apprentices/infra/blob/main/docs/operations.md#previews)
