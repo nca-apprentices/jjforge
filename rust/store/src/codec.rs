@@ -70,6 +70,8 @@ pub enum Error {
     CommitId(String),
     #[error("store.v1 has no {0}")]
     Unsupported(&'static str),
+    #[error("the bytes are not how store.v1 encodes the object")]
+    NotCanonical,
 }
 
 /// Encodes an object as a `store.v1.StoredObject`.
@@ -79,6 +81,10 @@ pub enum Error {
 /// Fails on the git parts of jj, which `store.v1` leaves out, as ADR 0001
 /// decides: a git submodule, git refs, and git heads.
 pub fn encode(object: &Object) -> Result<Vec<u8>, Error> {
+    Ok(stored_object(object)?.encode_to_vec())
+}
+
+fn stored_object(object: &Object) -> Result<proto::StoredObject, Error> {
     let kind = match object {
         Object::File(content) => Kind::File(proto::File {
             content: content.clone(),
@@ -92,19 +98,40 @@ pub fn encode(object: &Object) -> Result<Vec<u8>, Error> {
         Object::Operation(operation) => Kind::Operation(operation_to_proto(operation)),
         Object::View(view) => Kind::View(view_to_proto(view)?),
     };
-    Ok(proto::StoredObject { kind: Some(kind) }.encode_to_vec())
+    Ok(proto::StoredObject { kind: Some(kind) })
 }
 
 /// Decodes a `store.v1.StoredObject`.
 ///
 /// # Errors
 ///
-/// Fails when the bytes aren't a `StoredObject`, or when it breaks a rule of
-/// jj-lib, such as a tree whose entries aren't sorted.
+/// Fails when the bytes aren't a `StoredObject`, when it breaks a rule of
+/// jj-lib, such as a tree whose entries aren't sorted, or when `encode` would
+/// give the object other bytes, and so another ID.
 pub fn decode(bytes: &[u8]) -> Result<Object, Error> {
-    let kind = proto::StoredObject::decode(bytes)?
-        .kind
-        .ok_or(Error::Missing("object kind"))?;
+    let message = proto::StoredObject::decode(bytes)?;
+    // The store sets an operation's segments, which jj-lib never sees, so
+    // the check carries them over.
+    let segment_ids = match &message.kind {
+        Some(Kind::Operation(operation)) => operation.segment_ids.clone(),
+        _ => vec![],
+    };
+
+    let object = object_from_proto(message)?;
+
+    let mut canonical = stored_object(&object)?;
+    if let Some(Kind::Operation(operation)) = &mut canonical.kind {
+        operation.segment_ids = segment_ids;
+    }
+    if canonical.encode_to_vec() != bytes {
+        return Err(Error::NotCanonical);
+    }
+
+    Ok(object)
+}
+
+fn object_from_proto(message: proto::StoredObject) -> Result<Object, Error> {
+    let kind = message.kind.ok_or(Error::Missing("object kind"))?;
     Ok(match kind {
         Kind::File(file) => Object::File(file.content),
         Kind::Symlink(symlink) => Object::Symlink(symlink.target),
@@ -785,5 +812,51 @@ mod tests {
         let result = encode(&Object::View(Box::new(view)));
 
         assert!(matches!(result, Err(Error::Unsupported("git refs"))));
+    }
+
+    fn stored(kind: Kind) -> Vec<u8> {
+        proto::StoredObject { kind: Some(kind) }.encode_to_vec()
+    }
+
+    #[test]
+    fn view_with_unsorted_heads_fails_to_decode() {
+        let view = proto::View {
+            head_ids: vec![vec![2; 32], vec![1; 32], vec![1; 32]],
+            ..Default::default()
+        };
+
+        assert!(matches!(
+            decode(&stored(Kind::View(view))),
+            Err(Error::NotCanonical)
+        ));
+    }
+
+    #[test]
+    fn tracked_name_without_ref_fails_to_decode() {
+        let remote = proto::RemoteView {
+            tracked_bookmarks: vec!["ghost".to_owned()],
+            ..Default::default()
+        };
+        let view = proto::View {
+            head_ids: vec![vec![1; 32]],
+            remote_views: BTreeMap::from([("origin".to_owned(), remote)]),
+            ..Default::default()
+        };
+
+        assert!(matches!(
+            decode(&stored(Kind::View(view))),
+            Err(Error::NotCanonical)
+        ));
+    }
+
+    #[test]
+    fn operation_with_segments_decodes() {
+        let operation = Operation::make_root(ViewId::new(vec![1; 32]));
+        let mut message = operation_to_proto(&operation);
+        message.segment_ids = vec![vec![7; 32]];
+
+        let decoded = decode(&stored(Kind::Operation(message))).unwrap();
+
+        assert_eq!(decoded, Object::Operation(Box::new(operation)));
     }
 }
