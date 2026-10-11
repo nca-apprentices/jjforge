@@ -321,6 +321,8 @@ keeps the rest in private modules, as
 | Crate | Item                     | Kind        | Role                                                                                                                          |
 | ----- | ------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | store | `factories()`            | function    | Returns the jj-lib `StoreFactories` that register the store type `jjforge`.                                                   |
+| store | `Object`                 | enumeration | A jj-lib object of any kind that `store.v1` holds.                                                                            |
+| store | `encode`, `decode`       | function    | Convert an `Object` to an encoded `store.v1.StoredObject` and back. The same object always encodes to the same bytes.         |
 | store | `ObjectId`               | struct      | The 32-byte BLAKE3 hash of an encoded `store.v1.StoredObject`.                                                                |
 | store | `Repo`                   | struct      | One repository in the object store, opened from a URL, an organization ID, and a repository ID. vcs calls it for every route. |
 | store | `Repo::create`           | method      | Writes `HEAD` at the root operation with `If-None-Match: *`, for [#25](https://github.com/nca-apprentices/jjforge/issues/25). |
@@ -363,20 +365,24 @@ type `jjforge` with `StoreFactories::add_backend`, `add_op_store`, and
 
 jjforge maps these jj-lib types onto `store.v1`:
 
-| jj-lib type                   | Fields                                                                                                                     | `store.v1`                     |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `backend::Commit`             | `parents`, `predecessors`, `root_tree`, `conflict_labels`, `change_id`, `description`, `author`, `committer`, `secure_sig` | `Commit`                       |
-| `backend::Tree`, `TreeValue`  | entries by name, each a file, a symbolic link, a tree, or a conflict                                                       | `Tree`, `TreeEntry`, `FileRef` |
-| `MergedTree`                  | a merge of tree IDs, which is how a commit holds a conflict                                                                | `TreeMerge`                    |
-| `backend::CopyHistory`        | `current_path`, `parents`                                                                                                  | none yet, an open question     |
-| `op_store::Operation`         | `view_id`, `parents`, `metadata`, `commit_predecessors`                                                                    | `Operation`                    |
-| `op_store::OperationMetadata` | `time`, `description`, `hostname`, `username`, `is_snapshot`, `workspace_name`, `attributes`                               | `Operation`                    |
-| `op_store::View`              | `head_ids`, `local_bookmarks`, `local_tags`, `remote_views`, `wc_commit_ids`                                               | `View`                         |
+| jj-lib type                   | Fields                                                                                                     | `store.v1`                     |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `backend::Commit`             | `parents`, `root_tree`, `conflict_labels`, `change_id`, `description`, `author`, `committer`, `secure_sig` | `Commit`                       |
+| `backend::Tree`, `TreeValue`  | entries by name, each a file, a symbolic link, or a tree                                                   | `Tree`, `TreeEntry`, `FileRef` |
+| `MergedTree`                  | a merge of tree IDs, which is how a commit holds a conflict                                                | `TreeMerge`                    |
+| `backend::CopyHistory`        | `current_path`, `parents`, `salt`                                                                          | `CopyHistory`                  |
+| `op_store::Operation`         | `view_id`, `parents`, `metadata`, `commit_predecessors`                                                    | `Operation`                    |
+| `op_store::OperationMetadata` | `time`, `description`, `hostname`, `username`, `is_snapshot`, `workspace_name`, `attributes`               | `Operation`                    |
+| `op_store::View`              | `head_ids`, `local_bookmarks`, `local_tags`, `remote_views`, `wc_commit_ids`                               | `View`                         |
+| `op_store::RemoteView`        | `bookmarks` and `tags`, each a `RemoteRef` with its target and whether it is tracked                       | `RemoteView`, `RefTarget`      |
 
 jjforge leaves these parts of jj-lib unused:
 
 - `View::git_refs` and `View::git_heads`, the git backend, and the secret
   backend.
+- `Commit::predecessors`, which jj deprecates. `jf` sets
+  `experimental.record-predecessors-in-commit` to false, and
+  `Operation.commit_predecessors` records the same.
 - `Backend::gc` and `OpStore::gc`, which do nothing, because nothing is
   collected.
 - The index store and the working copy, which stay jj-lib's defaults:
@@ -428,8 +434,6 @@ the store for the next push.
 - How `jf`'s local op heads map onto the forge's one `HEAD`, and whether vcs
   builds an operation with a jj-lib `Transaction` or edits the view itself.
   [#106](https://github.com/nca-apprentices/jjforge/issues/106) answers it.
-- How `store.v1` stores a `CopyHistory`.
-  [#105](https://github.com/nca-apprentices/jjforge/issues/105) answers it.
 - The segment and index format, and the bundle size of a lazy read.
   [#109](https://github.com/nca-apprentices/jjforge/issues/109) answers it.
 - The limits on push latency, retries, and upload size.
