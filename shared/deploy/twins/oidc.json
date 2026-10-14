@@ -6,11 +6,24 @@
       "requestMappings": [
         {
           "requestParam": "subject",
-          "match": "acme-owner|acme-member",
+          "match": "acme-owner",
           "claims": {
             "sub": "${subject}",
+            "aud": ["jjforge"],
             "email": "${subject}@acme.example",
-            "preferred_username": "${subject}"
+            "preferred_username": "${subject}",
+            "scope": "sync:write:0199c9a0-0000-7000-8000-00000000ac3e sync:admin:0199c9a0-0000-7000-8000-00000000ac3e"
+          }
+        },
+        {
+          "requestParam": "subject",
+          "match": "acme-member",
+          "claims": {
+            "sub": "${subject}",
+            "aud": ["jjforge"],
+            "email": "${subject}@acme.example",
+            "preferred_username": "${subject}",
+            "scope": "sync:write:0199c9a0-0000-7000-8000-00000000ac3e"
           }
         }
       ]
@@ -23,8 +36,10 @@
           "match": "other-owner",
           "claims": {
             "sub": "${subject}",
+            "aud": ["jjforge"],
             "email": "${subject}@other.example",
-            "preferred_username": "${subject}"
+            "preferred_username": "${subject}",
+            "scope": "sync:write:0199c9a0-0000-7000-8000-0000000007e2 sync:admin:0199c9a0-0000-7000-8000-0000000007e2"
           }
         }
       ]

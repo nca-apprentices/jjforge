@@ -6,8 +6,11 @@ use std::fmt;
 use std::io::Write;
 use std::sync::OnceLock;
 
+use axum::extract::MatchedPath;
+use axum::middleware::Next;
 use http::Uri;
 use opentelemetry::KeyValue;
+use opentelemetry::propagation::Extractor;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_otlp::SpanExporter;
@@ -19,10 +22,12 @@ use serde_json::Map;
 use serde_json::Value;
 use tracing::Dispatch;
 use tracing::Event;
+use tracing::Instrument as _;
 use tracing::Subscriber;
 use tracing::dispatcher::WeakDispatch;
 use tracing::field::Field;
 use tracing::field::Visit;
+use tracing_opentelemetry::OpenTelemetrySpanExt as _;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer;
 use tracing_subscriber::fmt::MakeWriter;
@@ -48,6 +53,52 @@ pub(crate) fn install(filter: &str, endpoint: Option<&Uri>) -> anyhow::Result<Sd
         .with(JsonLines::new(std::io::stdout))
         .try_init()?;
     Ok(provider)
+}
+
+/// Gives each `sync/v1` request a server span that continues the caller's
+/// `traceparent`, named after the route as the semantic conventions name
+/// an HTTP server span.
+pub(crate) async fn trace_http(
+    route: Option<MatchedPath>,
+    request: axum::extract::Request,
+    next: Next,
+) -> axum::response::Response {
+    struct Headers<'a>(&'a http::HeaderMap);
+    impl Extractor for Headers<'_> {
+        fn get(&self, key: &str) -> Option<&str> {
+            self.0.get(key).and_then(|value| value.to_str().ok())
+        }
+        fn keys(&self) -> Vec<&str> {
+            self.0.keys().map(http::HeaderName::as_str).collect()
+        }
+    }
+
+    let parent = opentelemetry::global::get_text_map_propagator(|propagator| {
+        propagator.extract(&Headers(request.headers()))
+    });
+    let method = request.method().to_string();
+    let route = route.map_or_else(
+        || request.uri().path().to_owned(),
+        |route| route.as_str().to_owned(),
+    );
+    let span = tracing::info_span!(
+        "HTTP request",
+        otel.name = format!("{method} {route}"),
+        otel.kind = "server",
+        http.request.method = method,
+        http.route = route,
+        http.response.status_code = tracing::field::Empty,
+        jjforge.org.id = tracing::field::Empty,
+        jjforge.repo.id = tracing::field::Empty,
+        jjforge.principal.id = tracing::field::Empty,
+    );
+    span.set_parent(parent).ok();
+
+    let response = next.run(request).instrument(span.clone()).await;
+    let status = response.status().as_u16();
+    span.record("http.response.status_code", status);
+    span.in_scope(|| tracing::info!(method, route, status, "request"));
+    response
 }
 
 /// A provider without an endpoint still gives each span a trace, so log lines
@@ -237,6 +288,41 @@ mod tests {
             .unwrap();
         assert_eq!(call.span_context.trace_id().to_string(), TRACE);
         assert_eq!(call.parent_span_id.to_string(), CALLER);
+    }
+
+    #[test]
+    fn a_request_logs_its_route_and_status() {
+        use axum::http::StatusCode;
+        use tower::ServiceExt as _;
+
+        let output = Output::default();
+        let writer = output.clone();
+        let subscriber =
+            tracing_subscriber::registry().with(JsonLines::new(move || writer.clone()));
+        let app = axum::Router::new()
+            .route(
+                "/repos/{id}",
+                axum::routing::get(|| async { StatusCode::NOT_FOUND }),
+            )
+            .layer(axum::middleware::from_fn(trace_http));
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+
+        tracing::subscriber::with_default(subscriber, || {
+            runtime.block_on(async {
+                let request = http::Request::get("/repos/7")
+                    .body(axum::body::Body::empty())
+                    .unwrap();
+                app.oneshot(request).await.unwrap();
+            });
+        });
+
+        let line: Value = serde_json::from_slice(&output.0.lock().unwrap()).unwrap();
+        assert_eq!(line["message"], "request");
+        assert_eq!(line["method"], "GET");
+        assert_eq!(line["route"], "/repos/{id}");
+        assert_eq!(line["status"], 404);
     }
 
     #[test]

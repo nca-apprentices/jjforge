@@ -6,9 +6,11 @@ vcs owns it, and `jf` speaks it over `sync/v1`, as
 lives in the object store, as
 [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
 
+The spike [#62](https://github.com/nca-apprentices/jjforge/issues/62)
+answered how `jf` and vcs build operations and how the store packs objects.
 Each open question at the end of this page names the issue of the spike
-[#62](https://github.com/nca-apprentices/jjforge/issues/62) that answers it.
-No requirement on this page is built until that section is gone.
+that answers it. No requirement on this page is built until that section is
+gone.
 
 The scenarios create their repositories through the REST API of
 [#23](https://github.com/nca-apprentices/jjforge/issues/23), and sign in as
@@ -52,10 +54,10 @@ requirement.
 
 - Operations: `GET {base}/head`, `POST {base}/objects/missing`,
   `POST {base}/objects`, and `POST {base}/publish`.
-- Types: `sync.v1.HashList`, `sync.v1.ObjectBundle`,
+- Types: `sync.v1.HashList`, `sync.v1.ObjectBundle`, `sync.v1.Uploaded`,
   `sync.v1.PublishRequest`, `sync.v1.BookmarkUpdate`,
   `sync.v1.PublishResponse`, `store.v1.StoredObject`, and the store crate's
-  `Repo`.
+  `Repo` and `push`.
 - Flow: [push](#push).
 
 Scenario: [31-repo-push.bats](../../e2e/cli/31-repo-push.bats).
@@ -181,7 +183,7 @@ requirement.
 
 | ID    | Functional requirement                                                                                                            |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 101.1 | `jf fetch` reads `GET {base}/head` and changes nothing when the head equals the last operation it fetched.                        |
+| 101.1 | `jf fetch` reads `GET {base}/head` and changes nothing when the head equals the last operation it fetched, and the view's `<name>@forge` bookmarks match it. |
 | 101.2 | Otherwise it fetches the operations since that one, merges them into its own, and sets each `<name>@forge` to the forge's target. |
 | 101.3 | A rewritten change shows its new commit under the same change ID, and the old commit is hidden, as `commit_predecessors` records. |
 
@@ -215,11 +217,11 @@ Scenario: [102-operation-author.bats](../../e2e/cli/102-operation-author.bats).
 [#103](https://github.com/nca-apprentices/jjforge/issues/103) states the
 requirement.
 
-| ID    | Functional requirement                                                                                                              |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| 103.1 | `PublishRequest.commit_predecessors` maps each pushed commit, and each of its local predecessors in turn, to its predecessors.      |
-| 103.2 | `jf` uploads every predecessor commit that vcs lacks, but not its trees or files.                                                   |
-| 103.3 | `jf evolog` in a clone lists every version of a change, newest first.                                                               |
+| ID    | Functional requirement                                                                                                                   |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 103.1 | `PublishRequest.commit_predecessors` maps each pushed commit to the versions of its change that the forge holds and that it replaced.    |
+| 103.2 | A version that never left the clone, such as a snapshot of the working copy, stays private: `jf` uploads only what pushed commits reach. |
+| 103.3 | `jf evolog` in a clone lists every version of a change that the forge saw, newest first.                                                 |
 
 - Operations: `POST {base}/objects` and `POST {base}/publish`.
 - Types: `sync.v1.PublishRequest`, `store.v1.CommitIds`, and
@@ -255,39 +257,74 @@ sequenceDiagram
     jf->>vcs: GET head
     jf->>vcs: POST objects/missing
     jf->>vcs: POST objects, the missing ones
-    vcs->>store: PUT one segment and its index
-    jf->>vcs: POST publish, If-Match: head
-    vcs->>store: PUT op/{hash}, then PUT HEAD, If-Match: tag
+    vcs->>store: PUT pool/seg/{segment}, then pool/idx/{segment}
+    vcs-->>jf: Uploaded with the segment
+    jf->>vcs: POST publish, If-Match: head, with the segments
+    vcs->>store: PUT op/{view}, op/{operation}, then HEAD with If-Match
     vcs-->>jf: 200 with the new operation, or 412 with the current head
 ```
 
-1. Token: vcs verifies the JWT offline. Refused: 401 `unauthenticated`. A
-   principal outside the organization gets 404 `not_found`.
-2. Objects: `jf` walks the commits that the pushed bookmarks reach and asks
-   which objects vcs lacks. vcs hashes every uploaded object and refuses a
-   malformed one: 400 `invalid`. It writes the upload as one segment with
-   its index.
-3. Publish: vcs checks that every referenced object is present and that the
-   token's scope covers each changed bookmark. Refused: 403 `forbidden`.
-4. Operation: vcs builds the operation from the request. P and the
-   delegation chain come from the token, and the time from vcs's clock. vcs
-   writes the operation and its view, then moves `HEAD` with `If-Match`.
-5. Race: on 412 `precondition_failed`, `jf` fetches, merges the operations
-   with `RepoLoader::merge_operations`, and publishes again.
-6. Local view: `jf` records each pushed bookmark as the remote bookmark
-   `<name>@forge`, so `jf log` shows what the forge holds.
+1. Token: vcs verifies the JWT offline against the issuers it trusts.
+   Refused: 401 `unauthenticated`. A principal without a scope for the
+   organization gets 404 `not_found`, and one with read scope only 403
+   `forbidden`.
+2. Objects: `jf` walks the commits that the pushed bookmarks reach and the
+   forge's heads don't, and asks which objects vcs lacks, one generation of
+   the tree at a time. An object vcs holds reaches only objects it holds,
+   so the walk stops there. vcs decodes every uploaded object and refuses a
+   malformed one, an operation, or a view: 400 `invalid`. It names each
+   object by the BLAKE3 hash of its bytes and writes the upload as one
+   segment with its index. `jf` bundles objects up to 16 MiB per upload and
+   refuses an object of more than 63 MiB before it uploads anything. The earlier
+   versions of a pushed change that the forge holds become its
+   predecessors. A version between them that never left the clone stays
+   private, so a push publishes only what the pushed commits reach.
+3. Publish: vcs refuses a stale head, named in the body and in `If-Match`,
+   or a bookmark whose `old_target` differs from the view at `HEAD`: 412
+   `precondition_failed` with the current head in `ETag`. It refuses a
+   segment the repository lacks, and a new visible commit that reaches an
+   object that neither the log nor the segments of the publish hold: 400 `invalid`.
+4. Operation: vcs loads the repository at `HEAD` with jj-lib, over its own
+   index. A `MutableRepo` adds each new bookmark target and each of
+   `head_ids` as a head, sets the bookmarks, and removes each commit that
+   `commit_predecessors` names as replaced and each of `hidden_ids` from the
+   heads. jj-lib keeps the heads consistent. vcs writes the view, then the
+   operation with P, the delegation chain, its own time, the predecessors,
+   and the segments, then moves `HEAD` with `If-Match`.
+5. Race: on 412 `jf` fetches, merges, and publishes again after a random
+   wait that doubles each time, at most ten times until
+   [#110](https://github.com/nca-apprentices/jjforge/issues/110) measures
+   the limit. A pushed bookmark that ends up conflicted stops the push.
+6. Local view: `jf` fetches the new operation, so `<name>@forge` shows what
+   the forge holds.
 
 ### Clone and fetch
 
-1. `jf clone` creates the workspace with `Workspace::init_with_factories`
-   and the store type `jjforge`.
-2. `jf` reads `head`, then `operations?since=` its last operation, and
-   writes the operations and views to its local op store.
-3. `jf` merges the fetched operation into its own with
-   `RepoLoader::merge_operations`, and records the forge's bookmarks under
-   the remote `forge`.
-4. The working copy reads trees and files through the backend. A read that
-   misses the local cache fetches a bundle from vcs, as
+1. `jf clone` creates the workspace with the store type `jjforge` and
+   records the clone address in `.jj/repo/forge/url`.
+2. `jf` reads `head`, then `operations?since=` the forge operation it
+   fetched last, from `.jj/repo/forge/head`. It writes the operations and
+   views to its op store as the same bytes, so each keeps its ID.
+3. `jf` fetches the commits that the new views' heads reach, and the
+   earlier versions that the new operations name, one generation per
+   request, and no tree or file. The forge holds everything these reach,
+   as step 3 of the push decides.
+4. One transaction merges the forge's operation into the local head with
+   `Transaction::merge_operation`, and rebases local descendants of
+   rewritten commits. The merge starts from the forge operation that the
+   view's `<name>@forge` bookmarks reflect, which is the one fetched last
+   unless `jj op restore` or `jj undo` took the view back. It sets each
+   `<name>@forge` to the forge's target, and its operation has both heads as
+   parents. `jf` records the forge's head as fetched. A push whose view
+   lags the last fetch fetches first, so it moves no bookmark back. jj
+   undoes no merge, so `jf undo` of a fetch restores its first parent, and
+   the next fetch brings the forge's operations back.
+5. A clone then starts a new change on `main@forge`, or on the root commit,
+   and checks it out.
+6. The working copy reads trees and files through the backend. A read that
+   misses the local store fetches the object from vcs, and a tree brings the
+   entries it names in one more request. Each fetched object stays in
+   `.jj/repo/store`, as
    [ADR 0001](../adr/0001-native-jj-without-git.md) decides.
 
 ### Import
@@ -302,47 +339,69 @@ The object store holds each repository at `t/{org}/r/{repo}/`, as
 [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides:
 
 ```text
-pool/seg/{segment}   packed objects
-pool/idx/{segment}   hash to segment and offset, read by range
+pool/seg/{segment}   the encoded objects of one upload, one after another
+pool/idx/{segment}   where each object of the segment starts and ends
 op/{hash}            operations and views
-HEAD                 the current operation
+HEAD                 the current operation's ID
 ```
 
-A push touches no Postgres table. A clone keeps the same objects under
-`.jj/repo/store/` with the store type `jjforge`, and the forge's head as its
-last fetched operation.
+- A segment's ID is the hash of its bytes. Its index is `JJFIDX01`
+  followed by one entry per object, sorted by hash, with no hash twice: the
+  32-byte hash, the offset as 8 bytes, and the length as 4 bytes, both
+  big-endian, and a byte that is 1 for a commit or a tree. A reader finds an
+  object with one range read, and the check of a publish reads only the
+  commits and trees, at most 16 MiB at once.
+- An operation's `segment_ids` name the segments of the objects it made
+  visible, so the log alone finds every object. vcs keeps a catalog per
+  repository in memory, built from the log, and adds the operations that
+  `HEAD` reaches since it last looked.
+- vcs keeps jj's index of each repository under its cache directory, and
+  rebuilds it from the log when the directory is gone.
+- A clone keeps one file per object under `.jj/repo/store/` and
+  `.jj/repo/op_store/`, named by its ID in hexadecimal. `.jj/repo/forge/`
+  holds the clone address and the last fetched head.
+
+A push touches no Postgres table.
 
 ## Architecture
 
 The paths cross three crates. Each crate exposes only the items below, and
 keeps the rest in private modules, as
-[ADR 0003](../adr/0003-checked-code-rules.md) decides.
+[ADR 0003](../adr/0003-checked-code-rules.md) decides. Only the store crate
+depends on jj-lib and on `object_store`, which cargo-deny checks.
 
-| Crate | Item                     | Kind        | Role                                                                                                                          |
-| ----- | ------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| store | `factories()`            | function    | Returns the jj-lib `StoreFactories` that register the store type `jjforge`.                                                   |
-| store | `Object`                 | enumeration | A jj-lib object of any kind that `store.v1` holds.                                                                            |
-| store | `encode`, `decode`       | function    | Convert an `Object` to an encoded `store.v1.StoredObject` and back. The same object always encodes to the same bytes.         |
-| store | `ObjectId`               | struct      | The 32-byte BLAKE3 hash of an encoded `store.v1.StoredObject`.                                                                |
-| store | `Repo`                   | struct      | One repository in the object store, opened from a URL, an organization ID, and a repository ID. vcs calls it for every route. |
-| store | `Repo::create`           | method      | Writes `HEAD` at the root operation with `If-None-Match: *`, for [#25](https://github.com/nca-apprentices/jjforge/issues/25). |
-| store | `Repo::delete`           | method      | Removes everything under the repository's prefix, for [#28](https://github.com/nca-apprentices/jjforge/issues/28).            |
-| store | `Repo::head`             | method      | Reads `HEAD` and its entity tag.                                                                                              |
-| store | `Repo::missing`          | method      | Answers which of a list of IDs the repository lacks.                                                                          |
-| store | `Repo::put`              | method      | Verifies and writes an `ObjectBundle` as one segment with its index.                                                          |
-| store | `Repo::fetch`            | method      | Reads objects by ID, from the index by range.                                                                                 |
-| store | `Repo::operations_since` | method      | Reads the operations and views after an operation.                                                                            |
-| store | `Repo::publish`          | method      | Checks a `PublishRequest`, writes the operation and its view, and moves `HEAD` by compare-and-swap.                           |
-| store | `Published`              | enumeration | `Moved(OperationId)`, or `Stale(Head)` when the entity tag no longer matches.                                                 |
-| store | `Author`                 | struct      | The subject and the delegation chain that go into the operation's metadata.                                                   |
-| store | `Fetch`                  | trait       | Fetches missing objects for `Backend` reads. `jf` implements it over `sync/v1`.                                               |
-| vcs   | `sync`                   | module      | The `sync/v1` routes over HTTP, each calling `Repo`.                                                                          |
-| vcs   | `auth`                   | module      | Verifies the JWT against the published key set and builds an `Author`.                                                        |
-| `jf`  | `commands`               | module      | `clone`, `fetch`, `push`, and `import`, added to jj-cli.                                                                      |
-| `jf`  | `forge`                  | module      | `SyncClient`, the `sync/v1` client, which implements `Fetch`.                                                                 |
+| Crate | Item                     | Kind        | Role                                                                                                                                                                                       |
+| ----- | ------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| store | `factories()`            | function    | Returns the jj-lib `StoreFactories` that register the store type `jjforge`, with a backend that fetches from the clone's forge.                                                            |
+| store | `init`, `config`         | function    | Create a workspace on the store type, and turn off predecessors in commits.                                                                                                                |
+| store | `Object`                 | enumeration | A jj-lib object of any kind that `store.v1` holds.                                                                                                                                         |
+| store | `encode`, `decode`       | function    | Convert an `Object` to an encoded `store.v1.StoredObject` and back. The same object always encodes to the same bytes.                                                                      |
+| store | `Repos`, `Repo`          | struct      | The repositories under one object store URL, and one repository, which vcs opens by its two IDs for every route.                                                                           |
+| store | `Repo::create`, `delete` | method      | Write `HEAD` at the root operation, or remove the prefix, for [#25](https://github.com/nca-apprentices/jjforge/issues/25) and [#28](https://github.com/nca-apprentices/jjforge/issues/28). |
+| store | `Repo::head`             | method      | Reads `HEAD`. A repository without one doesn't exist.                                                                                                                                      |
+| store | `Repo::missing`          | method      | Answers which of a list of IDs the log doesn't reach.                                                                                                                                      |
+| store | `Repo::upload`           | method      | Verifies and writes objects as one segment with its index.                                                                                                                                 |
+| store | `Repo::fetch`            | method      | Reads objects by ID, one range read per segment.                                                                                                                                           |
+| store | `Repo::operations_since` | method      | Reads the operations and views after an operation.                                                                                                                                         |
+| store | `Repo::publish`          | method      | Builds the view with jj-lib, writes it and the operation, and moves `HEAD` by compare-and-swap.                                                                                            |
+| store | `Published`, `Head`      | enumeration | `Moved` with the new operation, or `Stale` with the current head.                                                                                                                          |
+| store | `Author`                 | struct      | The subject and the delegation chain that go into the operation's metadata.                                                                                                                |
+| store | `Fetch`, `Remote`        | trait       | The `sync/v1` calls the backend and the client make. `jf` implements both.                                                                                                                 |
+| store | `fetch`, `push`          | function    | `jf`'s side of the Flow section.                                                                                                                                                           |
+| store | `start_on_main`          | function    | Starts the working copy of a clone on `main@forge`.                                                                                                                                        |
+| store | `follow_working_copy`    | function    | Checks out the working-copy commit when a fetch rebased it.                                                                                                                                |
+| store | `undo_fetch`             | function    | Restores the clone from before a fetch, which `jf undo` calls, because jj undoes no merge operation.                                                                                      |
+| store | `ForgeDir`               | struct      | The clone address and the last fetched head under `.jj/repo/forge/`.                                                                                                                       |
+| vcs   | `sync`                   | module      | The `sync/v1` routes over HTTP, each calling `Repo`, with a server span per request.                                                                                                       |
+| vcs   | `auth`                   | module      | Verifies the JWT against the trusted issuers' key sets and reads its scopes and delegation chain.                                                                                          |
+| vcs   | `repos`                  | module      | `RepoService` of `source/v1`, for the server.                                                                                                                                              |
+| `jf`  | `commands`               | module      | `clone`, `fetch`, `push`, and `import`, added to jj-cli, and a hook that lets `undo` undo a fetch.                                                                                         |
+| `jf`  | `forge`                  | module      | `SyncClient`, the `sync/v1` client, which implements `Fetch` and `Remote`.                                                                                                                 |
 
 External systems and their twins in `shared/deploy/compose.yaml`: the object
-store as `seaweedfs`, and the identity provider as `oidc`.
+store as `seaweedfs`, and the identity provider as `oidc`. Until the server
+issues jjforge's own tokens, vcs trusts the `oidc` twin's issuers, and the
+scenarios create repositories through `RepoService` on vcs.
 
 ## Libraries
 
@@ -357,11 +416,11 @@ The store crate implements three traits and registers them under the store
 type `jjforge` with `StoreFactories::add_backend`, `add_op_store`, and
 `add_op_heads_store`. `jf` passes them to `CliRunner::add_store_factories`.
 
-| Trait          | Methods jjforge implements                                                                                                                      | Over                                                |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `Backend`      | `read_file`, `write_file`, `read_symlink`, `write_symlink`, `read_copy`, `write_copy`, `read_tree`, `write_tree`, `read_commit`, `write_commit` | `store.v1` objects named by BLAKE3                  |
-| `OpStore`      | `read_view`, `write_view`, `read_operation`, `write_operation`, `resolve_operation_id_prefix`                                                   | `op/{hash}`                                         |
-| `OpHeadsStore` | `get_op_heads`, `update_op_heads`, `lock`                                                                                                       | `HEAD` with `If-Match` in vcs, a local file in `jf` |
+| Trait          | Methods jjforge implements                                                                                                                      | Over                                                                                                      |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `Backend`      | `read_file`, `write_file`, `read_symlink`, `write_symlink`, `read_copy`, `write_copy`, `read_tree`, `write_tree`, `read_commit`, `write_commit` | `store.v1` objects named by BLAKE3                                                                        |
+| `OpStore`      | `read_view`, `write_view`, `read_operation`, `write_operation`, `resolve_operation_id_prefix`                                                   | `op/{hash}`                                                                                               |
+| `OpHeadsStore` | `get_op_heads`, `update_op_heads`, `lock`                                                                                                       | jj-lib's `SimpleOpHeadsStore` in `jf`. vcs reads and moves `HEAD` itself, so its store refuses both calls |
 
 jjforge maps these jj-lib types onto `store.v1`:
 
@@ -376,6 +435,18 @@ jjforge maps these jj-lib types onto `store.v1`:
 | `op_store::View`              | `head_ids`, `local_bookmarks`, `local_tags`, `remote_views`, `wc_commit_ids`                               | `View`                         |
 | `op_store::RemoteView`        | `bookmarks` and `tags`, each a `RemoteRef` with its target and whether it is tracked                       | `RemoteView`, `RefTarget`      |
 
+The calls jjforge makes beyond the traits:
+
+- vcs: `RepoLoader::new` over its own stores, `load_at`, `MutableRepo::new`,
+  `add_heads`, `set_local_bookmark_target`, `remove_head`, `consume`, and
+  `IndexStore::write_index`. `Transaction` can't take predecessors from a
+  request, so vcs writes the operation itself.
+- `jf`: `OpStore::read_view`, `Transaction::merge_operation`,
+  `MutableRepo::rebase_descendants`, `set_remote_bookmark`, and `set_view`,
+  `CliRunner::add_dispatch_hook`,
+  `ResolvedRevsetExpression` for the commits to push,
+  `evolution::walk_predecessors`, and `Workspace::check_out`.
+
 jjforge leaves these parts of jj-lib unused:
 
 - `View::git_refs` and `View::git_heads`, the git backend, and the secret
@@ -383,40 +454,85 @@ jjforge leaves these parts of jj-lib unused:
 - `Commit::predecessors`, which jj deprecates. `jf` sets
   `experimental.record-predecessors-in-commit` to false, and
   `Operation.commit_predecessors` records the same.
-- `Backend::gc` and `OpStore::gc`, which do nothing, because nothing is
-  collected.
+- `Backend::get_related_copies`, which needs an index of copies the store
+  doesn't keep, and copy records, which the store doesn't record yet.
+- `OpStore::gc`, which does nothing, because nothing is collected.
 - The index store and the working copy, which stay jj-lib's defaults:
   `DefaultIndexStore` builds its index locally from the commits, and
   `LocalWorkingCopy` checks out files on disk.
 
-jj-lib's `OpHeadsStore` keeps a set of heads and merges divergent ones when
-it loads them with `op_heads_store::resolve_op_heads`. The forge keeps one
-`HEAD`, so `update_op_heads` in vcs never leaves two heads behind.
+### `object_store` 0.14.2
+
+The store crate reaches the object store through `object_store` with the
+features `aws-base`, `fs`, `reqwest`, and `ring`, so its TLS runs on ring as
+the rest of the stack does. It uses `get`, `get_ranges`, `put_opts` with
+`PutMode::Create` for every immutable object and `PutMode::Update` with the
+entity tag for `HEAD`, `list`, and `delete_stream`. A local disk has no
+conditional replace, so vcs on `file://` moves `HEAD` under a lock of its
+own process, and one process serves it.
+
+### `jsonwebtoken` 9.3.1
+
+vcs verifies tokens with `decode_header`, `decode`, and
+`DecodingKey::from_jwk`. Version 9 runs on ring. Versions 10 and later need
+aws-lc or the `rsa` crate, which carries an open advisory.
 
 ## Security
 
-- vcs trusts only the token's signature, checked against the server's
-  published key set. It ignores every name the client sends, so an
-  operation names the principal from the token.
-- vcs verifies the hash of every uploaded object and decodes it before it
-  stores it, so a client can't store bytes under another object's name.
-- A publish references only objects the store already holds, so a
-  repository can't point at another repository's objects.
-- An upload has a size limit, and a bundle a count limit, both answered with
-  413 before vcs reads the body. The limits come from the measurement of
-  [#110](https://github.com/nca-apprentices/jjforge/issues/110).
+- vcs trusts only the signature of a token from an issuer in
+  `VCS_TOKEN_ISSUERS`, whose key set it finds through the discovery of
+  `OpenID` Connect. Each entry, `{org}={url}`, binds an issuer to one
+  organization, and a token's scopes reach only that organization. Until
+  [#6](https://github.com/nca-apprentices/jjforge/issues/6) has the server
+  sign every token, as
+  [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides, each
+  organization's identity provider signs for that organization alone. vcs
+  verifies only with a public key, RSA, an elliptic curve, or Ed25519, and
+  refuses a symmetric key that a key set publishes.
+  When a key set leaves out `alg`, the token's header names an algorithm
+  that the key's type allows. A token names `jjforge` in `aud`, and grants
+  `sync:read:{org}` or `sync:write:{org}` in `scope`. Creating or deleting a
+  repository through `RepoService` needs `sync:admin:{org}`, which a token
+  for pushing lacks. Two issuers may name keys alike, and an issuer that
+  can't answer keeps the keys it published last. Nested `act` claims,
+  as RFC 8693 defines them, name the principals that delegated to it. vcs
+  ignores every name the client sends, so an operation names the principal
+  from the token.
+- vcs verifies the hash of every object it reads back, decodes every
+  uploaded object, and computes each object's name itself, so a client
+  can't store bytes under another object's name.
+- A publish makes visible only commits whose objects the repository holds,
+  so a repository can't point at another repository's objects.
+- A publish hides the commits it names as replaced. Until
+  [#65](https://github.com/nca-apprentices/jjforge/issues/65) decides who
+  may rewrite a change, any principal with write scope can hide a head, as
+  it can move any bookmark.
+- A request body has a limit of 64 MiB, answered with 413 before vcs reads
+  it, and a request names at most 1,000 IDs, or 400 `invalid`. Every error,
+  the ones the HTTP framework answers included, is
+  `application/problem+json`. The limits per object and per bundle come
+  from the measurement of [#110](https://github.com/nca-apprentices/jjforge/issues/110).
 
 ## Failures
 
 A crash after a segment is written and before `HEAD` moves leaves a segment
-that no operation names. Nobody reads it, and it costs storage only.
+that no operation names. Nobody reads it, and it costs storage only. A
+publish that retries names it again, and the same objects write the same
+segment.
 
-A crash after the operation is written and before `HEAD` moves leaves an
-operation that `HEAD` doesn't reach. The client gets no answer and publishes
-again, which writes a new operation. The old one stays unreachable.
+A crash after the view or the operation is written and before `HEAD` moves
+leaves objects that `HEAD` doesn't reach. The client gets no answer and
+publishes again, which writes a new operation. The old one stays
+unreachable.
 
-A push that loses every retry reports the conflict, and its objects stay in
-the store for the next push.
+A replica that loses its cache rebuilds jj's index from the log on the next
+publish, and its catalog from the operations on the next read. A catalog
+whose operations the log no longer reaches belongs to a repository created
+again under the same IDs, so the replica builds it anew.
+
+An attempt after a lost race names the segments that earlier attempts
+uploaded, and uploads nothing again. A push that loses every retry reports
+the race, and its segments stay in the store, which no operation names.
 
 ## Tests
 
@@ -426,17 +542,20 @@ the store for the next push.
   [ADR 0001](../adr/0001-native-jj-without-git.md) decides.
 - A round trip of each jj-lib type in the Libraries table through
   `store.v1` returns an equal value.
-- An integration test publishes to SeaweedFS from several writers at once
-  and checks that the operation log holds every publish.
+- An integration test of the store crate runs clones against one forge
+  repository in process: a push that another clone fetches with the same
+  IDs, lazy reads, two pushes at once, a conflict, and a rewritten change.
+- `shared/e2e/cli/sync.bats` runs two `jf` copies that push to one
+  repository on SeaweedFS at once, as
+  [#108](https://github.com/nca-apprentices/jjforge/issues/108) asks.
 
 ## Open questions
 
-- How `jf`'s local op heads map onto the forge's one `HEAD`, and whether vcs
-  builds an operation with a jj-lib `Transaction` or edits the view itself.
-  [#106](https://github.com/nca-apprentices/jjforge/issues/106) answers it.
-- The segment and index format, and the bundle size of a lazy read.
-  [#109](https://github.com/nca-apprentices/jjforge/issues/109) answers it.
-- The limits on push latency, retries, and upload size.
+- The limits on push latency, retries, and upload size, from compare-and-swap
+  on the cluster's SeaweedFS.
   [#110](https://github.com/nca-apprentices/jjforge/issues/110) answers it.
+- The time until a clone of 100,000 files is usable with the lazy reads of
+  the Flow section, for the limit of #90.
+  [#109](https://github.com/nca-apprentices/jjforge/issues/109) answers it.
 - How a person imports a repository that git backs, since `jf` has no git.
   [#120](https://github.com/nca-apprentices/jjforge/issues/120) answers it.

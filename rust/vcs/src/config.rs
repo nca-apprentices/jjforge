@@ -1,10 +1,14 @@
 //! vcs's settings, from flags or the environment.
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use clap::Parser;
 use http::Uri;
 use tracing_subscriber::EnvFilter;
+use url::Url;
+
+use crate::auth::Issuer;
 
 /// vcs's settings. An invalid value stops vcs at startup with a usage
 /// message.
@@ -14,6 +18,28 @@ pub(crate) struct Config {
     /// The address to serve gRPC on.
     #[arg(long, env = "VCS_ADDR", default_value = "0.0.0.0:50052")]
     pub(crate) addr: SocketAddr,
+
+    /// The address to serve `sync/v1` on, for `jf`.
+    #[arg(long, env = "VCS_SYNC_ADDR", default_value = "0.0.0.0:8081")]
+    pub(crate) sync_addr: SocketAddr,
+
+    /// The object store that holds the repositories, as ADR 0002 decides:
+    /// `s3://{bucket}` with the `AWS_*` environment, or `file://{dir}`.
+    /// Without it, vcs serves `echo/v1` only.
+    #[arg(long, env = "VCS_STORE")]
+    pub(crate) store: Option<Url>,
+
+    /// Where vcs keeps jj's index of each repository, which it rebuilds
+    /// when the directory is gone. The system's temporary directory by
+    /// default.
+    #[arg(long, env = "VCS_CACHE")]
+    pub(crate) cache: Option<PathBuf>,
+
+    /// The issuers whose tokens vcs trusts, separated by commas, each with
+    /// the organization it signs for, such as `acme=https://id.acme.example`.
+    /// vcs finds their keys through the discovery of `OpenID` Connect.
+    #[arg(long, env = "VCS_TOKEN_ISSUERS", value_delimiter = ',')]
+    pub(crate) token_issuers: Vec<Issuer>,
 
     /// The address to serve Prometheus metrics on, at `/metrics`.
     #[arg(long, env = "VCS_METRICS_ADDR", default_value = "0.0.0.0:9090")]
@@ -26,7 +52,8 @@ pub(crate) struct Config {
     pub(crate) traces_endpoint: Option<Uri>,
 
     /// Which events to log, as a `tracing` filter such as `info,vcs=debug`.
-    #[arg(long, env = "VCS_LOG", default_value = "info", value_parser = log_filter)]
+    /// jj-lib logs every index lock at info, so the default quiets it.
+    #[arg(long, env = "VCS_LOG", default_value = "info,jj_lib=warn", value_parser = log_filter)]
     pub(crate) log: String,
 }
 
@@ -64,6 +91,21 @@ mod tests {
     #[test]
     fn config_refuses_an_invalid_traces_endpoint() {
         assert!(Config::try_parse_from(["vcs", "--traces-endpoint", "not a url"]).is_err());
+    }
+
+    #[test]
+    fn config_reads_the_store_and_its_issuers() {
+        let config = Config::try_parse_from([
+            "vcs",
+            "--store",
+            "s3://jjforge",
+            "--token-issuers",
+            "acme=http://oidc:8080/acme,other=http://oidc:8080/other",
+        ])
+        .unwrap();
+
+        assert_eq!(config.store.unwrap().as_str(), "s3://jjforge");
+        assert_eq!(config.token_issuers.len(), 2);
     }
 
     #[test]

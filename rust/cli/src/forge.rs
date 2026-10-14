@@ -1,11 +1,28 @@
-//! The forge's REST API, as `jf` calls it. Every request carries the trace of
-//! its command, as ADR 0005 decides, so no call names a trace.
+//! The forge's REST API and `sync/v1`, as `jf` calls them. Every request
+//! carries the trace of its command, as ADR 0005 decides, so no call names a
+//! trace.
 
+use std::error::Error as StdError;
 use std::fmt;
 
+use jjforge_proto::sync::v1::HashList;
+use jjforge_proto::sync::v1::Head;
+use jjforge_proto::sync::v1::ObjectBundle;
+use jjforge_proto::sync::v1::PublishRequest;
+use jjforge_proto::sync::v1::PublishResponse;
+use jjforge_proto::sync::v1::Uploaded;
+use jjforge_store::Fetch;
+use jjforge_store::Published;
+use jjforge_store::Remote;
+use jjforge_store::RemoteError;
+use prost::Message;
+use reqwest::StatusCode;
 use reqwest::Url;
+use reqwest::header::AUTHORIZATION;
+use reqwest::header::CONTENT_TYPE;
 use reqwest::header::HeaderMap;
 use reqwest::header::HeaderValue;
+use reqwest::header::IF_MATCH;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -22,6 +39,12 @@ pub(crate) struct Client {
     endpoint: Url,
     http: reqwest::Client,
     trace: Trace,
+}
+
+impl fmt::Debug for Trace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
 }
 
 impl Client {
@@ -73,6 +96,173 @@ impl Client {
             .json()
             .await?;
         Ok(answer.message)
+    }
+}
+
+const PROTOBUF: &str = "application/x-protobuf";
+
+/// A failure the forge answered as `application/problem+json`.
+#[derive(Debug, thiserror::Error)]
+#[error("the forge answered {status}: {}", detail.as_deref().unwrap_or(code.as_deref().unwrap_or("no detail")))]
+pub(crate) struct Problem {
+    status: StatusCode,
+    code: Option<String>,
+    detail: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ProblemBody {
+    code: Option<String>,
+    detail: Option<String>,
+}
+
+/// One repository's `sync/v1`, as the store crate's `Remote` asks. jj-cli
+/// runs commands on its own executor, so each call blocks on a runtime of
+/// its own.
+#[derive(Debug)]
+pub(crate) struct SyncClient {
+    client: Client,
+    base: Url,
+    token: Option<String>,
+    runtime: tokio::runtime::Runtime,
+}
+
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Client({}, trace {})", self.endpoint, self.trace)
+    }
+}
+
+impl SyncClient {
+    /// Calls the repository at the clone address `base`, with the token of
+    /// `JJFORGE_TOKEN` when one is set.
+    pub(crate) fn new(base: Url, token: Option<String>) -> anyhow::Result<Self> {
+        Ok(Self {
+            client: Client::new(base.clone())?,
+            base,
+            token,
+            runtime: tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?,
+        })
+    }
+
+    fn url(&self, path: &str) -> Result<Url, RemoteError> {
+        let base = self.base.as_str().trim_end_matches('/');
+        Ok(Url::parse(&format!("{base}/{path}"))?)
+    }
+
+    fn send(&self, request: reqwest::RequestBuilder) -> Result<reqwest::Response, RemoteError> {
+        let request = match &self.token {
+            Some(token) => request.header(AUTHORIZATION, format!("Bearer {token}")),
+            None => request,
+        };
+        self.runtime.block_on(async {
+            let response = request.send().await?;
+            if response.status().is_success() {
+                return Ok(response);
+            }
+            Err(problem(response).await.into())
+        })
+    }
+
+    fn post<M: Message + Default>(
+        &self,
+        path: &str,
+        body: &impl Message,
+    ) -> Result<M, RemoteError> {
+        let response = self.send(
+            self.client
+                .http
+                .post(self.url(path)?)
+                .header(CONTENT_TYPE, PROTOBUF)
+                .body(body.encode_to_vec()),
+        )?;
+        decode(&self.runtime, response)
+    }
+}
+
+async fn problem(response: reqwest::Response) -> Problem {
+    let status = response.status();
+    let body: Option<ProblemBody> = response.json().await.ok();
+    Problem {
+        status,
+        code: body.as_ref().and_then(|body| body.code.clone()),
+        detail: body.and_then(|body| body.detail),
+    }
+}
+
+fn decode<M: Message + Default>(
+    runtime: &tokio::runtime::Runtime,
+    response: reqwest::Response,
+) -> Result<M, RemoteError> {
+    let bytes = runtime.block_on(response.bytes())?;
+    Ok(M::decode(bytes)?)
+}
+
+impl Fetch for SyncClient {
+    fn fetch(&self, ids: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, Box<dyn StdError + Send + Sync>> {
+        let bundle: ObjectBundle = self.post("objects/fetch", &HashList { ids: ids.to_vec() })?;
+        Ok(bundle.objects)
+    }
+}
+
+impl Remote for SyncClient {
+    fn head(&self) -> Result<Vec<u8>, RemoteError> {
+        let response = self.send(self.client.http.get(self.url("head")?))?;
+        let head: Head = decode(&self.runtime, response)?;
+        Ok(head.operation_id)
+    }
+
+    fn operations(&self, since: Option<&[u8]>) -> Result<Vec<Vec<u8>>, RemoteError> {
+        let mut url = self.url("operations")?;
+        if let Some(since) = since {
+            url.query_pairs_mut()
+                .append_pair("since", &hex::encode(since));
+        }
+        let response = self.send(self.client.http.get(url))?;
+        let bundle: ObjectBundle = decode(&self.runtime, response)?;
+        Ok(bundle.objects)
+    }
+
+    fn missing(&self, ids: Vec<Vec<u8>>) -> Result<Vec<Vec<u8>>, RemoteError> {
+        let missing: HashList = self.post("objects/missing", &HashList { ids })?;
+        Ok(missing.ids)
+    }
+
+    fn upload(&self, objects: Vec<Vec<u8>>) -> Result<Vec<u8>, RemoteError> {
+        let uploaded: Uploaded = self.post("objects", &ObjectBundle { objects })?;
+        Ok(uploaded.segment_id)
+    }
+
+    /// Answers a stale head as `Published::Stale` with the head the forge
+    /// names in its `ETag`, as #89 decides.
+    fn publish(&self, request: &PublishRequest) -> Result<Published, RemoteError> {
+        let http = self
+            .client
+            .http
+            .post(self.url("publish")?)
+            .header(CONTENT_TYPE, PROTOBUF)
+            .header(
+                IF_MATCH,
+                format!("\"{}\"", hex::encode(&request.expected_operation_id)),
+            )
+            .body(request.encode_to_vec());
+        match self.send(http) {
+            Ok(response) => {
+                let published: PublishResponse = decode(&self.runtime, response)?;
+                Ok(Published::Moved(published.operation_id))
+            }
+            Err(err) => match err.downcast::<Problem>() {
+                Ok(problem) if problem.status == StatusCode::PRECONDITION_FAILED => {
+                    Ok(Published::Stale(jjforge_store::Head {
+                        operation_id: vec![],
+                    }))
+                }
+                Ok(problem) => Err(problem),
+                Err(err) => Err(err),
+            },
+        }
     }
 }
 

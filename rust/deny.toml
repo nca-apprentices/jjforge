@@ -41,9 +41,12 @@ allow = ["CC0-1.0"]
 multiple-versions = "warn"
 wildcards = "deny"
 allow-wildcard-paths = true
-# Each layer reaches jj-lib only through the one above it, as ADR 0003
-# decides.
-deny = [{ crate = "jj-lib", wrappers = ["jj-cli", "jjforge-store"] }]
+# Each layer reaches jj-lib and the object store only through the one above
+# it, as ADR 0003 decides.
+deny = [
+  { crate = "jj-lib", wrappers = ["jj-cli", "jjforge-store"] },
+  { crate = "object_store", wrappers = ["jjforge-store"] },
+]
 
 [sources]
 unknown-registry = "deny"

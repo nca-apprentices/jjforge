@@ -130,6 +130,88 @@ pub fn decode(bytes: &[u8]) -> Result<Object, Error> {
     Ok(object)
 }
 
+/// Encodes an operation with the segments that hold the objects it made
+/// visible. Only vcs writes them, as ADR 0002 decides.
+pub(crate) fn encode_operation(operation: &Operation, segment_ids: Vec<Vec<u8>>) -> Vec<u8> {
+    let mut message = operation_to_proto(operation);
+    message.segment_ids = segment_ids;
+    proto::StoredObject {
+        kind: Some(Kind::Operation(message)),
+    }
+    .encode_to_vec()
+}
+
+/// Reads the segments of an encoded operation, which `decode` drops.
+///
+/// # Errors
+///
+/// Fails when the bytes aren't an encoded operation.
+pub(crate) fn segment_ids(bytes: &[u8]) -> Result<Vec<Vec<u8>>, Error> {
+    match proto::StoredObject::decode(bytes)?.kind {
+        Some(Kind::Operation(operation)) => Ok(operation.segment_ids),
+        _ => Err(Error::Missing("operation")),
+    }
+}
+
+/// Encodes a ref target as `sync.v1` sends one: empty bytes for an absent
+/// target.
+pub(crate) fn encode_ref_target(target: &RefTarget) -> Vec<u8> {
+    if target.is_absent() {
+        return vec![];
+    }
+    ref_target_to_proto(target).encode_to_vec()
+}
+
+/// Decodes a ref target as `sync.v1` sends one.
+///
+/// # Errors
+///
+/// Fails when the bytes are neither empty nor an encoded
+/// `store.v1.RefTarget`.
+pub(crate) fn decode_ref_target(bytes: &[u8]) -> Result<RefTarget, Error> {
+    if bytes.is_empty() {
+        return Ok(RefTarget::absent());
+    }
+    ref_target_from_proto(proto::RefTarget::decode(bytes)?)
+}
+
+/// The bytes a commit's signature covers: the commit encoded without its
+/// signature, as `decode` returns them in `SecureSig::data`.
+pub(crate) fn signed_data(commit: &Commit) -> Vec<u8> {
+    let mut message = commit_to_proto(commit);
+    message.signature.clear();
+    message.encode_to_vec()
+}
+
+/// The IDs of the objects that an object needs: a commit's parents and
+/// trees, and a tree's entries. A copy ID isn't one, because jj 0.46 leaves
+/// it a placeholder. The root commit and the empty tree are virtual, so
+/// callers skip them.
+pub(crate) fn references(object: &Object) -> Vec<Vec<u8>> {
+    match object {
+        Object::Commit(commit) => commit
+            .parents
+            .iter()
+            .map(ObjectId::to_bytes)
+            .chain(commit.root_tree.iter().map(ObjectId::to_bytes))
+            .collect(),
+        Object::Tree(tree) => tree
+            .entries()
+            .filter_map(|entry| match entry.value() {
+                TreeValue::File { id, .. } => Some(id.to_bytes()),
+                TreeValue::Symlink(id) => Some(id.to_bytes()),
+                TreeValue::Tree(id) => Some(id.to_bytes()),
+                TreeValue::GitSubmodule(_) => None,
+            })
+            .collect(),
+        Object::File(_)
+        | Object::Symlink(_)
+        | Object::CopyHistory(_)
+        | Object::Operation(_)
+        | Object::View(_) => vec![],
+    }
+}
+
 fn object_from_proto(message: proto::StoredObject) -> Result<Object, Error> {
     let kind = message.kind.ok_or(Error::Missing("object kind"))?;
     Ok(match kind {
