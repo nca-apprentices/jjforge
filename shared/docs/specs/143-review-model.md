@@ -154,17 +154,17 @@ Round 4 of kmpsxqvo is ready: 18aa3c09 on trunk 77e2b0c4
 
 ### Objects
 
-| Object       | Identified by                       | Holds                                                         | Stored or derived                                                     |
-| ------------ | ----------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Change       | change ID                           | Its commits, in the operation log                             | vcs stores it. The server reads it                                    |
-| Owner        | change ID                           | The principal of the first operation that published the change | Derived from the operation log, as #65 decides                        |
-| Round        | change ID and round number          | The commit, its base tree, its tree, and the operation        | Stored. The commit and the trees are immutable                        |
-| Patch        | a round                             | The base tree and the tree                                    | Derived from the round                                                |
-| Interdiff    | two rounds of one change            | The earlier patch rebased onto the later base, diffed with the later tree | Derived on read. Whether it is empty is stored on the later round |
-| Comment      | UUIDv7                              | The round, the side, the path, the lines, the body, and a parent comment | Stored. Its place in a later round is derived                         |
-| Approval     | change ID, round number, principal  | The principal and the time                                    | Stored. Whether it holds is derived                                   |
-| Attestation  | tree ID and suite                   | The result, a log address, and the principal                  | Stored, append only. The latest one counts                            |
-| Land request | UUIDv7                              | The round, the target bookmark, and its state                 | Stored. Its state moves only in the lander                            |
+| Object       | Identified by                      | Holds                                                                     | Stored or derived                                                 |
+| ------------ | ---------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Change       | change ID                          | Its commits, in the operation log                                         | vcs stores it. The server reads it                                |
+| Owner        | change ID                          | The principal of the first operation that published the change            | Derived from the operation log, as #65 decides                    |
+| Round        | change ID and round number         | The commit, its base tree, its tree, and the operation                    | Stored. The commit and the trees are immutable                    |
+| Patch        | a round                            | The base tree and the tree                                                | Derived from the round                                            |
+| Interdiff    | two rounds of one change           | The earlier patch rebased onto the later base, diffed with the later tree | Derived on read. Whether it is empty is stored on the later round |
+| Comment      | UUIDv7                             | The round, the side, the path, the lines, the body, and a parent comment  | Stored. Its place in a later round is derived                     |
+| Approval     | change ID, round number, principal | The principal and the time                                                | Stored. Whether it holds is derived                               |
+| Attestation  | tree ID and suite                  | The result, a log address, and the principal                              | Stored, append only. The latest one by a trusted principal counts |
+| Land request | UUIDv7                             | The round, the target bookmark, and its state                             | Stored. Its state moves only in the lander                        |
 
 The base tree of a commit is the merge of its parents' trees, which jj
 computes for every diff it shows. A patch is therefore what `jf diff -r` on
@@ -189,6 +189,11 @@ the round's commit shows.
    its predecessor, so every clone replaces one with the other.
 7. trunk only points at a tree with a passing attestation for every
    required suite. The lander checks it in the step that moves trunk.
+8. The landing policy, meaning the required suites, the trusted attesting
+   principals, and the time limit, comes from `.jjforge/landing.toml` in the
+   tree of trunk's target, never from the tree being landed. A change that
+   edits the policy lands under the old one. Zuul and bors read their
+   configuration from the target branch too.
 
 ### A change in review
 
@@ -243,7 +248,7 @@ changes between.
 ## Out of scope
 
 - A policy language. M2 requires one approval by a member other than the
-  owner, and the suites that the repository's `.jjforge/landing.toml` names.
+  owner, and the suites that `.jjforge/landing.toml` on trunk names.
   Policy as revsets and filesets waits for
   [#76](https://github.com/nca-apprentices/jjforge/issues/76).
 - Running the suites. A principal with the `attest` scope reports results.
@@ -313,12 +318,13 @@ sequenceDiagram
     jf->>server: POST landings, round k
     server-->>jf: 202 with the LandRequest, queued
     lander->>vcs: HistoryService.Log("trunk()..C")
-    lander->>vcs: RewriteService.Rebase(stack, onto trunk)
-    vcs-->>lander: trees, conflicted paths
+    lander->>vcs: FileService.ReadFile(trunk, .jjforge/landing.toml)
+    lander->>vcs: POST rebase, stack onto trunk
+    vcs-->>lander: rebased commits, top tree, conflicted paths
     lander->>server: TreeNeedsAttestation(tree, suites)
     ci->>server: PUT attestations/{suite}, passed
-    lander->>vcs: RewriteService.Land(stack, trunk, expected target)
-    vcs-->>lander: operation, landed commits
+    lander->>vcs: POST publish, landing token, trunk: old → new
+    vcs-->>lander: operation
     lander->>server: request landed, publish LandingFinished
 ```
 
@@ -340,21 +346,27 @@ event, so a missed or repeated event changes nothing:
 1. Holds: each change in `trunk()..C` has its latest round's commit visible
    and an approval that holds. Otherwise the request moves to `cancelled`
    with the reason.
-2. Rebase: `RewriteService.Rebase` rebases the stack onto trunk's target
-   and writes the resulting trees, without an operation. A conflict moves
-   the request to `conflicted` with the paths, and the lander takes the
-   next request.
-3. Test: for each required suite, the latest attestation of the top tree.
-   A missing one publishes `TreeNeedsAttestation` and leaves the request in
-   `testing` until `AttestationRecorded` wakes the lander. A failed one
-   moves the request to `failed`.
-4. Land: `RewriteService.Land` rebases the stack again, checks that the top
-   tree equals the tested one, writes the landed commits with the requested
-   commits as predecessors, and moves trunk from its expected target, in
-   one operation under the landing token. Refused: 412
-   `precondition_failed` when trunk moved, and the lander starts the
-   request over.
-5. Record: one transaction marks the request `landed` with its commit and
+2. Policy: the lander reads `.jjforge/landing.toml` from the tree of
+   trunk's target, as invariant 8 gives.
+3. Rebase: `POST {base}/rebase` in `sync/v1` rebases the stack onto trunk's
+   target and writes the rebased commits and their trees, without an
+   operation. A conflict moves the request to `conflicted` with the paths,
+   and the lander takes the next request.
+4. Test: for each required suite, the latest attestation of the top tree
+   by a principal the policy trusts. A missing one publishes
+   `TreeNeedsAttestation` and leaves the request in `testing` until
+   `AttestationRecorded` wakes the lander. A failed one moves the request
+   to `failed`.
+5. Land: the lander publishes through `sync/v1` under the landing token,
+   as [ADR 0001](../adr/0001-native-jj-without-git.md) gives for a
+   protected bookmark. The `PublishRequest` moves trunk from its target to
+   the top rebased commit, hides the requested commits, and names them as
+   the predecessors of the rebased ones. These are the commits the suites
+   tested, so nothing is rebased twice. Refused: 412
+   `precondition_failed` when another publish moved the head, and the
+   lander merges and publishes again. Only the lander moves trunk, so
+   trunk's target can't change in between.
+6. Record: one transaction marks the request `landed` with its commit and
    publishes `LandingFinished`.
 
 ### Fetch after landing
@@ -439,51 +451,58 @@ erDiagram
   module's `ReviewQueries`.
 - The approvals that hold for round k of a change: the approvals of rounds
   j ≤ k for which no round in `j + 1 .. k` has `same_patch` false.
-- The latest attestation of a tree and a suite: an index on
-  `(org_id, repo_id, tree_id, suite, created_at desc)`.
+- The latest attestation of a tree and a suite by a trusted principal:
+  `where principal = any(:trusted)` on an index of
+  `(org_id, repo_id, tree_id, suite, principal, created_at desc)`. A row by
+  any other principal never answers, even when it is newer.
 - The queue: a partial index on `land_request (org_id, repo_id, bookmark,
   created_at) where state in ('queued', 'testing')`.
 
-| Event                  | Published by | Listeners                                          |
-| ---------------------- | ------------ | -------------------------------------------------- |
+| Event                  | Published by | Listeners                                             |
+| ---------------------- | ------------ | ----------------------------------------------------- |
 | `RoundPublished`       | `review`     | `landing`, which cancels a request for an older round |
-| `CommentAdded`         | `review`     | None yet                                           |
-| `ApprovalGiven`        | `review`     | None yet                                           |
-| `LandingRequested`     | `landing`    | The lander                                         |
-| `TreeNeedsAttestation` | `landing`    | Attesting principals, over SSE                     |
-| `AttestationRecorded`  | `landing`    | The lander                                         |
-| `LandingFinished`      | `landing`    | None yet                                           |
+| `CommentAdded`         | `review`     | None yet                                              |
+| `ApprovalGiven`        | `review`     | None yet                                              |
+| `LandingRequested`     | `landing`    | The lander                                            |
+| `TreeNeedsAttestation` | `landing`    | Attesting principals, over SSE                        |
+| `AttestationRecorded`  | `landing`    | The lander                                            |
+| `LandingFinished`      | `landing`    | None yet                                              |
 
-The object store gains nothing but trees. `RewriteService.Rebase` writes
-the trees it computes, and a tree that never lands costs storage only, as
+The object store gains nothing but commits and trees. `POST {base}/rebase`
+writes the ones it computes, and a commit that never lands costs storage
+only, as
 [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) gives for every
 unreachable object.
 
 ## Architecture
 
-| Binary | Module or crate | Item                       | Kind    | Role                                                                                      |
-| ------ | --------------- | -------------------------- | ------- | ----------------------------------------------------------------------------------------- |
-| server | `review`        | `ReviewCommands`           | service | Records rounds, comments, and approvals.                                                  |
-| server | `review`        | `ReviewQueries`            | service | Answers rounds, comments with their place in a later round, and the approvals that hold.  |
-| server | `landing`       | `LandingCommands`          | service | Records land requests and attestations.                                                   |
-| server | `landing`       | `Lander`                   | worker  | Runs the queue of each repository and bookmark under an advisory lock.                    |
-| vcs    | `source`        | `DiffService.Interdiff`    | call    | Rebases the patch of one commit onto the base of another and diffs the trees, as `jj interdiff` does. |
-| vcs    | `source`        | `RewriteService.Rebase`    | call    | Rebases a stack onto a commit, writes the trees, and answers them with conflicted paths.  |
-| vcs    | `source`        | `RewriteService.Land`      | call    | Rebases a stack, checks the top tree, and moves a protected bookmark, in one operation.   |
-| `jf`   | `commands`      | `review`, `land`           | module  | The commands of the [Guide](#guide), over REST.                                           |
+| Binary | Module or crate | Item                    | Kind    | Role                                                                                                                      |
+| ------ | --------------- | ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| server | `review`        | `ReviewCommands`        | service | Records rounds, comments, and approvals.                                                                                  |
+| server | `review`        | `ReviewQueries`         | service | Answers rounds, comments with their place in a later round, and the approvals that hold.                                  |
+| server | `landing`       | `LandingCommands`       | service | Records land requests and attestations.                                                                                   |
+| server | `landing`       | `Lander`                | worker  | Runs the queue of each repository and bookmark under an advisory lock.                                                    |
+| vcs    | `source`        | `DiffService.Interdiff` | call    | Rebases the patch of one commit onto the base of another and diffs the trees, as `jj interdiff` does.                     |
+| vcs    | `sync`          | `POST {base}/rebase`    | route   | Rebases a stack onto a commit, writes the commits and trees, and answers them with the top tree and the conflicted paths. |
+| `jf`   | `commands`      | `review`, `land`        | module  | The commands of the [Guide](#guide), over REST.                                                                           |
 
-The two `RewriteService` calls are primitives on commits and bookmarks.
-Every decision about rounds and approvals stays in the server, so vcs still
-holds nothing a person would call a feature, as
-[ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
+vcs gains one read in `source/v1` and one write in `sync/v1`, so
+`source/v1` stays read only, as
+[ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides. The rebase
+route writes objects and no operation, and trunk moves only through a
+`sync/v1` publish under the landing token, as
+[ADR 0001](../adr/0001-native-jj-without-git.md) decides. Every decision
+about rounds and approvals stays in the server, so vcs still holds nothing a
+person would call a feature.
 
 External systems and their twins in `shared/deploy/compose.yaml`: Postgres
 as `postgres`, and the object store as `seaweedfs`. The epic adds none.
 
 ## Compatibility
 
-- Every REST route and `source/v1` call is new, so `/api/v1/` and
-  `buf breaking` see additions only.
+- Every REST route, `sync/v1` route, and `source/v1` call is new, so
+  `/api/v1/` and `buf breaking` see additions only. Landing reuses the
+  existing `PublishRequest`.
 - An older `jf` pushes and fetches as before. It lacks `review` and `land`,
   and the web app offers both.
 - `store.v1` doesn't change. A landed commit is an ordinary commit with
@@ -506,7 +525,12 @@ as `postgres`, and the object store as `seaweedfs`. The epic adds none.
   move from any other token, even one with write scope.
 - An attestation names its principal. Only a principal with the `attest`
   scope writes one, and the lander counts only attestations from the
-  principals that `.jjforge/landing.toml` in the top tree names.
+  principals that `.jjforge/landing.toml` names.
+- The lander reads the policy from trunk's target, never from the tree it
+  lands, so a change can't relax the suites or trust another principal to
+  land itself. A change to the policy takes effect once it is on trunk.
+- `POST {base}/rebase` needs write scope on the repository. Its commits stay
+  unpublished, so it changes nothing another person sees.
 - A comment body is text. The web app renders it as Markdown without HTML.
 
 ## Failures
@@ -515,37 +539,38 @@ A crash after `jf` publishes the commit and before the round is recorded
 leaves a visible commit without a round. `jf review ready` again records
 it.
 
-A crash during `RewriteService.Rebase` leaves trees that nothing names. The
+A crash during `POST {base}/rebase` leaves commits and trees that nothing
+names. The
 lander starts the request over after it takes the lock again.
 
-A crash after `RewriteService.Land` moves trunk and before the request is
+A crash after the publish moves trunk and before the request is
 marked `landed` leaves a request in `testing` whose change is on trunk. The
 lander finds the landed commit through the change ID on its next pass and
 marks the request `landed`.
 
 An attesting principal that never answers leaves a request in `testing`.
-The request is cancelled after the time `.jjforge/landing.toml` gives, and
+The request is cancelled after the time the policy gives, and
 the lander takes the next one.
 
 ## Alternatives
 
 ### Where the records live
 
-| Option                                                                                 | Cost                                                                                                                                                  |
-| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Option                                                                                  | Cost                                                                                                                                                         |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | In the repository, as a second log that clones fetch, as NoteDb keeps reviews in Gerrit | A new object kind in `store.v1`, union merges of concurrent records, and vcs owning a feature against [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) |
-| In Postgres, keyed by change ID and the immutable IDs of commits and trees             | A clone can't read a review offline. Chosen                                                                                                           |
+| In Postgres, keyed by change ID and the immutable IDs of commits and trees              | A clone can't read a review offline. Chosen                                                                                                                  |
 
 Every key is an immutable ID, so moving the records into the repository
 later copies rows without translating them.
 
 ### What an approval binds to
 
-| Option                          | Cost                                                                         |
-| ------------------------------- | ---------------------------------------------------------------------------- |
-| The commit                      | Every rebase drops it, as GitHub's dismissal of stale reviews does            |
-| The tree                        | Every move of trunk under the change changes the tree and drops it           |
-| The patch, carried while equal  | One interdiff per round. Chosen                                              |
+| Option                         | Cost                                                               |
+| ------------------------------ | ------------------------------------------------------------------ |
+| The commit                     | Every rebase drops it, as GitHub's dismissal of stale reviews does |
+| The tree                       | Every move of trunk under the change changes the tree and drops it |
+| The patch, carried while equal | One interdiff per round. Chosen                                    |
 
 ### Who rebases at landing
 
@@ -554,21 +579,37 @@ later copies rows without translating them.
 | The owner, until the change is current       | Owners race each other, and each lost race costs a suite run                 |
 | The lander, on the forge                     | The lander rewrites a change it doesn't own, under the landing token. Chosen |
 
+### Where the landing writes go
+
+| Option                                                  | Cost                                                                                                      |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Write calls in `source/v1` that rebase and move trunk   | Edits ADR 0002, which keeps `source/v1` read only, and ADR 0001, which moves trunk only through a publish |
+| The lander as its own jj-lib replica, publishing to vcs | A third binary, or jj-lib in the server, for one worker                                                   |
+| A rebase route in `sync/v1`, then an ordinary publish   | Any client with write scope can ask vcs to rebase. Chosen                                                 |
+
+### Where the landing policy comes from
+
+| Option                     | Cost                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------- |
+| The tree being landed      | A change can relax its own suites or trust a principal its owner controls                      |
+| Trunk's target tree        | A change to the policy waits one landing before it applies. Chosen. Zuul and bors do the same  |
+| A setting in Postgres      | Policy outside the repository has no review and no history                                     |
+
 ### What a landing tests
 
-| Option                                   | Cost                                                                      |
-| ---------------------------------------- | ------------------------------------------------------------------------- |
-| Each round only                          | Two changes that pass alone can break trunk together                      |
-| The rebased top tree, one request at a time | One suite run per landing bounds throughput. Chosen                    |
-| Batches tested speculatively             | Bisecting a failed batch, and a queue that is harder to follow            |
+| Option                                      | Cost                                                           |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| Each round only                             | Two changes that pass alone can break trunk together           |
+| The rebased top tree, one request at a time | One suite run per landing bounds throughput. Chosen            |
+| Batches tested speculatively                | Bisecting a failed batch, and a queue that is harder to follow |
 
 ### What a conflict at landing does
 
-| Option                                        | Cost                                                                                       |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Stop the queue until it is resolved           | One conflict blocks every other change                                                     |
+| Option                                        | Cost                                                                                      |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Stop the queue until it is resolved           | One conflict blocks every other change                                                    |
 | Publish the conflicted rebase as a new commit | The forge rewrites the owner's change, and the owner's clone diverges from what they edit |
-| Record it on the request and move on          | The owner rebases and resolves locally. Chosen                                             |
+| Record it on the request and move on          | The owner rebases and resolves locally. Chosen                                            |
 
 ### One operation head or one per actor
 
@@ -586,17 +627,17 @@ Drawbacks of the chosen design:
 
 ## Prior art
 
-| System                              | What it does                                                                                     | What jjforge takes                                                   | What it leaves                                      |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | --------------------------------------------------- |
-| Gerrit                              | Reviews a change across patch sets by its `Change-Id`, and copies votes by a label's `copyCondition` | The change as the unit, rounds as patch sets, votes copied on an unchanged patch | Labels with scores, and the footer that jj doesn't need |
-| Gerrit NoteDb                       | Moved review data from SQL into the repository                                                   | Immutable keys, so the same move stays open                          | The move itself, for now                            |
-| `jj interdiff`                      | Rebases one revision onto the parents of another and diffs the result                                 | The interdiff, computed the same way in vcs                          | Nothing                                             |
-| Phabricator Differential            | Shows the diff between two updates of a revision                                                 | Comments carried to later updates or marked outdated                 | Revisions as objects apart from commits             |
-| Sapling and Mononoke pushrebase     | Rebases a pushed commit onto the server's head when the files don't overlap                      | Rebase at landing, on the server                                     | Refusing any file overlap, since jj merges hunks    |
-| bors                                | Tests the merged result before main moves, one at a time                                         | trunk only moves to a tested tree                                    | Merge commits                                       |
-| Zuul                                | Tests a queue of changes speculatively, each on top of those ahead                               | Nothing yet                                                          | Speculation, until throughput asks for it           |
-| Prow and Tide                       | Merges a pull request once its labels and `OWNERS` files allow it                                | A lander that reconciles current state instead of reacting to events | `OWNERS` files, until #76                           |
-| Bazel remote execution              | Caches an action's result under the digest of its inputs                                         | Attestations keyed by tree, so a rebase that changes nothing reuses them | Per-action caching inside a suite               |
+| System                          | What it does                                                                                         | What jjforge takes                                                               | What it leaves                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Gerrit                          | Reviews a change across patch sets by its `Change-Id`, and copies votes by a label's `copyCondition` | The change as the unit, rounds as patch sets, votes copied on an unchanged patch | Labels with scores, and the footer that jj doesn't need |
+| Gerrit NoteDb                   | Moved review data from SQL into the repository                                                       | Immutable keys, so the same move stays open                                      | The move itself, for now                                |
+| `jj interdiff`                  | Rebases one revision onto the parents of another and diffs the result                                | The interdiff, computed the same way in vcs                                      | Nothing                                                 |
+| Phabricator Differential        | Shows the diff between two updates of a revision                                                     | Comments carried to later updates or marked outdated                             | Revisions as objects apart from commits                 |
+| Sapling and Mononoke pushrebase | Rebases a pushed commit onto the server's head when the files don't overlap                          | Rebase at landing, on the server                                                 | Refusing any file overlap, since jj merges hunks        |
+| bors                            | Tests the merged result before main moves, one at a time                                             | trunk only moves to a tested tree                                                | Merge commits                                           |
+| Zuul                            | Tests a queue of changes speculatively, each on top of those ahead                                   | Nothing yet                                                                      | Speculation, until throughput asks for it               |
+| Prow and Tide                   | Merges a pull request once its labels and `OWNERS` files allow it                                    | A lander that reconciles current state instead of reacting to events             | `OWNERS` files, until #76                               |
+| Bazel remote execution          | Caches an action's result under the digest of its inputs                                             | Attestations keyed by tree, so a rebase that changes nothing reuses them         | Per-action caching inside a suite                       |
 
 ## Future possibilities
 
@@ -618,7 +659,7 @@ Drawbacks of the chosen design:
   filed. Their sections follow once they are.
 - Whether jj-lib 0.46 rebases local descendants when
   `RepoLoader::merge_operations` merges an operation that rewrote their
-  parent, and which calls `RewriteService` makes. Reading jj-lib at the
+  parent, and which calls `POST {base}/rebase` makes. Reading jj-lib at the
   pinned version answers it, in this page's Libraries section.
 - How an attesting principal reads a tree it has no commit for. An archive
   route by tree ID in `sync/v1` is the likely answer.
