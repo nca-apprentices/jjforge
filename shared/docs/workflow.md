@@ -60,8 +60,9 @@ flowchart LR
 
 In a spec PR:
 
-1. Write the epic's page with a section for every requirement, in the format
-   the specs README gives, and add its row there.
+1. Write the epic's page with its design and a section for every
+   requirement, in the format the specs README gives, and add its row
+   there.
 2. Write each requirement's scenarios as `<issue number>-<slug>.hurl` in
    `shared/e2e/http/` or `<issue number>-<slug>.bats` in `shared/e2e/cli/`,
    with `# pending` as the first line. A scenario uses concrete values and

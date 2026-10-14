@@ -26,7 +26,7 @@ Every fact has one home, and nothing is restated:
 | Fact        | Home                                                            |
 | ----------- | --------------------------------------------------------------- |
 | Status      | The requirement issue, which holds a statement and nothing else |
-| Description | The epic's spec page                                            |
+| Description | The design and the alternatives, in the epic's spec page      |
 | Acceptance  | The scenarios, in Hurl for REST and in Bats for `jf`            |
 | Shape       | The contract in `shared/api/` and `shared/proto/`               |
 

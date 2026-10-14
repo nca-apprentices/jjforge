@@ -24,6 +24,18 @@ for page in shared/docs/specs/[0-9]*.md; do
   done
 done
 
+# A page with a design half has every required design section, as the specs
+# README gives.
+for page in shared/docs/specs/*.md; do
+  grep -q '^## Model$' "$page" || continue
+  for section in Summary Motivation Guide Alternatives; do
+    if ! grep -q "^## $section\$" "$page"; then
+      echo "$page: '## Model' but no '## $section' section"
+      exit 1
+    fi
+  done
+done
+
 # Each requirement section `## <name> (#<n>)` has a scenario named
 # `<n>-<slug>` in shared/e2e/, and each such scenario has a section, as
 # ADR 0004 decides.
