@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Run only the twins of ADR 0004, for a server, vcs, or web app run outside the containers"
+set -euo pipefail
+
+exec mise run compose up postgres seaweedfs oidc traces

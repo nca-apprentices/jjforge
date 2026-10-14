@@ -56,15 +56,20 @@ echo page. The twin of the trace store shows that trace at
 `http://localhost:10428/select/vmui`, from the server through vcs.
 `JJFORGE_TRACES_PORT` moves the twin to another port.
 
-Without building the images:
+Without building the images, each in a terminal of its own:
 
 ```text
-mise run api:build
-(cd rust && cargo run --bin vcs)
-gradle -p jvm bootTestRun   # with Postgres in a container
+mise run twins       # postgres on :5432, seaweedfs, oidc, and traces on :10428
+mise run rust:serve  # vcs on :50052
+mise run jvm:serve   # server on :8080, actuator on :8081
+mise run web:serve   # web app on :5173, /api proxied to :8080
+mise run site:serve  # docs site on :8000
+gradle -p jvm bootTestRun   # or the server with Postgres in a container
 (cd rust && cargo run --bin jf -- echo hi)
 curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '{"message":"hi"}'
 ```
+
+`JJFORGE_POSTGRES_PORT` moves Postgres off 5432 for `twins` and `jvm:serve`.
 
 `JJFORGE_ENDPOINT` points the CLI at another forge, such as
 `https://jjforge.example.com`.

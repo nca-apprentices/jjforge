@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Run vcs on :50052, with traces to the twin of `mise run twins`"
+#MISE dir="{{config_root}}/rust"
+set -euo pipefail
+
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:${JJFORGE_TRACES_PORT:-10428}/insert/opentelemetry/v1/traces
+
+exec cargo run --bin vcs

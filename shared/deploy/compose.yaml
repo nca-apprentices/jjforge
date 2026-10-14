@@ -59,11 +59,13 @@ services:
   # The server's state of ADR 0002. A twin holds test data only, so it lives
   # as long as the container, and it trusts every connection, so no password
   # exists. The check goes over TCP, which the image's setup server doesn't
-  # listen on.
+  # listen on. `mise run jvm:serve` reaches it on the host port.
   postgres:
     image: postgres:18
     environment:
       POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "${JJFORGE_POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: pg_isready --host 127.0.0.1
       interval: 1s
