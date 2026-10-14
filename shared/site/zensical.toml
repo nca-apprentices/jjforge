@@ -22,6 +22,7 @@ nav = [
       "specs/README.md",
       "specs/23-orgs-and-repos.md",
       "specs/29-push-and-clone.md",
+      "specs/143-review-model.md",
     ] },
     { "Decisions" = [
       "adr/README.md",
