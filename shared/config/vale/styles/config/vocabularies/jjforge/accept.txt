@@ -29,7 +29,7 @@ pnpm
 podman
 Postgres
 proto
-rebas(e|es)
+[Rr]ebas(e|es|ed)
 Redocly
 [Rr]eflog
 repos?
@@ -57,3 +57,14 @@ jf-pr
 Grafana
 Logback
 Traefik
+ACLs
+Bazel
+bors
+[Ff]ilesets?
+Gerrit
+[Ii]nterdiffs?
+KEPs
+Mononoke
+Phabricator
+pushrebase
+Zuul

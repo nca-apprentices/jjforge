@@ -1,13 +1,57 @@
 # Spec page template
 
 Copy the block into `shared/docs/specs/<epic>-<slug>.md` and replace each
-placeholder. Drop an optional section the epic doesn't need.
+placeholder. Drop an optional section the epic doesn't need. Drop the whole
+design half, from Summary to Model and Alternatives, when the epic adds no
+object, state, or protocol that another epic builds on.
 
 ````markdown
 # <Epic name>
 
 <What the epic delivers, with a link to the epic.> <The module that owns it
 and the ADRs its paths follow.>
+
+## Summary
+
+<What the epic adds and what changes for a person, in at most six
+sentences.>
+
+## Motivation
+
+<The problem today, who has it, and what leaving it costs.>
+
+Goals, each one a demo can show:
+
+- <Outcome.>
+
+## Guide
+
+<One worked example by the people of the seed, as if the epic were built.
+Introduce each concept where the reader first meets it.>
+
+```console
+$ jf <command>
+<output>
+```
+
+## Model
+
+<Each object the epic adds, what identifies it, and whether it is stored or
+derived.>
+
+| Object   | Identified by | Holds    | Stored or derived |
+| -------- | ------------- | -------- | ----------------- |
+| <object> | <key>         | <fields> | <which, and why>  |
+
+Invariants:
+
+1. <A rule that holds after every operation, and what enforces it.>
+
+```mermaid
+stateDiagram-v2
+    [*] --> <state>
+    <state> --> <state>: <event>
+```
 
 ## <What a person can do> (#<n>)
 
@@ -35,12 +79,26 @@ Scenario: [<n>-<slug>.<hurl|bats>](../../e2e/<http|cli>/<n>-<slug>.<hurl|bats>).
 
 Operation `<operationId>` by principal P.
 
+```mermaid
+sequenceDiagram
+    participant jf
+    participant server
+    participant vcs
+    jf->>server: <request>
+    server-->>jf: <answer>
+```
+
 1. <Step>: <what happens>. Refused: <status> `<problem code>`.
 
 ## Persistence
 
 <Object paths, tables with constraints and queries, and events with their
 listeners.>
+
+```mermaid
+erDiagram
+    <table> ||--o{ <table> : <relation>
+```
 
 ## Architecture
 
@@ -58,6 +116,15 @@ External systems and their twins in `shared/deploy/compose.yaml`: <system>
 <Traits jjforge implements, types mapped field by field, calls made, and
 parts left unused.>
 
+## Compatibility
+
+- <What an older `jf`, server, or vcs does while the others run the new
+  version.>
+
+## Operations
+
+- <The signal that shows a path is healthy, its limit, and how it grows.>
+
 ## Security
 
 - <What a path trusts, what it verifies, and the limit that bounds a hostile
@@ -70,6 +137,29 @@ parts left unused.>
 ## Tests
 
 - <A test besides the scenarios, and what it proves.>
+
+## Alternatives
+
+### <Choice>
+
+| Option   | Cost           |
+| -------- | -------------- |
+| <option> | <cost>         |
+| <option> | <cost>. Chosen |
+
+Drawbacks of the chosen design:
+
+- <Drawback.>
+
+## Prior art
+
+| System   | What it does | What jjforge takes | What it leaves |
+| -------- | ------------ | ------------------ | -------------- |
+| <system> | <summary>    | <idea>             | <idea>         |
+
+## Future possibilities
+
+- <Extension the design leaves room for, and the epic that would build it.>
 
 ## Open questions
 

@@ -7,8 +7,10 @@ description: Write or extend the spec PR of an epic, with its page in shared/doc
 
 The spec PR of [the workflow](../../../shared/docs/workflow.md#specifying-and-building).
 The [specs README](../../../shared/docs/specs/README.md#format) defines each
-section, and [29-push-and-clone.md](../../../shared/docs/specs/29-push-and-clone.md)
-shows every section filled in.
+section. [29-push-and-clone.md](../../../shared/docs/specs/29-push-and-clone.md)
+shows the reference half filled in, and
+[143-review-model.md](../../../shared/docs/specs/143-review-model.md) the
+design half.
 
 1. **Read.** The epic and every requirement under it:
    `gh issue view <epic>`, then its sub-issues through
@@ -16,32 +18,45 @@ shows every section filled in.
    Done when you can name each requirement and each ADR.
 2. **Page.** Copy [template.md](template.md) to
    `shared/docs/specs/<epic>-<slug>.md` and add its row to the specs README.
-   Each requirement section links its issue and derives its functional
-   requirements, operations, and types from it, as the format in the README
-   gives. Done when every functional requirement names a command or a
-   route, what it does, and each refusal.
-3. **Design.** Fill Flow, Persistence, Architecture, and Failures. Every
-   refusal sits at the step that makes it, with its problem code.
-4. **Libraries.** For each library a path builds on, read its source at the
+   Keep the design half when the epic adds an object, a state, or a protocol
+   that another epic builds on.
+3. **Design half.** Write Model first: each object, its identity, its
+   invariants, and its state diagram. Then Guide, as a session by the seed's
+   people that touches every object. Then Alternatives, one table per choice,
+   and Prior art, read from each system's own documentation, never from
+   memory. A choice that shapes more than one component becomes an ADR from
+   [the template](../../../shared/docs/adr/0000-template.md) in the same PR.
+   Write Summary and Motivation last. Done when a reader of the design half
+   alone can say what is stored, what moves each state, and why.
+4. **Requirements.** Each requirement section links its issue and derives
+   its functional requirements, operations, and types from it, as the
+   format in the README gives. Done when every functional requirement names
+   a command or a route, what it does, and each refusal.
+5. **Reference half.** Fill Flow, Persistence, Architecture, and Failures,
+   with a sequence diagram per write path that crosses binaries. Every
+   refusal sits at the step that makes it, with its problem code. Add
+   Compatibility when a contract changes, and Operations when a path has a
+   limit or a queue.
+6. **Libraries.** For each library a path builds on, read its source at the
    pinned version, in the cargo registry or the Gradle cache, never from
    memory. Name the traits jjforge implements, map each type that crosses
    into `shared/proto/` field by field, list the calls jjforge makes, and
    list what it leaves unused. Done when every type in the store or the
    contract has a row.
-5. **Scenarios.** One file per requirement, `<n>-<slug>.hurl` in
+7. **Scenarios.** One file per requirement, `<n>-<slug>.hurl` in
    `shared/e2e/http/` or `<n>-<slug>.bats` in `shared/e2e/cli/`, with
    `# pending` as the first line. Each test name starts with the ID of the
    functional requirement it checks. Use concrete values, check the problem code
    of every refusal and the exit code that `shared/docs/cli.md` gives it. A
    Bats file loads `forge` for its helpers.
-6. **Contract.** Change `shared/api/` and `shared/proto/` until every assert
+8. **Contract.** Change `shared/api/` and `shared/proto/` until every assert
    is expressible. Change the contract, never the scenario.
-7. **Unknowns.** Each question the page can't answer yet goes under
+9. **Unknowns.** Each question the page can't answer yet goes under
    `## Open questions` with the issue that answers it.
-8. **Check.** `mise run prose`, `mise run lint`, and `mise run api:breaking`
-   pass.
-9. **Ship.** Commit with `/jf-commit` and open the PR with `/jf-pr`. A page
-   with open questions merges, and its requirements wait for the answers.
+10. **Check.** `mise run prose`, `mise run lint`, and `mise run api:breaking`
+    pass.
+11. **Ship.** Commit with `/jf-commit` and open the PR with `/jf-pr`. A page
+    with open questions merges, and its requirements wait for the answers.
 
 Next, once the PR merges: `/jf-impl <n>` for each requirement, by someone
 other than the spec's author.
