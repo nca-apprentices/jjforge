@@ -7,12 +7,11 @@ name: Review
 # Every event runs this file from main, and only main may use the
 # claude-review environment that holds the token, so no PR changes what runs
 # with it. Only a PR that a member of the organization opens from a branch
-# of this repository gets a review. Every other PR skips the build and the
-# review. A job without secrets builds the PR's jf and images. The review job
-# runs them only in containers that main's compose file defines and in
-# Claude's sandboxed commands, never on the runner itself. The denied paths
-# hold the tokens, so a PR that tells Claude to read them gets nothing to
-# post.
+# of this repository gets a review. CI builds the PR's jf and images in the
+# PR's own cache scope and without secrets. The review job runs them only in
+# containers that main's compose file defines and in Claude's sandboxed
+# commands, never on the runner itself. The denied paths hold the tokens, so
+# a PR that tells Claude to read them gets nothing to post.
 on:
   # Starts only the dispatch job, which checks out nothing.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
@@ -47,31 +46,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.number }}
 
-  # Builds the PR's jf and images in a job without secrets and with a
-  # read-only token, so the PR's code never runs on the runner that holds the
-  # Claude token. A build that fails leaves its log for the review. The first
-  # step checks the PR again, since a comment or a dispatch names any PR.
-  build:
-    name: Build
+  # Checks the PR again, since a comment or a dispatch names any PR. The
+  # review uses the jf and images that CI builds from the PR, so the PR's code
+  # never runs in main's cache scope.
+  pr:
+    name: PR
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '@claude review') && !endsWith(github.actor, '[bot]') &&
       contains(fromJSON('["MEMBER", "OWNER"]'), github.event.comment.author_association))
-    # In the jobs, so a comment that triggers no review cancels none.
-    concurrency:
-      group: ${{ github.workflow }}-${{ inputs.pr || github.event.issue.number }}
-      cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       pull-requests: read
     outputs:
       sha: ${{ steps.pr.outputs.sha }}
       trusted: ${{ steps.pr.outputs.trusted }}
     env:
       PR: ${{ inputs.pr || github.event.issue.number }}
-      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
     steps:
       - name: Find the PR
         id: pr
@@ -82,46 +74,16 @@ jobs:
             "sha=\(.head.sha)",
             "trusted=\(.head.repo.full_name == .base.repo.full_name and
               (.author_association | IN("MEMBER", "OWNER")))"' >>"$GITHUB_OUTPUT"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.pr.outputs.trusted == 'true'
-        with:
-          ref: ${{ steps.pr.outputs.sha }}
-          persist-credentials: false
-      # The PR's build could change the installed tools, and a cache saved
-      # here would serve them to main.
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        if: steps.pr.outputs.trusted == 'true'
-        with:
-          install_args: rust
-          cache: false
-      - name: Build
-        if: steps.pr.outputs.trusted == 'true'
-        run: |
-          mkdir build
-          cargo build --manifest-path rust/Cargo.toml --bin jf >build/jf.log 2>&1 &&
-            cp rust/target/debug/jf build/ || true
-          for component in server:jvm/Dockerfile vcs:rust/vcs/Dockerfile; do
-            name=${component%%:*}
-            image=ghcr.io/nca-apprentices/jjforge-$name:latest
-            docker build --tag "$image" --file "${component#*:}" . >"build/$name.log" 2>&1 &&
-              docker save --output "build/$name.tar" "$image" || true
-          done
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: steps.pr.outputs.trusted == 'true'
-        with:
-          name: review-build
-          path: build/
-          retention-days: 1
 
   review:
     name: Review
-    needs: [build]
+    needs: [pr]
     if: >-
-      needs.build.outputs.trusted == 'true' && (github.event_name == 'workflow_dispatch' ||
+      needs.pr.outputs.trusted == 'true' && (github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '@claude review') && !endsWith(github.actor, '[bot]') &&
       contains(fromJSON('["MEMBER", "OWNER"]'), github.event.comment.author_association)))
-    # In the jobs, so a comment that triggers no review cancels none.
+    # In the job, so a comment that triggers no review cancels none.
     concurrency:
       group: ${{ github.workflow }}-${{ inputs.pr || github.event.issue.number }}
       cancel-in-progress: true
@@ -137,14 +99,15 @@ jobs:
       id-token: write
       issues: read
       pull-requests: write
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       PR: ${{ inputs.pr || github.event.issue.number }}
       # The second file publishes Postgres, so Claude can query it without
       # Docker.
       COMPOSE_FILE: shared/deploy/compose.yaml:review/compose.yaml
       JF_BIN: ${{ github.workspace }}/review/build/jf
-      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+      # Only main's config, so a mise call in pr/ doesn't trust the PR's.
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
       # Hides the tokens from Claude's commands and their process IDs, so a
       # prompt injection in an issue or comment can't hand one to a command.
       CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -157,7 +120,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.build.outputs.sha }}
+          ref: ${{ needs.pr.outputs.sha }}
           path: pr
           persist-credentials: false
       # Claude gets no GitHub token in its commands, so the job fetches what
@@ -176,9 +139,43 @@ jobs:
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install_args: docker-compose hurl bats grpcurl
+      # Waits until CI on the PR has uploaded jf and both images, or has
+      # finished without them. A build that fails leaves CI's failed log for
+      # the review.
+      - name: Wait for CI
+        id: ci
+        continue-on-error: true
+        timeout-minutes: 30
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.pr.outputs.sha }}
+        run: |
+          run=
+          count=0
+          until [[ $count == 3 ]]; do
+            sleep 10
+            run=${run:-$(gh run list --workflow ci.yml --commit "$SHA" --event pull_request \
+              --limit 1 --json databaseId --jq '.[0].databaseId // empty')}
+            if [[ -z $run ]]; then
+              continue
+            fi
+            count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts" \
+              --jq '[.artifacts[].name | select(IN("jf", "image-server", "image-vcs"))] | length')
+            if [[ $(gh run view "$run" --json status --jq .status) == completed ]]; then
+              break
+            fi
+          done
+          echo "run=$run" >>"$GITHUB_OUTPUT"
+          if [[ $count != 3 ]]; then
+            gh run view "$run" --log-failed > review/build.log
+          fi
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
         with:
-          name: review-build
+          run-id: ${{ steps.ci.outputs.run }}
+          github-token: ${{ github.token }}
+          pattern: "{jf,image-server,image-vcs}"
+          merge-multiple: true
           path: review/build
       # Claude's commands can't reach Docker, so the job starts the stack from
       # the PR's images and streams its logs to a file. A stack that fails to
