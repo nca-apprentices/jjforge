@@ -18,6 +18,7 @@ use object_store::local::LocalFileSystem;
 use object_store::memory::InMemory;
 use object_store::path::Path;
 use tokio::sync::Mutex;
+use tracing::field::Empty;
 use url::Url;
 
 /// What a conditional write found.
@@ -25,6 +26,16 @@ pub(crate) enum Swap {
     Done,
     /// Another writer changed the object first.
     Lost,
+}
+
+impl Swap {
+    /// How a span names the outcome.
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Done => "won",
+            Self::Lost => "lost",
+        }
+    }
 }
 
 /// The current bytes of a mutable object and the tag that names them.
@@ -82,6 +93,11 @@ impl Bucket {
     }
 
     /// The bytes under `key`, or `None` when nothing is there.
+    #[tracing::instrument(name = "object_store get", skip_all, fields(
+        otel.kind = "client",
+        jjforge.object_store.operation = "get",
+        jjforge.object_store.key = key,
+    ))]
     pub(crate) async fn get(&self, key: &str) -> Result<Option<Tagged>, object_store::Error> {
         match self.store.get(&Path::from(key)).await {
             Ok(result) => {
@@ -95,6 +111,12 @@ impl Bucket {
     }
 
     /// Reads `ranges` of the object under `key`.
+    #[tracing::instrument(name = "object_store get_ranges", skip_all, fields(
+        otel.kind = "client",
+        jjforge.object_store.operation = "get_ranges",
+        jjforge.object_store.key = key,
+        jjforge.object_store.ranges = ranges.len(),
+    ))]
     pub(crate) async fn get_ranges(
         &self,
         key: &str,
@@ -106,6 +128,12 @@ impl Bucket {
 
     /// Writes an immutable object with `If-None-Match: *`. An object already
     /// there has the same bytes, because its key names their hash.
+    #[tracing::instrument(name = "object_store put", skip_all, fields(
+        otel.kind = "client",
+        jjforge.object_store.operation = "put",
+        jjforge.object_store.key = key,
+        jjforge.object_store.bytes = bytes.len(),
+    ))]
     pub(crate) async fn put_immutable(
         &self,
         key: &str,
@@ -128,6 +156,13 @@ impl Bucket {
     /// Writes `bytes` under `key` only if the object is still the one that
     /// `expected` read, or absent when `expected` is `None`: `If-Match` or
     /// `If-None-Match: *`, as ADR 0002 decides.
+    #[tracing::instrument(name = "object_store swap", skip_all, fields(
+        otel.kind = "client",
+        jjforge.object_store.operation = "swap",
+        jjforge.object_store.key = key,
+        jjforge.object_store.bytes = bytes.len(),
+        jjforge.object_store.swap = Empty,
+    ))]
     pub(crate) async fn swap(
         &self,
         key: &str,
@@ -141,6 +176,7 @@ impl Bucket {
             let _guard = lock.lock().await;
             let current = self.get(key).await?.map(|tagged| tagged.bytes);
             if current != expected.map(|tagged| tagged.bytes.clone()) {
+                tracing::Span::current().record("jjforge.object_store.swap", Swap::Lost.name());
                 return Ok(Swap::Lost);
             }
             self.store.put(&path, payload).await
@@ -155,17 +191,24 @@ impl Bucket {
             self.store.put_opts(&path, payload, mode.into()).await
         };
 
-        match result {
-            Ok(_) => Ok(Swap::Done),
+        let swap = match result {
+            Ok(_) => Swap::Done,
             Err(
                 object_store::Error::Precondition { .. }
                 | object_store::Error::AlreadyExists { .. },
-            ) => Ok(Swap::Lost),
-            Err(err) => Err(err),
-        }
+            ) => Swap::Lost,
+            Err(err) => return Err(err),
+        };
+        tracing::Span::current().record("jjforge.object_store.swap", swap.name());
+        Ok(swap)
     }
 
     /// The keys under `prefix`.
+    #[tracing::instrument(name = "object_store list", skip_all, fields(
+        otel.kind = "client",
+        jjforge.object_store.operation = "list",
+        jjforge.object_store.key = prefix,
+    ))]
     pub(crate) async fn list(&self, prefix: &str) -> Result<Vec<String>, object_store::Error> {
         self.store
             .list(Some(&Path::from(prefix)))
@@ -175,6 +218,11 @@ impl Bucket {
     }
 
     /// Deletes every object under `prefix`. Deleting nothing succeeds.
+    #[tracing::instrument(name = "object_store delete", skip_all, fields(
+        otel.kind = "client",
+        jjforge.object_store.operation = "delete",
+        jjforge.object_store.key = prefix,
+    ))]
     pub(crate) async fn delete_all(&self, prefix: &str) -> Result<(), object_store::Error> {
         let locations = self
             .store

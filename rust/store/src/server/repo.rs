@@ -47,6 +47,7 @@ use jjforge_proto::store::v1::CommitIds;
 use jjforge_proto::sync::v1::PublishRequest;
 use prost::Message as _;
 use tokio::sync::RwLock;
+use tracing::field::Empty;
 use url::Url;
 
 use super::bucket::Bucket;
@@ -231,6 +232,7 @@ impl Repo {
     /// # Errors
     ///
     /// Fails when the store does.
+    #[tracing::instrument(name = "repo create", skip_all)]
     pub async fn create(&self) -> Result<(), RepoError> {
         self.bucket
             .swap(&self.key("HEAD"), None, ids::root_operation_id().to_bytes())
@@ -245,6 +247,7 @@ impl Repo {
     /// # Errors
     ///
     /// Fails when the store does.
+    #[tracing::instrument(name = "repo delete", skip_all)]
     pub async fn delete(&self) -> Result<(), RepoError> {
         self.bucket
             .delete_all(&self.prefix)
@@ -267,8 +270,11 @@ impl Repo {
     /// # Errors
     ///
     /// Fails when the repository doesn't exist, or when the store does.
+    #[tracing::instrument(name = "repo head", skip_all, fields(jjforge.operation.id = Empty))]
     pub async fn head(&self) -> Result<OperationId, RepoError> {
-        operation_id(&self.tagged_head().await?.bytes)
+        let head = operation_id(&self.tagged_head().await?.bytes)?;
+        tracing::Span::current().record("jjforge.operation.id", head.to_string());
+        Ok(head)
     }
 
     async fn read_operation(&self, id: &[u8]) -> Result<(Vec<u8>, Operation), RepoError> {
@@ -290,6 +296,7 @@ impl Repo {
     /// segments they name. A log that reaches the root without meeting an
     /// operation the catalog knows belongs to a repository created again
     /// under the same IDs, so the catalog starts over.
+    #[tracing::instrument(skip_all, fields(jjforge.operations.read = Empty))]
     async fn advance(&self, head: &[u8]) -> Result<(), RepoError> {
         let root = ids::root_operation_id().to_bytes();
         let known = |catalog: &Catalog, id: &[u8]| catalog.operations.contains(id);
@@ -328,6 +335,7 @@ impl Repo {
         if !met_known {
             *catalog = Catalog::default();
         }
+        tracing::Span::current().record("jjforge.operations.read", seen.len());
         catalog.locations.extend(locations);
         catalog.operations.extend(seen);
         Ok(())
@@ -364,16 +372,22 @@ impl Repo {
     /// # Errors
     ///
     /// Fails when the repository doesn't exist, or when the store does.
+    #[tracing::instrument(name = "repo missing", skip_all, fields(
+        jjforge.ids.asked = ids.len(),
+        jjforge.ids.missing = Empty,
+    ))]
     pub async fn missing(&self, ids: &[ObjectId]) -> Result<Vec<ObjectId>, RepoError> {
         self.advance(self.head().await?.as_bytes()).await?;
         let catalog = self.catalog.read().await;
-        Ok(ids
+        let missing: Vec<_> = ids
             .iter()
             .filter(|id| {
                 !ids::is_virtual(id.as_bytes()) && !catalog.locations.contains_key(id.as_bytes())
             })
             .copied()
-            .collect())
+            .collect();
+        tracing::Span::current().record("jjforge.ids.missing", missing.len());
+        Ok(missing)
     }
 
     /// Stores encoded objects as one segment with its index and returns the
@@ -384,6 +398,11 @@ impl Repo {
     /// Fails on bytes that aren't a `store.v1` object as `encode` writes it,
     /// on an operation or a view, which only vcs writes, or when the store
     /// does.
+    #[tracing::instrument(name = "repo upload", skip_all, fields(
+        jjforge.upload.objects = objects.len(),
+        jjforge.upload.bytes = objects.iter().map(Vec::len).sum::<usize>(),
+        jjforge.segment.id = Empty,
+    ))]
     pub async fn upload(&self, objects: Vec<Vec<u8>>) -> Result<SegmentId, RepoError> {
         self.tagged_head().await?;
         if objects.is_empty() {
@@ -407,6 +426,7 @@ impl Repo {
 
         let packed = segment::pack(marked).map_err(|err| RepoError::Invalid(err.to_string()))?;
         let id = encode_hex(&packed.id);
+        tracing::Span::current().record("jjforge.segment.id", id.as_str());
         // A reader finds a segment through its index, so the index comes
         // last.
         self.bucket
@@ -427,18 +447,27 @@ impl Repo {
     ///
     /// Fails when an object isn't in the repository, or when the store
     /// does.
+    #[tracing::instrument(name = "repo fetch", skip_all, fields(
+        jjforge.ids.asked = ids.len(),
+        jjforge.fetch.bytes = Empty,
+    ))]
     pub async fn fetch(&self, ids: &[ObjectId]) -> Result<Vec<Vec<u8>>, RepoError> {
         self.advance(self.head().await?.as_bytes()).await?;
         let ids: Vec<_> = ids.iter().map(ObjectId::to_vec).collect();
         let catalog = self.catalog.read().await;
-        read_objects(
+        let objects = read_objects(
             &self.bucket,
             &self.prefix,
             &catalog.locations,
             &HashMap::new(),
             &ids,
         )
-        .await
+        .await?;
+        tracing::Span::current().record(
+            "jjforge.fetch.bytes",
+            objects.iter().map(Vec::len).sum::<usize>(),
+        );
+        Ok(objects)
     }
 
     /// Reads the operations that `HEAD` reaches and `since` doesn't, each
@@ -449,6 +478,10 @@ impl Repo {
     ///
     /// Fails when `since` isn't an operation that `HEAD` reaches, or when
     /// the store does.
+    #[tracing::instrument(name = "repo operations", skip_all, fields(
+        jjforge.operation.since = since.map(|id| id.to_string()),
+        jjforge.operations.count = Empty,
+    ))]
     pub async fn operations_since(
         &self,
         since: Option<OperationId>,
@@ -480,6 +513,8 @@ impl Repo {
                 .first()
                 .map_or_else(|| root.clone(), JjOperationId::to_bytes);
         }
+        // Each operation travels with its view.
+        tracing::Span::current().record("jjforge.operations.count", bundle.len() / 2);
         Ok(bundle)
     }
 
@@ -534,21 +569,43 @@ impl Repo {
     /// Fails when the repository doesn't exist, when a segment or a commit is
     /// absent, when a new object names one the repository lacks, when a
     /// bookmark name is empty, or when the store does.
+    #[tracing::instrument(name = "repo publish", skip_all, fields(
+        jjforge.operation.expected = encode_hex(&request.expected_operation_id),
+        jjforge.publish.bookmarks = request.bookmarks.len(),
+        jjforge.publish.segments = request.segment_ids.len(),
+        jjforge.publish.outcome = Empty,
+        jjforge.operation.id = Empty,
+    ))]
     pub async fn publish(
         &self,
         request: PublishRequest,
         author: Author,
     ) -> Result<Published, RepoError> {
         // jj-lib's futures aren't Send, so the publish runs on a thread of
-        // its own, in the caller's span, and this future stays Send.
+        // its own, in the caller's span and subscriber, and this future stays
+        // Send.
+        let expected = request.expected_operation_id.clone();
         let repo = self.clone();
         let runtime = tokio::runtime::Handle::current();
         let span = tracing::Span::current();
-        tokio::task::spawn_blocking(move || {
-            span.in_scope(|| runtime.block_on(repo.publish_here(&request, &author)))
+        let dispatch = tracing::dispatcher::get_default(Clone::clone);
+        let published = tokio::task::spawn_blocking(move || {
+            tracing::dispatcher::with_default(&dispatch, || {
+                span.in_scope(|| runtime.block_on(repo.publish_here(&request, &author)))
+            })
         })
         .await
-        .map_err(internal)?
+        .map_err(internal)??;
+
+        let (outcome, head) = match &published {
+            Published::Moved(id) if id.as_bytes() == expected.as_slice() => ("unchanged", id),
+            Published::Moved(id) => ("moved", id),
+            Published::Stale(id) => ("stale", id),
+        };
+        let span = tracing::Span::current();
+        span.record("jjforge.publish.outcome", outcome);
+        span.record("jjforge.operation.id", head.to_string());
+        Ok(published)
     }
 
     async fn publish_here(
@@ -652,6 +709,7 @@ impl Repo {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn write_view(&self, view: &jj_lib::op_store::View) -> Result<ViewId, RepoError> {
         let bytes = codec::encode(&Object::View(Box::new(view.clone())))
             .map_err(|err| RepoError::Invalid(err.to_string()))?;
@@ -664,6 +722,7 @@ impl Repo {
     }
 
     /// Reads the indexes of the segments a publish names.
+    #[tracing::instrument(skip_all)]
     async fn read_segments(
         &self,
         segment_ids: &[Vec<u8>],
@@ -687,6 +746,7 @@ impl Repo {
     /// visible, every object of its segments, and every commit it names as
     /// an earlier version, so an object in the catalog reaches only objects
     /// in it, and the walk stops there.
+    #[tracing::instrument(skip_all)]
     async fn check_closure(
         &self,
         overlay: &HashMap<Vec<u8>, Location>,

@@ -94,10 +94,10 @@ pub(crate) async fn trace_http(
     );
     span.set_parent(parent).ok();
 
+    // The span records the request, so it writes no log line, as ADR 0005
+    // decides.
     let response = next.run(request).instrument(span.clone()).await;
-    let status = response.status().as_u16();
-    span.record("http.response.status_code", status);
-    span.in_scope(|| tracing::info!(method, route, status, "request"));
+    span.record("http.response.status_code", response.status().as_u16());
     response
 }
 
@@ -213,6 +213,36 @@ impl Visit for Fields {
     }
 }
 
+/// Runs `future` under a subscriber that keeps the spans it finishes, so a
+/// test can read what a request recorded.
+#[cfg(test)]
+pub(crate) async fn finished_spans<F: std::future::Future>(
+    future: F,
+) -> (F::Output, Vec<opentelemetry_sdk::trace::SpanData>) {
+    use tracing::instrument::WithSubscriber as _;
+
+    let exporter = opentelemetry_sdk::trace::InMemorySpanExporter::default();
+    let provider = SdkTracerProvider::builder()
+        .with_simple_exporter(exporter.clone())
+        .build();
+    let subscriber = tracing_subscriber::registry()
+        .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")));
+    let output = future.with_subscriber(subscriber).await;
+    #[allow(clippy::unwrap_used, reason = "only tests call it")]
+    let spans = exporter.get_finished_spans().unwrap();
+    (output, spans)
+}
+
+/// The value of `key` on any of `spans`.
+#[cfg(test)]
+pub(crate) fn attribute(spans: &[opentelemetry_sdk::trace::SpanData], key: &str) -> Option<String> {
+    spans
+        .iter()
+        .flat_map(|span| &span.attributes)
+        .find(|attribute| attribute.key.as_str() == key)
+        .map(|attribute| attribute.value.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use std::io;
@@ -290,39 +320,28 @@ mod tests {
         assert_eq!(call.parent_span_id.to_string(), CALLER);
     }
 
-    #[test]
-    fn a_request_logs_its_route_and_status() {
+    #[tokio::test]
+    async fn a_request_records_its_route_and_status_on_its_span() {
         use axum::http::StatusCode;
         use tower::ServiceExt as _;
 
-        let output = Output::default();
-        let writer = output.clone();
-        let subscriber =
-            tracing_subscriber::registry().with(JsonLines::new(move || writer.clone()));
         let app = axum::Router::new()
             .route(
                 "/repos/{id}",
                 axum::routing::get(|| async { StatusCode::NOT_FOUND }),
             )
             .layer(axum::middleware::from_fn(trace_http));
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
+        let request = http::Request::get("/repos/7")
+            .body(axum::body::Body::empty())
             .unwrap();
 
-        tracing::subscriber::with_default(subscriber, || {
-            runtime.block_on(async {
-                let request = http::Request::get("/repos/7")
-                    .body(axum::body::Body::empty())
-                    .unwrap();
-                app.oneshot(request).await.unwrap();
-            });
-        });
+        let (_, spans) = finished_spans(app.oneshot(request)).await;
 
-        let line: Value = serde_json::from_slice(&output.0.lock().unwrap()).unwrap();
-        assert_eq!(line["message"], "request");
-        assert_eq!(line["method"], "GET");
-        assert_eq!(line["route"], "/repos/{id}");
-        assert_eq!(line["status"], 404);
+        assert_eq!(spans[0].name, "GET /repos/{id}");
+        assert_eq!(
+            attribute(&spans, "http.response.status_code").as_deref(),
+            Some("404")
+        );
     }
 
     #[test]

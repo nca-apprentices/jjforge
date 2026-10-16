@@ -126,7 +126,29 @@ flowchart LR
   trace ID, set to 1.0 until the trace store's volume asks for less. When
   it drops, the Collector samples by the whole trace and keeps every error.
 - A span names its organization, repository, and principal in
-  `jjforge.org.id`, `jjforge.repo.id`, and `jjforge.principal.id`.
+  `jjforge.org.id`, `jjforge.repo.id`, and `jjforge.principal.id`, also
+  when vcs refuses the request, so a trace shows who tried.
+- In vcs, the `server` side of the store crate adds spans under the
+  request's: one per `Repo` call, one per step of a publish, and a client
+  span per object store call. It is the one library that vcs adds spans to,
+  so one trace shows a request of `jf` down to the object store. Each span
+  names what it did:
+
+| Span                       | Attributes                                                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `repo head`                | `jjforge.operation.id`                                                                                                                     |
+| `repo operations`          | `jjforge.operation.since`, `jjforge.operations.count`                                                                                      |
+| `repo missing`             | `jjforge.ids.asked`, `jjforge.ids.missing`                                                                                                 |
+| `repo fetch`               | `jjforge.ids.asked`, `jjforge.fetch.bytes`                                                                                                 |
+| `repo upload`              | `jjforge.upload.objects`, `jjforge.upload.bytes`, `jjforge.segment.id`                                                                     |
+| `repo publish`             | `jjforge.operation.expected`, `jjforge.publish.bookmarks`, `jjforge.publish.segments`, `jjforge.publish.outcome`, `jjforge.operation.id`   |
+| `advance`                  | `jjforge.operations.read`                                                                                                                  |
+| `object_store {operation}` | `jjforge.object_store.operation`, `jjforge.object_store.key`, and for a write `jjforge.object_store.bytes` and `jjforge.object_store.swap` |
+
+- The outcome of a publish is `moved`, `unchanged`, or `stale`, and
+  `jjforge.operation.id` is where `HEAD` is after it. A count never names
+  what it counts, such as a bookmark, because no signal holds repository
+  content.
 
 ### Metrics
 

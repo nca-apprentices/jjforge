@@ -495,4 +495,63 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(detail(response).await, "the token is invalid");
     }
+
+    #[tokio::test]
+    async fn a_refused_request_names_who_asked() {
+        let fixture = fixture().await;
+        let app = fixture
+            .router
+            .clone()
+            .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
+        let request = Request::post("/sync/v1/acme/demo/objects")
+            .header(
+                header::AUTHORIZATION,
+                format!("Bearer {}", token(&fixture, "sync:read:acme")),
+            )
+            .body(Body::empty())
+            .unwrap();
+
+        let (response, spans) = crate::telemetry::finished_spans(app.oneshot(request)).await;
+
+        assert_eq!(response.unwrap().status(), StatusCode::FORBIDDEN);
+        assert_eq!(
+            crate::telemetry::attribute(&spans, "jjforge.principal.id").as_deref(),
+            Some("ada")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_publish_traces_what_it_did_down_to_the_object_store() {
+        let fixture = fixture().await;
+        let app = fixture
+            .router
+            .clone()
+            .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
+        let root = OperationId::root();
+        let unchanged = PublishRequest {
+            expected_operation_id: root.to_vec(),
+            ..PublishRequest::default()
+        };
+        let request = Request::post("/sync/v1/acme/demo/publish")
+            .header(
+                header::AUTHORIZATION,
+                format!("Bearer {}", token(&fixture, "sync:write:acme")),
+            )
+            .body(Body::from(unchanged.encode_to_vec()))
+            .unwrap();
+
+        let (response, spans) = crate::telemetry::finished_spans(app.oneshot(request)).await;
+
+        assert_eq!(response.unwrap().status(), StatusCode::OK);
+        let attribute = |key| crate::telemetry::attribute(&spans, key);
+        assert_eq!(
+            attribute("jjforge.publish.outcome").as_deref(),
+            Some("unchanged")
+        );
+        assert_eq!(attribute("jjforge.operation.id"), Some(root.to_string()));
+        assert_eq!(
+            attribute("jjforge.object_store.operation").as_deref(),
+            Some("get")
+        );
+    }
 }
