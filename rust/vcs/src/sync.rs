@@ -24,11 +24,13 @@ use jjforge_proto::sync::v1::ObjectBundle;
 use jjforge_proto::sync::v1::PublishRequest;
 use jjforge_proto::sync::v1::PublishResponse;
 use jjforge_proto::sync::v1::Uploaded;
-use jjforge_store::Author;
+use jjforge_store::ObjectId;
+use jjforge_store::OperationId;
 use jjforge_store::Published;
-use jjforge_store::Repo;
-use jjforge_store::RepoError;
-use jjforge_store::Repos;
+use jjforge_store::server::Author;
+use jjforge_store::server::Repo;
+use jjforge_store::server::RepoError;
+use jjforge_store::server::Repos;
 use prost::Message;
 use serde::Deserialize;
 
@@ -73,7 +75,7 @@ struct Problem {
     /// `None` for a failure of vcs itself, which the contract gives no code.
     code: Option<&'static str>,
     detail: String,
-    head: Option<Vec<u8>>,
+    head: Option<OperationId>,
 }
 
 impl Problem {
@@ -133,10 +135,8 @@ impl IntoResponse for Problem {
             body.to_string(),
         )
             .into_response();
-        if let Some(head) = self.head
-            && let Ok(tag) = HeaderValue::try_from(etag(&head))
-        {
-            response.headers_mut().insert(header::ETAG, tag);
+        if let Some(head) = self.head {
+            set_etag(&mut response, head);
         }
         response
     }
@@ -173,6 +173,12 @@ fn etag(operation_id: &[u8]) -> String {
     format!("\"{}\"", hex::encode(operation_id))
 }
 
+fn set_etag(response: &mut Response, head: OperationId) {
+    if let Ok(tag) = HeaderValue::try_from(etag(head.as_bytes())) {
+        response.headers_mut().insert(header::ETAG, tag);
+    }
+}
+
 fn protobuf(message: &impl Message) -> Response {
     ([(header::CONTENT_TYPE, PROTOBUF)], message.encode_to_vec()).into_response()
 }
@@ -182,14 +188,18 @@ fn decode<M: Message + Default>(body: &Bytes) -> Result<M, Problem> {
         .map_err(|err| Problem::invalid(format!("the body is malformed: {err}")))
 }
 
-fn ids(body: &Bytes) -> Result<Vec<Vec<u8>>, Problem> {
+fn ids(body: &Bytes) -> Result<Vec<ObjectId>, Problem> {
     let ids = decode::<HashList>(body)?.ids;
     if ids.len() > MAX_IDS {
         return Err(Problem::invalid(format!(
             "a request names at most {MAX_IDS} IDs"
         )));
     }
-    Ok(ids)
+    ids.iter()
+        .map(|id| {
+            ObjectId::try_from(id.as_slice()).map_err(|err| Problem::invalid(err.to_string()))
+        })
+        .collect()
 }
 
 impl Sync {
@@ -249,11 +259,9 @@ async fn head(
     let (repo, _) = sync.open(&headers, &org, &repo, Access::Read).await?;
     let head = repo.head().await?;
     let mut response = protobuf(&Head {
-        operation_id: head.operation_id.clone(),
+        operation_id: head.to_vec(),
     });
-    if let Ok(tag) = HeaderValue::try_from(etag(&head.operation_id)) {
-        response.headers_mut().insert(header::ETAG, tag);
-    }
+    set_etag(&mut response, head);
     Ok(response)
 }
 
@@ -271,10 +279,10 @@ async fn operations(
     let (repo, _) = sync.open(&headers, &org, &repo, Access::Read).await?;
     let since = query
         .since
-        .map(hex::decode)
+        .map(|since| since.parse::<OperationId>())
         .transpose()
-        .map_err(|_| Problem::invalid("since is not hexadecimal"))?;
-    let objects = repo.operations_since(since.as_deref()).await?;
+        .map_err(|err| Problem::invalid(format!("since: {err}")))?;
+    let objects = repo.operations_since(since).await?;
     Ok(protobuf(&ObjectBundle { objects }))
 }
 
@@ -287,7 +295,12 @@ async fn missing(
     let (repo, _) = sync.open(&headers, &org, &repo, Access::Read).await?;
     let ids = ids(&body)?;
     Ok(protobuf(&HashList {
-        ids: repo.missing(ids).await?,
+        ids: repo
+            .missing(&ids)
+            .await?
+            .iter()
+            .map(ObjectId::to_vec)
+            .collect(),
     }))
 }
 
@@ -300,7 +313,7 @@ async fn fetch(
     let (repo, _) = sync.open(&headers, &org, &repo, Access::Read).await?;
     let ids = ids(&body)?;
     Ok(protobuf(&ObjectBundle {
-        objects: repo.fetch(ids).await?,
+        objects: repo.fetch(&ids).await?,
     }))
 }
 
@@ -311,8 +324,10 @@ async fn object(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let (repo, _) = sync.open(&headers, &org, &repo, Access::Read).await?;
-    let id = hex::decode(&id).map_err(|_| Problem::invalid("the ID is not hexadecimal"))?;
-    let bytes = repo.fetch(vec![id]).await?.pop().unwrap_or_default();
+    let id = id
+        .parse::<ObjectId>()
+        .map_err(|err| Problem::invalid(err.to_string()))?;
+    let bytes = repo.fetch(&[id]).await?.pop().unwrap_or_default();
     Ok((
         [
             (header::CONTENT_TYPE, PROTOBUF),
@@ -335,7 +350,7 @@ async fn upload(
     let (repo, _) = sync.open(&headers, &org, &repo, Access::Write).await?;
     let objects = decode::<ObjectBundle>(&body)?.objects;
     Ok(protobuf(&Uploaded {
-        segment_id: repo.upload(objects).await?,
+        segment_id: repo.upload(objects).await?.to_vec(),
     }))
 }
 
@@ -358,24 +373,17 @@ async fn publish(
         ));
     }
 
-    // jj-lib's futures aren't Send, so the publish runs on a thread of its
-    // own.
-    let runtime = tokio::runtime::Handle::current();
-    let span = tracing::Span::current();
-    let published = tokio::task::spawn_blocking(move || {
-        span.in_scope(|| runtime.block_on(repo.publish(&request, &author)))
-    })
-    .await
-    .map_err(|err| RepoError::Internal(err.into()))??;
-    match published {
-        Published::Moved(operation_id) => Ok(protobuf(&PublishResponse { operation_id })),
+    match repo.publish(request, author).await? {
+        Published::Moved(operation_id) => Ok(protobuf(&PublishResponse {
+            operation_id: operation_id.to_vec(),
+        })),
         Published::Stale(head) => {
             let mut problem = Problem::new(
                 StatusCode::PRECONDITION_FAILED,
                 "precondition_failed",
                 "the head or a bookmark moved since the client fetched it",
             );
-            problem.head = Some(head.operation_id);
+            problem.head = Some(head);
             Err(problem)
         }
     }

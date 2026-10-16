@@ -11,9 +11,14 @@ use async_trait::async_trait;
 use crate::codec;
 use crate::codec::Object;
 use crate::ids;
+use crate::ids::ObjectId;
 use crate::shelf::Disk;
 use crate::shelf::Shelf;
 use crate::shelf::Source;
+
+/// A failure to reach the forge or of the forge itself, which `jf` reports
+/// as it is.
+pub type TransportError = Box<dyn StdError + Send + Sync>;
 
 /// Fetches objects from the forge. `jf` implements it over `sync/v1`.
 pub trait Fetch: Send + Sync + Debug {
@@ -22,7 +27,7 @@ pub trait Fetch: Send + Sync + Debug {
     /// # Errors
     ///
     /// Fails when the forge can't answer or lacks an object.
-    fn fetch(&self, ids: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, Box<dyn StdError + Send + Sync>>;
+    fn fetch(&self, ids: &[ObjectId]) -> Result<Vec<Vec<u8>>, TransportError>;
 }
 
 #[derive(Debug)]
@@ -40,7 +45,11 @@ impl Lazy {
 
     /// Fetches `ids`, checks each object against its name, and keeps them.
     async fn fetch_and_keep(&self, fetch: &dyn Fetch, ids: &[Vec<u8>]) -> Result<(), Source> {
-        for bytes in fetch.fetch(ids)? {
+        let wanted = ids
+            .iter()
+            .map(|id| ObjectId::try_from(id.as_slice()))
+            .collect::<Result<Vec<_>, _>>()?;
+        for bytes in fetch.fetch(&wanted)? {
             let id = ids::hash(&bytes);
             if !ids.contains(&id) {
                 return Err("the forge sent an object that wasn't asked for".into());
@@ -122,8 +131,9 @@ mod tests {
     }
 
     impl Fetch for Forge {
-        fn fetch(&self, ids: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, Box<dyn StdError + Send + Sync>> {
-            self.requests.lock().unwrap().push(ids.to_vec());
+        fn fetch(&self, ids: &[ObjectId]) -> Result<Vec<Vec<u8>>, TransportError> {
+            let ids: Vec<_> = ids.iter().map(ObjectId::to_vec).collect();
+            self.requests.lock().unwrap().push(ids.clone());
             ids.iter()
                 .map(|id| self.objects.get(id).cloned().ok_or_else(|| "absent".into()))
                 .collect()
@@ -169,10 +179,7 @@ mod tests {
         #[derive(Debug)]
         struct Liar;
         impl Fetch for Liar {
-            fn fetch(
-                &self,
-                _: &[Vec<u8>],
-            ) -> Result<Vec<Vec<u8>>, Box<dyn StdError + Send + Sync>> {
+            fn fetch(&self, _: &[ObjectId]) -> Result<Vec<Vec<u8>>, TransportError> {
                 Ok(vec![file("not what was asked")])
             }
         }

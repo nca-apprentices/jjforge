@@ -13,9 +13,9 @@ use jjforge_proto::source::v1::GetHeadRequest;
 use jjforge_proto::source::v1::GetHeadResponse;
 use jjforge_proto::source::v1::RepoRef;
 use jjforge_proto::source::v1::repo_service_server::RepoService;
-use jjforge_store::Repo;
-use jjforge_store::RepoError;
-use jjforge_store::Repos;
+use jjforge_store::server::Repo;
+use jjforge_store::server::RepoError;
+use jjforge_store::server::Repos;
 use tonic::Request;
 use tonic::Response;
 use tonic::Status;
@@ -104,7 +104,7 @@ impl RepoService for Service {
             .await?;
         let head = repo.head().await.map_err(status)?;
         Ok(Response::new(GetHeadResponse {
-            operation_id: hex::encode(head.operation_id),
+            operation_id: head.to_string(),
         }))
     }
 }

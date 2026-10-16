@@ -41,7 +41,7 @@ use jj_lib::op_heads_store::OpHeadsStoreError;
 use jj_lib::op_heads_store::OpHeadsStoreLock;
 use jj_lib::op_store::OpStore;
 use jj_lib::op_store::Operation;
-use jj_lib::op_store::OperationId;
+use jj_lib::op_store::OperationId as JjOperationId;
 use jj_lib::op_store::OperationMetadata;
 use jj_lib::op_store::RefTarget;
 use jj_lib::op_store::TimestampRange;
@@ -60,6 +60,7 @@ use prost::Message as _;
 use tokio::sync::RwLock;
 use url::Url;
 
+use crate::Published;
 use crate::backend;
 use crate::bucket::Bucket;
 use crate::bucket::Swap;
@@ -67,6 +68,9 @@ use crate::bucket::Tagged;
 use crate::codec;
 use crate::codec::Object;
 use crate::ids;
+use crate::ids::ObjectId;
+use crate::ids::OperationId;
+use crate::ids::SegmentId;
 use crate::op_store;
 use crate::segment;
 use crate::shelf::Shelf;
@@ -79,6 +83,7 @@ const CONCURRENCY: usize = 16;
 /// publish of many segments can't exhaust vcs.
 const CLOSURE_BATCH: u64 = 16 << 20;
 
+/// Why a call on a repository failed.
 #[derive(Debug, thiserror::Error)]
 pub enum RepoError {
     /// The repository, an operation, or an object doesn't exist.
@@ -92,33 +97,22 @@ pub enum RepoError {
     Internal(Source),
 }
 
-impl From<object_store::Error> for RepoError {
-    fn from(err: object_store::Error) -> Self {
-        Self::Internal(err.into())
-    }
+/// An ID that the store read from itself, so a wrong length means a corrupt
+/// store.
+fn operation_id(bytes: &[u8]) -> Result<OperationId, RepoError> {
+    OperationId::try_from(bytes).map_err(internal)
 }
 
-/// The current operation of a repository.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Head {
-    pub operation_id: Vec<u8>,
+fn internal(err: impl Into<Source>) -> RepoError {
+    RepoError::Internal(err.into())
 }
 
-/// What a publish did.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Published {
-    /// `HEAD` moved to the new operation, with this ID.
-    Moved(Vec<u8>),
-    /// The client's view was stale: `HEAD` or a bookmark had moved. Nothing
-    /// was written that anyone reads.
-    Stale(Head),
-}
-
-/// Who made an operation, from the verified token, as #102 decides: the
-/// subject and the chain that delegated to it, outermost first.
+/// Who made an operation, from the verified token, as #102 decides.
 #[derive(Clone, Debug)]
 pub struct Author {
+    /// The principal the token names.
     pub subject: String,
+    /// The principals that delegated to `subject`, outermost first.
     pub delegation: Vec<String>,
 }
 
@@ -145,9 +139,9 @@ impl Repos {
     /// Fails on a URL that isn't `s3://`, `file://`, or `memory:///`, or
     /// when the store can't be configured.
     pub fn open(url: &Url, cache: &Path) -> Result<Self, RepoError> {
-        let bucket = Bucket::open(url).map_err(|err| RepoError::Internal(err.into()))?;
+        let bucket = Bucket::open(url).map_err(internal)?;
         let settings = UserSettings::from_config_and_home_dir(StackedConfig::with_defaults(), None)
-            .map_err(|err| RepoError::Internal(err.into()))?;
+            .map_err(internal)?;
         Ok(Self {
             bucket: Arc::new(bucket),
             cache: cache.to_owned(),
@@ -187,7 +181,9 @@ impl Repos {
     }
 }
 
-/// One repository in the object store.
+/// One repository in the object store. A clone shares the repository's
+/// catalog, so it costs no read.
+#[derive(Clone)]
 pub struct Repo {
     bucket: Arc<Bucket>,
     cache: PathBuf,
@@ -249,7 +245,8 @@ impl Repo {
     pub async fn create(&self) -> Result<(), RepoError> {
         self.bucket
             .swap(&self.key("HEAD"), None, ids::root_operation_id().to_bytes())
-            .await?;
+            .await
+            .map_err(internal)?;
         Ok(())
     }
 
@@ -260,7 +257,10 @@ impl Repo {
     ///
     /// Fails when the store does.
     pub async fn delete(&self) -> Result<(), RepoError> {
-        self.bucket.delete_all(&self.prefix).await?;
+        self.bucket
+            .delete_all(&self.prefix)
+            .await
+            .map_err(internal)?;
         *self.catalog.write().await = Catalog::default();
         Ok(())
     }
@@ -268,7 +268,8 @@ impl Repo {
     async fn tagged_head(&self) -> Result<Tagged, RepoError> {
         self.bucket
             .get(&self.key("HEAD"))
-            .await?
+            .await
+            .map_err(internal)?
             .ok_or_else(|| RepoError::NotFound(format!("repository {}", self.name)))
     }
 
@@ -277,10 +278,8 @@ impl Repo {
     /// # Errors
     ///
     /// Fails when the repository doesn't exist, or when the store does.
-    pub async fn head(&self) -> Result<Head, RepoError> {
-        Ok(Head {
-            operation_id: self.tagged_head().await?.bytes,
-        })
+    pub async fn head(&self) -> Result<OperationId, RepoError> {
+        operation_id(&self.tagged_head().await?.bytes)
     }
 
     async fn read_operation(&self, id: &[u8]) -> Result<(Vec<u8>, Operation), RepoError> {
@@ -288,7 +287,8 @@ impl Repo {
         let bytes = self
             .bucket
             .get(&self.op_key(id))
-            .await?
+            .await
+            .map_err(internal)?
             .ok_or_else(not_found)?
             .bytes;
         match codec::decode(&bytes) {
@@ -323,11 +323,11 @@ impl Repo {
             let (bytes, operation) = self.read_operation(&id).await?;
             segments.extend(
                 codec::segment_ids(&bytes)
-                    .map_err(|err| RepoError::Internal(err.into()))?
+                    .map_err(internal)?
                     .iter()
                     .map(|segment| encode_hex(segment)),
             );
-            queue.extend(operation.parents.iter().map(OperationId::to_bytes));
+            queue.extend(operation.parents.iter().map(JjOperationId::to_bytes));
             seen.insert(id);
         }
         let mut locations = vec![];
@@ -348,12 +348,13 @@ impl Repo {
         let index = self
             .bucket
             .get(&self.index_key(segment))
-            .await?
+            .await
+            .map_err(internal)?
             .ok_or_else(|| RepoError::NotFound(format!("segment {segment}")))?
             .bytes;
         let segment: Arc<str> = Arc::from(segment);
         Ok(segment::parse(&index)
-            .map_err(|err| RepoError::Internal(err.into()))?
+            .map_err(internal)?
             .into_iter()
             .map(|entry| {
                 (
@@ -374,12 +375,15 @@ impl Repo {
     /// # Errors
     ///
     /// Fails when the repository doesn't exist, or when the store does.
-    pub async fn missing(&self, ids: Vec<Vec<u8>>) -> Result<Vec<Vec<u8>>, RepoError> {
-        self.advance(&self.head().await?.operation_id).await?;
+    pub async fn missing(&self, ids: &[ObjectId]) -> Result<Vec<ObjectId>, RepoError> {
+        self.advance(self.head().await?.as_bytes()).await?;
         let catalog = self.catalog.read().await;
         Ok(ids
-            .into_iter()
-            .filter(|id| !ids::is_virtual(id) && !catalog.locations.contains_key(id))
+            .iter()
+            .filter(|id| {
+                !ids::is_virtual(id.as_bytes()) && !catalog.locations.contains_key(id.as_bytes())
+            })
+            .copied()
             .collect())
     }
 
@@ -391,7 +395,7 @@ impl Repo {
     /// Fails on bytes that aren't a `store.v1` object as `encode` writes it,
     /// on an operation or a view, which only vcs writes, or when the store
     /// does.
-    pub async fn upload(&self, objects: Vec<Vec<u8>>) -> Result<Vec<u8>, RepoError> {
+    pub async fn upload(&self, objects: Vec<Vec<u8>>) -> Result<SegmentId, RepoError> {
         self.tagged_head().await?;
         if objects.is_empty() {
             return Err(RepoError::Invalid("an upload needs an object".to_owned()));
@@ -418,11 +422,13 @@ impl Repo {
         // last.
         self.bucket
             .put_immutable(&self.segment_key(&id), packed.segment)
-            .await?;
+            .await
+            .map_err(internal)?;
         self.bucket
             .put_immutable(&self.index_key(&id), packed.index)
-            .await?;
-        Ok(packed.id)
+            .await
+            .map_err(internal)?;
+        SegmentId::try_from(packed.id.as_slice()).map_err(internal)
     }
 
     /// Reads objects by ID, in the order of `ids`, with one range read per
@@ -432,8 +438,9 @@ impl Repo {
     ///
     /// Fails when an object isn't in the repository, or when the store
     /// does.
-    pub async fn fetch(&self, ids: Vec<Vec<u8>>) -> Result<Vec<Vec<u8>>, RepoError> {
-        self.advance(&self.head().await?.operation_id).await?;
+    pub async fn fetch(&self, ids: &[ObjectId]) -> Result<Vec<Vec<u8>>, RepoError> {
+        self.advance(self.head().await?.as_bytes()).await?;
+        let ids: Vec<_> = ids.iter().map(ObjectId::to_vec).collect();
         let catalog = self.catalog.read().await;
         read_objects(
             &self.bucket,
@@ -453,23 +460,27 @@ impl Repo {
     ///
     /// Fails when `since` isn't an operation that `HEAD` reaches, or when
     /// the store does.
-    pub async fn operations_since(&self, since: Option<&[u8]>) -> Result<Vec<Vec<u8>>, RepoError> {
-        let root = ids::root_operation_id().to_bytes();
-        let since = since.unwrap_or(&root);
+    pub async fn operations_since(
+        &self,
+        since: Option<OperationId>,
+    ) -> Result<Vec<Vec<u8>>, RepoError> {
+        let root = OperationId::root().to_vec();
+        let since = since.map_or_else(|| root.clone(), |id| id.to_vec());
         let mut bundle = vec![];
-        let mut next = self.head().await?.operation_id;
+        let mut next = self.head().await?.to_vec();
         while next != since {
             if next == root {
                 return Err(RepoError::NotFound(format!(
                     "operation {} in the log",
-                    encode_hex(since)
+                    encode_hex(&since)
                 )));
             }
             let (bytes, operation) = self.read_operation(&next).await?;
             let view = self
                 .bucket
                 .get(&self.op_key(operation.view_id.as_bytes()))
-                .await?
+                .await
+                .map_err(internal)?
                 .ok_or_else(|| RepoError::NotFound(format!("view {}", operation.view_id.hex())))?
                 .bytes;
             bundle.push(bytes);
@@ -478,13 +489,12 @@ impl Repo {
             next = operation
                 .parents
                 .first()
-                .map_or_else(|| root.clone(), OperationId::to_bytes);
+                .map_or_else(|| root.clone(), JjOperationId::to_bytes);
         }
         Ok(bundle)
     }
 
     fn loader(&self, overlay: HashMap<Vec<u8>, Location>) -> Result<RepoLoader, RepoError> {
-        let internal = |err: Source| RepoError::Internal(err);
         let pool = Pool {
             bucket: self.bucket.clone(),
             prefix: self.prefix.clone(),
@@ -493,8 +503,8 @@ impl Repo {
         };
         let store = jj_lib::store::Store::new(
             Box::new(backend::Store::new(Box::new(pool), CONCURRENCY)),
-            signer_from_settings(&self.settings).map_err(|err| internal(err.into()))?,
-            MergeOptions::from_settings(&self.settings).map_err(|err| internal(err.into()))?,
+            signer_from_settings(&self.settings).map_err(internal)?,
+            MergeOptions::from_settings(&self.settings).map_err(internal)?,
         );
         let op_store: Arc<dyn OpStore> = Arc::new(op_store::Store::new(Box::new(Operations {
             bucket: self.bucket.clone(),
@@ -505,13 +515,13 @@ impl Repo {
         // jj's index and the stores a loader needs but vcs never uses live
         // in the cache, which jj-lib rebuilds from the log when it's gone.
         let index_dir = self.cache.join("index");
-        std::fs::create_dir_all(&index_dir).map_err(|err| internal(err.into()))?;
-        let index = DefaultIndexStore::init(&index_dir).map_err(|err| internal(err.into()))?;
+        std::fs::create_dir_all(&index_dir).map_err(internal)?;
+        let index = DefaultIndexStore::init(&index_dir).map_err(internal)?;
         let workspaces = self.cache.join("workspace_store");
         let workspace_store = if workspaces.exists() {
             SimpleWorkspaceStore::load(&workspaces).map_err(|err| internal(err.0))?
         } else {
-            std::fs::create_dir_all(&workspaces).map_err(|err| internal(err.into()))?;
+            std::fs::create_dir_all(&workspaces).map_err(internal)?;
             SimpleWorkspaceStore::init(&workspaces).map_err(|err| internal(err.0))?
         };
         Ok(RepoLoader::new(
@@ -537,14 +547,29 @@ impl Repo {
     /// bookmark name is empty, or when the store does.
     pub async fn publish(
         &self,
+        request: PublishRequest,
+        author: Author,
+    ) -> Result<Published, RepoError> {
+        // jj-lib's futures aren't Send, so the publish runs on a thread of
+        // its own, in the caller's span, and this future stays Send.
+        let repo = self.clone();
+        let runtime = tokio::runtime::Handle::current();
+        let span = tracing::Span::current();
+        tokio::task::spawn_blocking(move || {
+            span.in_scope(|| runtime.block_on(repo.publish_here(&request, &author)))
+        })
+        .await
+        .map_err(internal)?
+    }
+
+    async fn publish_here(
+        &self,
         request: &PublishRequest,
         author: &Author,
     ) -> Result<Published, RepoError> {
         let head = self.tagged_head().await?;
         if request.expected_operation_id != head.bytes {
-            return Ok(Published::Stale(Head {
-                operation_id: head.bytes,
-            }));
+            return Ok(Published::Stale(operation_id(&head.bytes)?));
         }
         self.advance(&head.bytes).await?;
 
@@ -552,13 +577,10 @@ impl Repo {
         let predecessors = commit_predecessors(request)?;
         let loader = self.loader(overlay.clone())?;
         let operation = loader
-            .load_operation(&OperationId::new(head.bytes.clone()))
+            .load_operation(&JjOperationId::new(head.bytes.clone()))
             .await
-            .map_err(|err| RepoError::Internal(err.into()))?;
-        let base = loader
-            .load_at(&operation)
-            .await
-            .map_err(|err| RepoError::Internal(err.into()))?;
+            .map_err(internal)?;
+        let base = loader.load_at(&operation).await.map_err(internal)?;
         let mut repo = MutableRepo::new(base.clone(), base.readonly_index(), base.view());
 
         let bookmarks = bookmark_updates(request)?;
@@ -566,9 +588,7 @@ impl Repo {
             .iter()
             .any(|(name, old, _)| repo.get_local_bookmark(name) != old)
         {
-            return Ok(Published::Stale(Head {
-                operation_id: head.bytes,
-            }));
+            return Ok(Published::Stale(operation_id(&head.bytes)?));
         }
         let mut visible = request.head_ids.clone();
         for (_, _, new) in &bookmarks {
@@ -593,9 +613,7 @@ impl Repo {
                 .map_err(|_| RepoError::Invalid(format!("commit {} is missing", id.hex())))?;
             commits.push(commit);
         }
-        repo.add_heads(&commits)
-            .await
-            .map_err(|err| RepoError::Internal(err.into()))?;
+        repo.add_heads(&commits).await.map_err(internal)?;
         for (name, _, target) in bookmarks {
             repo.set_local_bookmark_target(&name, target);
         }
@@ -605,31 +623,31 @@ impl Repo {
         for hidden in &request.hidden_ids {
             repo.remove_head(&CommitId::new(hidden.clone()));
         }
-        let (index, view, _) = repo
-            .consume()
-            .await
-            .map_err(|err| RepoError::Internal(err.into()))?;
+        let (index, view, _) = repo.consume().await.map_err(internal)?;
 
         // A publish that changes no view leaves the log as it is.
         if view.store_view() == base.view().store_view() {
-            return Ok(Published::Moved(head.bytes));
+            return Ok(Published::Moved(operation_id(&head.bytes)?));
         }
 
         let view_id = self.write_view(view.store_view()).await?;
         let new = Operation {
             view_id,
-            parents: vec![OperationId::new(head.bytes.clone())],
+            parents: vec![JjOperationId::new(head.bytes.clone())],
             metadata: metadata(request, author),
             commit_predecessors: Some(predecessors),
         };
         let bytes = codec::encode_operation(&new, request.segment_ids.clone());
         let id = ids::hash(&bytes);
-        self.bucket.put_immutable(&self.op_key(&id), bytes).await?;
+        self.bucket
+            .put_immutable(&self.op_key(&id), bytes)
+            .await
+            .map_err(internal)?;
 
         // The index is a cache. A replica that misses it rebuilds it.
         let written = jj_lib::operation::Operation::new(
             loader.op_store().clone(),
-            OperationId::new(id.clone()),
+            JjOperationId::new(id.clone()),
             new,
         );
         loader.index_store().write_index(index, &written).ok();
@@ -637,9 +655,10 @@ impl Repo {
         match self
             .bucket
             .swap(&self.key("HEAD"), Some(&head), id.clone())
-            .await?
+            .await
+            .map_err(internal)?
         {
-            Swap::Done => Ok(Published::Moved(id)),
+            Swap::Done => Ok(Published::Moved(operation_id(&id)?)),
             Swap::Lost => Ok(Published::Stale(self.head().await?)),
         }
     }
@@ -648,7 +667,10 @@ impl Repo {
         let bytes = codec::encode(&Object::View(Box::new(view.clone())))
             .map_err(|err| RepoError::Invalid(err.to_string()))?;
         let id = ids::hash(&bytes);
-        self.bucket.put_immutable(&self.op_key(&id), bytes).await?;
+        self.bucket
+            .put_immutable(&self.op_key(&id), bytes)
+            .await
+            .map_err(internal)?;
         Ok(ViewId::new(id))
     }
 
@@ -732,7 +754,7 @@ impl Repo {
             read_objects(&self.bucket, &self.prefix, &catalog.locations, overlay, ids).await?;
         let mut references = vec![];
         for bytes in objects {
-            let object = codec::decode(&bytes).map_err(|err| RepoError::Internal(err.into()))?;
+            let object = codec::decode(&bytes).map_err(internal)?;
             references.extend(codec::references(&object));
         }
         Ok(references)
@@ -765,7 +787,8 @@ async fn read_objects(
             let ranges: Vec<_> = wanted.iter().map(|(_, range)| range.clone()).collect();
             let parts = bucket
                 .get_ranges(&format!("{prefix}/pool/seg/{segment}"), &ranges)
-                .await?;
+                .await
+                .map_err(internal)?;
             Ok::<_, RepoError>(wanted.into_iter().map(|(position, _)| position).zip(parts))
         })
         .buffer_unordered(CONCURRENCY)
@@ -946,8 +969,8 @@ impl OpHeadsStore for Heads {
 
     async fn update_op_heads(
         &self,
-        _old_ids: &[OperationId],
-        new_id: &OperationId,
+        _old_ids: &[JjOperationId],
+        new_id: &JjOperationId,
     ) -> Result<(), OpHeadsStoreError> {
         Err(OpHeadsStoreError::Write {
             new_op_id: new_id.clone(),
@@ -955,7 +978,7 @@ impl OpHeadsStore for Heads {
         })
     }
 
-    async fn get_op_heads(&self) -> Result<Vec<OperationId>, OpHeadsStoreError> {
+    async fn get_op_heads(&self) -> Result<Vec<JjOperationId>, OpHeadsStoreError> {
         Err(OpHeadsStoreError::Read("vcs reads HEAD itself".into()))
     }
 

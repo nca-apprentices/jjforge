@@ -1,4 +1,5 @@
-//! `jf`'s side of sync, over the `Remote` that `jf` implements with
+//! `jf`'s side: the store type that jj-cli loads, and the sync of a clone
+//! with its [`Forge`], over the [`Transport`] that `jf` implements with
 //! `sync/v1`. Both ends name an object by the hash of the same bytes, so a
 //! fetch and a push copy bytes unchanged, and an operation keeps its ID in
 //! every clone, as #30 asks.
@@ -24,10 +25,9 @@ use std::time::Duration;
 use futures::TryStreamExt as _;
 use jj_lib::backend::CommitId;
 use jj_lib::evolution::walk_predecessors;
-use jj_lib::hex_util::decode_hex;
 use jj_lib::hex_util::encode_hex;
 use jj_lib::object_id::ObjectId as _;
-use jj_lib::op_store::OperationId;
+use jj_lib::op_store::OperationId as JjOperationId;
 use jj_lib::op_store::RefTarget;
 use jj_lib::op_store::RemoteRef;
 use jj_lib::op_store::RemoteRefState;
@@ -45,12 +45,20 @@ use jjforge_proto::sync::v1::BookmarkUpdate;
 use jjforge_proto::sync::v1::PublishRequest;
 use prost::Message as _;
 
+pub use crate::lazy::Fetch;
+pub use crate::lazy::TransportError;
+pub use crate::workspace::FindForge;
+pub use crate::workspace::config;
+pub use crate::workspace::factories;
+pub use crate::workspace::init;
+
+use crate::Published;
 use crate::codec;
 use crate::codec::Object;
-use crate::forge::Head;
-use crate::forge::Published;
 use crate::ids;
-use crate::lazy::Fetch;
+use crate::ids::ObjectId;
+use crate::ids::OperationId;
+use crate::ids::SegmentId;
 use crate::shelf::Disk;
 use crate::shelf::Shelf as _;
 
@@ -71,53 +79,55 @@ const BATCH: usize = 1000;
 /// #89 asks, until #110 measures the limit.
 const ATTEMPTS: u32 = 10;
 
-/// An error of the transport, which `jf` reports as it is.
-pub type RemoteError = Box<dyn StdError + Send + Sync>;
-
 /// The `sync/v1` calls of one repository. `jf` implements them over HTTP.
-pub trait Remote: Fetch {
+pub trait Transport: Fetch {
     /// The forge's current operation.
     ///
     /// # Errors
     ///
     /// Fails when the forge can't answer.
-    fn head(&self) -> Result<Vec<u8>, RemoteError>;
+    fn head(&self) -> Result<OperationId, TransportError>;
 
     /// The encoded operations, each followed by its view, that the forge's
-    /// head reaches and `since` doesn't.
+    /// head reaches and `since` doesn't. Without `since`, every operation but
+    /// the root.
     ///
     /// # Errors
     ///
     /// Fails when the forge can't answer.
-    fn operations(&self, since: Option<&[u8]>) -> Result<Vec<Vec<u8>>, RemoteError>;
+    fn operations(&self, since: Option<OperationId>) -> Result<Vec<Vec<u8>>, TransportError>;
 
     /// Which of `ids` the forge lacks.
     ///
     /// # Errors
     ///
     /// Fails when the forge can't answer.
-    fn missing(&self, ids: Vec<Vec<u8>>) -> Result<Vec<Vec<u8>>, RemoteError>;
+    fn missing(&self, ids: &[ObjectId]) -> Result<Vec<ObjectId>, TransportError>;
 
     /// Stores encoded objects as one segment and returns its ID.
     ///
     /// # Errors
     ///
     /// Fails when the forge refuses an object or can't answer.
-    fn upload(&self, objects: Vec<Vec<u8>>) -> Result<Vec<u8>, RemoteError>;
+    fn upload(&self, objects: Vec<Vec<u8>>) -> Result<SegmentId, TransportError>;
 
     /// Publishes `request`.
     ///
     /// # Errors
     ///
     /// Fails when the forge refuses the request or can't answer. A stale
-    /// head is no error but `Published::Stale`.
-    fn publish(&self, request: &PublishRequest) -> Result<Published, RemoteError>;
+    /// head is no error but [`Published::Stale`].
+    fn publish(&self, request: &PublishRequest) -> Result<Published, TransportError>;
 }
 
+/// Why a fetch or a push failed.
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {
+    /// The forge couldn't be reached, or refused a call.
     #[error(transparent)]
-    Remote(RemoteError),
+    Transport(TransportError),
+    /// The clone couldn't be read or written, or the forge sent what the
+    /// clone can't use.
     #[error(transparent)]
     Local(Box<dyn StdError + Send + Sync>),
     /// After merging the forge's work, these bookmarks are conflicted, so the
@@ -136,63 +146,66 @@ fn local(err: impl Into<Box<dyn StdError + Send + Sync>>) -> SyncError {
     SyncError::Local(err.into())
 }
 
+/// The clone address of the repository at `repo_path`, which is
+/// `.jj/repo`, or `None` for a repository without a forge.
+///
+/// # Errors
+///
+/// Fails when the address can't be read.
+pub fn forge_url(repo_path: &Path) -> io::Result<Option<String>> {
+    ForgeDir::new(repo_path).url()
+}
+
+/// Records the clone address of the repository at `repo_path`, which is
+/// `.jj/repo`.
+///
+/// # Errors
+///
+/// Fails when the address can't be written.
+pub fn set_forge_url(repo_path: &Path, url: &str) -> io::Result<()> {
+    ForgeDir::new(repo_path).set_url(url)
+}
+
 /// Where `jf` keeps the forge of a repository: its clone address and the
 /// last head it fetched.
 #[derive(Debug)]
-pub struct ForgeDir {
+struct ForgeDir {
     dir: PathBuf,
 }
 
 impl ForgeDir {
-    /// The forge directory of the repository at `repo_path`, which is
-    /// `.jj/repo`.
-    #[must_use]
-    pub fn new(repo_path: &Path) -> Self {
+    fn new(repo_path: &Path) -> Self {
         Self {
             dir: repo_path.join("forge"),
         }
     }
 
-    /// The clone address, or `None` for a repository without a forge.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the file can't be read.
-    pub fn url(&self) -> io::Result<Option<String>> {
+    fn url(&self) -> io::Result<Option<String>> {
         read_optional(&self.dir.join("url")).map(|url| url.map(|url| url.trim().to_owned()))
     }
 
-    /// Records the clone address.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the file can't be written.
-    pub fn set_url(&self, url: &str) -> io::Result<()> {
+    fn set_url(&self, url: &str) -> io::Result<()> {
         fs::create_dir_all(&self.dir)?;
         fs::write(self.dir.join("url"), format!("{url}\n"))
     }
 
     /// The forge's operation that the last fetch merged, or the root.
-    fn head(&self) -> Result<Vec<u8>, SyncError> {
-        let Some(hex) = read_optional(&self.dir.join("head")).map_err(local)? else {
-            return Ok(ids::root_operation_id().to_bytes());
+    fn head(&self) -> Result<OperationId, SyncError> {
+        let path = self.dir.join("head");
+        let Some(hex) = read_optional(&path).map_err(local)? else {
+            return Ok(OperationId::root());
         };
-        decode_hex(hex.trim())
-            .filter(|id| id.len() == ids::ID_LENGTH)
-            .ok_or_else(|| {
-                local(format!(
-                    "{} names no operation",
-                    self.dir.join("head").display()
-                ))
-            })
+        hex.trim()
+            .parse()
+            .map_err(|_| local(format!("{} names no operation", path.display())))
     }
 
     /// Replaces the head file whole, so an interrupted write leaves the old
     /// one.
-    fn set_head(&self, id: &[u8]) -> Result<(), SyncError> {
+    fn set_head(&self, id: OperationId) -> Result<(), SyncError> {
         fs::create_dir_all(&self.dir).map_err(local)?;
         let mut file = tempfile::NamedTempFile::new_in(&self.dir).map_err(local)?;
-        writeln!(file, "{}", encode_hex(id)).map_err(local)?;
+        writeln!(file, "{id}").map_err(local)?;
         file.persist(self.dir.join("head"))
             .map_err(|err| local(err.error))?;
         Ok(())
@@ -211,35 +224,85 @@ fn forge() -> &'static RemoteName {
     RemoteName::new(FORGE)
 }
 
-/// What a fetch did.
+/// The forge of one clone, reached through a [`Transport`].
 #[derive(Debug)]
-pub struct Fetched {
-    /// The repository after the fetch, at the operation it published.
-    pub repo: Arc<ReadonlyRepo>,
-    /// Whether the forge had anything new.
-    pub changed: bool,
+pub struct Forge<'a> {
+    repo_path: PathBuf,
+    transport: &'a dyn Transport,
 }
 
-/// Fetches the forge's operations since the last fetch with the commits
-/// their views reach, merges them into the local log, and sets each
-/// `<name>@forge` to the forge's target, as #101 decides. Trees and files
-/// arrive later, when jj reads them, as #90 decides.
-///
-/// # Errors
-///
-/// Fails when the forge can't answer, sends a corrupt object, or when the
-/// local repository can't be written.
-pub async fn fetch(
+/// What a fetch or a push did.
+#[derive(Debug)]
+pub enum Synced {
+    /// The clone already matched the forge.
+    Unchanged,
+    /// The clone took the forge's work, and this is the repository after it.
+    Changed(Arc<ReadonlyRepo>),
+}
+
+impl<'a> Forge<'a> {
+    /// The forge of the repository at `repo_path`, which is `.jj/repo`.
+    #[must_use]
+    pub fn new(repo_path: &Path, transport: &'a dyn Transport) -> Self {
+        Self {
+            repo_path: repo_path.to_owned(),
+            transport,
+        }
+    }
+
+    /// Fetches the forge's operations since the last fetch with the commits
+    /// their views reach, merges them into the local log, and sets each
+    /// `<name>@forge` to the forge's target, as #101 decides. Trees and
+    /// files arrive later, when jj reads them, as #90 decides.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the forge can't answer, sends a corrupt object, or when
+    /// the local repository can't be written.
+    pub async fn fetch(&self, repo: &Arc<ReadonlyRepo>) -> Result<Synced, SyncError> {
+        let fetched = fetch(repo, &self.repo_path, self.transport).await?;
+        Ok(if fetched.changed {
+            Synced::Changed(fetched.repo)
+        } else {
+            Synced::Unchanged
+        })
+    }
+
+    /// Publishes the bookmarks `names`, as #31 decides. It uploads every
+    /// object they reach that the forge lacks, with the earlier versions of
+    /// each pushed change as #103 asks. When another publish wins the race,
+    /// it fetches, merges, and tries again, as #89 decides.
+    ///
+    /// # Errors
+    ///
+    /// Fails when a bookmark is conflicted, before or after a merge, when
+    /// the forge refuses the push, or when every attempt loses the race.
+    pub async fn push(
+        &self,
+        repo: &Arc<ReadonlyRepo>,
+        names: &[String],
+    ) -> Result<Synced, SyncError> {
+        push(repo, &self.repo_path, self.transport, names).await
+    }
+}
+
+/// What a fetch did.
+struct Fetched {
+    repo: Arc<ReadonlyRepo>,
+    changed: bool,
+}
+
+async fn fetch(
     repo: &Arc<ReadonlyRepo>,
     repo_path: &Path,
-    remote: &dyn Remote,
+    remote: &dyn Transport,
 ) -> Result<Fetched, SyncError> {
     let forge_dir = ForgeDir::new(repo_path);
-    let head = remote.head().map_err(SyncError::Remote)?;
+    let head = remote.head().map_err(SyncError::Transport)?;
     let last = forge_dir.head()?;
     let loader = repo.loader();
     let last_operation = loader
-        .load_operation(&OperationId::new(last.clone()))
+        .load_operation(&JjOperationId::new(last.to_vec()))
         .await
         .map_err(local)?;
     let base = known_forge_operation(repo, &last_operation).await?;
@@ -254,11 +317,11 @@ pub async fn fetch(
     let mut wanted = vec![];
     // Operations up to `last` are in the op store already, so only newer
     // ones travel.
-    let since = (last != ids::root_operation_id().to_bytes()).then_some(last.as_slice());
+    let since = (last != OperationId::root()).then_some(last);
     let fetched_operations = if head == last {
         vec![]
     } else {
-        remote.operations(since).map_err(SyncError::Remote)?
+        remote.operations(since).map_err(SyncError::Transport)?
     };
     for bytes in fetched_operations {
         let object = codec::decode(&bytes).map_err(local)?;
@@ -287,7 +350,7 @@ pub async fn fetch(
     fetch_commits(repo_path, remote, wanted).await?;
 
     let forge_operation = loader
-        .load_operation(&OperationId::new(head.clone()))
+        .load_operation(&JjOperationId::new(head.to_vec()))
         .await
         .map_err(local)?;
     let forge_view = loader
@@ -333,7 +396,7 @@ pub async fn fetch(
         .update_op_heads(&[repo.op_id().clone()], fetched.op_id())
         .await
         .map_err(local)?;
-    forge_dir.set_head(&head)?;
+    forge_dir.set_head(head)?;
     Ok(Fetched {
         repo: fetched,
         changed: true,
@@ -417,7 +480,7 @@ async fn known_forge_operation(
 /// one generation per request. Their trees stay on the forge.
 async fn fetch_commits(
     repo_path: &Path,
-    remote: &dyn Remote,
+    remote: &dyn Transport,
     wanted: Vec<Vec<u8>>,
 ) -> Result<(), SyncError> {
     let store = Disk::new(&repo_path.join("store"));
@@ -434,7 +497,10 @@ async fn fetch_commits(
             }
         }
         for batch in missing.chunks(BATCH) {
-            for bytes in remote.fetch(batch).map_err(SyncError::Remote)? {
+            for bytes in remote
+                .fetch(&object_ids(batch)?)
+                .map_err(SyncError::Transport)?
+            {
                 let id = ids::hash(&bytes);
                 if !batch.contains(&id) {
                     return Err(local("the forge sent an object that wasn't asked for"));
@@ -450,30 +516,20 @@ async fn fetch_commits(
     Ok(())
 }
 
-/// What a push did.
-#[derive(Debug)]
-pub enum Pushed {
-    /// Every named bookmark is where the forge has it already.
-    Nothing,
-    /// The forge published the bookmarks, and the repository fetched it.
-    Done(Arc<ReadonlyRepo>),
+/// The IDs of objects that the clone names, which are hashes, as the
+/// forge's calls take them.
+fn object_ids(ids: &[Vec<u8>]) -> Result<Vec<ObjectId>, SyncError> {
+    ids.iter()
+        .map(|id| ObjectId::try_from(id.as_slice()).map_err(local))
+        .collect()
 }
 
-/// Publishes the named bookmarks, as #31 decides. It uploads every object
-/// they reach that the forge lacks, with the earlier versions of each pushed
-/// change as #103 asks. When another publish wins the race, it fetches,
-/// merges, and tries again, as #89 decides.
-///
-/// # Errors
-///
-/// Fails when a bookmark is conflicted, before or after a merge, when the
-/// forge refuses the push, or when every attempt loses the race.
-pub async fn push(
+async fn push(
     repo: &Arc<ReadonlyRepo>,
     repo_path: &Path,
-    remote: &dyn Remote,
+    remote: &dyn Transport,
     names: &[String],
-) -> Result<Pushed, SyncError> {
+) -> Result<Synced, SyncError> {
     // A bookmark absent locally but present on the forge is a deletion, so
     // only one absent on both sides is unknown.
     let unknown: Vec<_> = names
@@ -498,7 +554,9 @@ pub async fn push(
     let mut repo = repo.clone();
     let last = repo
         .loader()
-        .load_operation(&OperationId::new(ForgeDir::new(repo_path).head()?))
+        .load_operation(&JjOperationId::new(
+            ForgeDir::new(repo_path).head()?.to_vec(),
+        ))
         .await
         .map_err(local)?;
     if known_forge_operation(&repo, &last).await?.id() != last.id() {
@@ -523,13 +581,13 @@ pub async fn push(
 
         let Some(request) = publish_request(&repo, repo_path, remote, names, &mut uploads).await?
         else {
-            return Ok(Pushed::Nothing);
+            return Ok(Synced::Unchanged);
         };
-        match remote.publish(&request).map_err(SyncError::Remote)? {
+        match remote.publish(&request).map_err(SyncError::Transport)? {
             Published::Moved(_) => {
-                return Ok(Pushed::Done(fetch(&repo, repo_path, remote).await?.repo));
+                return Ok(Synced::Changed(fetch(&repo, repo_path, remote).await?.repo));
             }
-            Published::Stale(Head { .. }) => {
+            Published::Stale(_) => {
                 repo = fetch(&repo, repo_path, remote).await?.repo;
                 // Racing pushers that retry at once collide again.
                 std::thread::sleep(backoff(attempt));
@@ -553,7 +611,7 @@ fn backoff(attempt: u32) -> Duration {
 async fn publish_request(
     repo: &Arc<ReadonlyRepo>,
     repo_path: &Path,
-    remote: &dyn Remote,
+    remote: &dyn Transport,
     names: &[String],
     uploads: &mut Uploads,
 ) -> Result<Option<PublishRequest>, SyncError> {
@@ -562,7 +620,7 @@ async fn publish_request(
     let forge_view = loader
         .load_at(
             &loader
-                .load_operation(&OperationId::new(expected.clone()))
+                .load_operation(&JjOperationId::new(expected.to_vec()))
                 .await
                 .map_err(local)?,
         )
@@ -618,13 +676,13 @@ async fn publish_request(
     upload(repo_path, remote, new_commits, uploads).await?;
 
     Ok(Some(PublishRequest {
-        expected_operation_id: expected,
+        expected_operation_id: expected.to_vec(),
         bookmarks,
         head_ids: vec![],
         hidden_ids,
         commit_predecessors,
         description: format!("push {} to forge", names.join(", ")),
-        segment_ids: uploads.segments.clone(),
+        segment_ids: uploads.segments.iter().map(SegmentId::to_vec).collect(),
     }))
 }
 
@@ -637,7 +695,7 @@ type Predecessors = HashMap<String, Vec<u8>>;
 /// what the pushed commits reach.
 async fn predecessors(
     repo: &Arc<ReadonlyRepo>,
-    remote: &dyn Remote,
+    remote: &dyn Transport,
     new_commits: &[CommitId],
 ) -> Result<Predecessors, SyncError> {
     let entries: Vec<_> = walk_predecessors(repo, new_commits)
@@ -657,9 +715,10 @@ async fn predecessors(
         .collect();
     for batch in candidates.chunks(BATCH) {
         let missing: HashSet<_> = remote
-            .missing(batch.to_vec())
-            .map_err(SyncError::Remote)?
-            .into_iter()
+            .missing(&object_ids(batch)?)
+            .map_err(SyncError::Transport)?
+            .iter()
+            .map(ObjectId::to_vec)
             .collect();
         held.extend(
             batch
@@ -699,7 +758,7 @@ async fn predecessors(
 #[derive(Default)]
 struct Uploads {
     ids: HashSet<Vec<u8>>,
-    segments: Vec<Vec<u8>>,
+    segments: Vec<SegmentId>,
 }
 
 /// Uploads `commits` that the forge lacks, with every object they reach, in
@@ -707,7 +766,7 @@ struct Uploads {
 /// object an earlier attempt uploaded counts as held.
 async fn upload(
     repo_path: &Path,
-    remote: &dyn Remote,
+    remote: &dyn Transport,
     commits: Vec<CommitId>,
     uploads: &mut Uploads,
 ) -> Result<(), SyncError> {
@@ -724,12 +783,15 @@ async fn upload(
             .collect();
         for batch in candidates.chunks(BATCH) {
             // An object the forge holds reaches only objects it holds.
-            for id in remote.missing(batch.to_vec()).map_err(SyncError::Remote)? {
+            for id in remote
+                .missing(&object_ids(batch)?)
+                .map_err(SyncError::Transport)?
+            {
                 let bytes = store
-                    .get(&id)
+                    .get(id.as_bytes())
                     .await
                     .map_err(SyncError::Local)?
-                    .ok_or_else(|| local(format!("object {} is missing", encode_hex(&id))))?;
+                    .ok_or_else(|| local(format!("object {id} is missing")))?;
                 let object = codec::decode(&bytes).map_err(local)?;
                 next.extend(codec::references(&object));
                 objects.push(bytes);
@@ -760,11 +822,15 @@ async fn upload(
     Ok(())
 }
 
-fn send(remote: &dyn Remote, bundle: Vec<Vec<u8>>, uploads: &mut Uploads) -> Result<(), SyncError> {
+fn send(
+    remote: &dyn Transport,
+    bundle: Vec<Vec<u8>>,
+    uploads: &mut Uploads,
+) -> Result<(), SyncError> {
     let ids: Vec<_> = bundle.iter().map(|bytes| ids::hash(bytes)).collect();
     uploads
         .segments
-        .push(remote.upload(bundle).map_err(SyncError::Remote)?);
+        .push(remote.upload(bundle).map_err(SyncError::Transport)?);
     uploads.ids.extend(ids);
     Ok(())
 }
@@ -876,10 +942,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let forge = ForgeDir::new(dir.path());
 
-        forge.set_head(&[1; 32]).unwrap();
-        forge.set_head(&[2; 32]).unwrap();
+        let id = |byte| OperationId::try_from([byte; 32].as_slice()).unwrap();
 
-        assert_eq!(forge.head().unwrap(), [2; 32]);
+        forge.set_head(id(1)).unwrap();
+        forge.set_head(id(2)).unwrap();
+
+        assert_eq!(forge.head().unwrap(), id(2));
         assert_eq!(fs::read_dir(dir.path().join("forge")).unwrap().count(), 1);
     }
 }

@@ -15,14 +15,14 @@ use jj_cli::command_error::CommandError;
 use jj_cli::command_error::cli_error;
 use jj_cli::command_error::user_error;
 use jj_cli::ui::Ui;
-use jjforge_store::ForgeDir;
-use jjforge_store::Pushed;
+use jjforge_store::client;
+use jjforge_store::client::Synced;
 use reqwest::Url;
 
 use crate::forge;
 
 /// Lets `jf undo` undo a fetch, and the fetch that ends a push, which jj
-/// can't, as `jjforge_store::undo_fetch` says. The forge keeps what it
+/// can't, as `jjforge_store::client::undo_fetch` says. The forge keeps what it
 /// holds, and the next fetch brings it back.
 async fn undo_fetch(
     ui: &mut Ui,
@@ -40,7 +40,7 @@ async fn undo_fetch(
         operation.metadata().description
     );
     let mut tx = workspace.start_transaction();
-    let Some(description) = jjforge_store::undo_fetch(tx.repo_mut())
+    let Some(description) = client::undo_fetch(tx.repo_mut())
         .await
         .map_err(user_error)?
     else {
@@ -132,7 +132,7 @@ async fn run(ui: &mut Ui, helper: &CommandHelper, command: Command) -> Result<()
         Command::Push { bookmarks } => push(ui, helper, &bookmarks).await,
         Command::Init { destination } => {
             std::fs::create_dir_all(&destination)?;
-            jjforge_store::init(helper.settings(), &destination)
+            client::init(helper.settings(), &destination)
                 .await
                 .map_err(user_error)?;
             Ok(())
@@ -158,9 +158,8 @@ fn token() -> Option<String> {
 }
 
 /// The repository's forge, as a clone recorded it.
-fn remote(repo_path: &Path) -> Result<forge::SyncClient, CommandError> {
-    let url = ForgeDir::new(repo_path)
-        .url()?
+fn transport(repo_path: &Path) -> Result<forge::SyncClient, CommandError> {
+    let url = client::forge_url(repo_path)?
         .ok_or_else(|| user_error("This repository has no forge to sync with"))?;
     let url = Url::parse(&url).map_err(user_error)?;
     forge::SyncClient::new(url, token()).map_err(user_error)
@@ -216,11 +215,11 @@ async fn clone_into(
     address: &Url,
     root: &Path,
 ) -> Result<(), CommandError> {
-    let remote = forge::SyncClient::new(address.clone(), token()).map_err(user_error)?;
-    let (workspace, _) = jjforge_store::init(helper.settings(), root)
+    let transport = forge::SyncClient::new(address.clone(), token()).map_err(user_error)?;
+    let (workspace, _) = client::init(helper.settings(), root)
         .await
         .map_err(user_error)?;
-    ForgeDir::new(workspace.repo_path()).set_url(address.as_str())?;
+    client::set_forge_url(workspace.repo_path(), address.as_str())?;
 
     // A workspace loaded through jf's factories reads what it lacks from the
     // forge it now records.
@@ -231,10 +230,15 @@ async fn clone_into(
         .await
         .map_err(user_error)?;
     let repo_path = workspace.repo_path().to_owned();
-    let fetched = jjforge_store::fetch(&repo, &repo_path, &remote)
+    let repo = match client::Forge::new(&repo_path, &transport)
+        .fetch(&repo)
         .await
-        .map_err(user_error)?;
-    jjforge_store::start_on_main(&mut workspace, &fetched.repo)
+        .map_err(user_error)?
+    {
+        Synced::Changed(fetched) => fetched,
+        Synced::Unchanged => repo,
+    };
+    client::start_on_main(&mut workspace, &repo)
         .await
         .map_err(user_error)?;
     Ok(())
@@ -246,15 +250,16 @@ async fn fetch(ui: &mut Ui, helper: &CommandHelper) -> Result<(), CommandError> 
     let repo_path = workspace_helper.repo_path().to_owned();
     drop(workspace_helper);
 
-    let fetched = jjforge_store::fetch(&old, &repo_path, &remote(&repo_path)?)
+    let synced = client::Forge::new(&repo_path, &transport(&repo_path)?)
+        .fetch(&old)
         .await
         .map_err(user_error)?;
-    if !fetched.changed {
+    let Synced::Changed(repo) = synced else {
         writeln!(ui.status(), "Nothing changed.")?;
         return Ok(());
-    }
+    };
     let mut workspace = helper.load_workspace()?;
-    jjforge_store::follow_working_copy(&mut workspace, &old, &fetched.repo)
+    client::follow_working_copy(&mut workspace, &old, &repo)
         .await
         .map_err(user_error)?;
     writeln!(ui.status(), "Fetched from forge")?;
@@ -271,15 +276,16 @@ async fn push(
     let repo_path = workspace_helper.repo_path().to_owned();
     drop(workspace_helper);
 
-    let pushed = jjforge_store::push(&old, &repo_path, &remote(&repo_path)?, bookmarks)
+    let synced = client::Forge::new(&repo_path, &transport(&repo_path)?)
+        .push(&old, bookmarks)
         .await
         .map_err(user_error)?;
-    let Pushed::Done(repo) = pushed else {
+    let Synced::Changed(repo) = synced else {
         writeln!(ui.status(), "Nothing changed.")?;
         return Ok(());
     };
     let mut workspace = helper.load_workspace()?;
-    jjforge_store::follow_working_copy(&mut workspace, &old, &repo)
+    client::follow_working_copy(&mut workspace, &old, &repo)
         .await
         .map_err(user_error)?;
     writeln!(ui.status(), "Pushed {} to forge", bookmarks.join(", "))?;

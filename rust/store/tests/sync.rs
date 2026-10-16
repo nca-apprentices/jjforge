@@ -6,7 +6,6 @@
 // test failing, as clippy.toml allows inside a test.
 #![allow(clippy::unwrap_used, reason = "a panic in a test is the failure")]
 
-use std::error::Error as StdError;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -32,16 +31,19 @@ use jj_lib::repo_path::RepoPath;
 use jj_lib::repo_path::RepoPathBuf;
 use jj_lib::settings::UserSettings;
 use jjforge_proto::sync::v1::PublishRequest;
-use jjforge_store::Author;
-use jjforge_store::Fetch;
-use jjforge_store::ForgeDir;
+use jjforge_store::ObjectId;
+use jjforge_store::OperationId;
 use jjforge_store::Published;
-use jjforge_store::Pushed;
-use jjforge_store::Remote;
-use jjforge_store::RemoteError;
-use jjforge_store::Repo;
-use jjforge_store::Repos;
-use jjforge_store::SyncError;
+use jjforge_store::SegmentId;
+use jjforge_store::client;
+use jjforge_store::client::Fetch;
+use jjforge_store::client::SyncError;
+use jjforge_store::client::Synced;
+use jjforge_store::client::Transport;
+use jjforge_store::client::TransportError;
+use jjforge_store::server::Author;
+use jjforge_store::server::Repo;
+use jjforge_store::server::Repos;
 use tempfile::TempDir;
 use url::Url;
 
@@ -58,37 +60,37 @@ struct Forge {
 }
 
 impl Fetch for Forge {
-    fn fetch(&self, ids: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, Box<dyn StdError + Send + Sync>> {
+    fn fetch(&self, ids: &[ObjectId]) -> Result<Vec<Vec<u8>>, TransportError> {
         *self.fetches.lock().unwrap() += 1;
-        Ok(self.runtime.block_on(self.repo.fetch(ids.to_vec()))?)
+        Ok(self.runtime.block_on(self.repo.fetch(ids))?)
     }
 }
 
-impl Remote for Forge {
-    fn head(&self) -> Result<Vec<u8>, RemoteError> {
-        Ok(self.runtime.block_on(self.repo.head())?.operation_id)
+impl Transport for Forge {
+    fn head(&self) -> Result<OperationId, TransportError> {
+        Ok(self.runtime.block_on(self.repo.head())?)
     }
 
-    fn operations(&self, since: Option<&[u8]>) -> Result<Vec<Vec<u8>>, RemoteError> {
+    fn operations(&self, since: Option<OperationId>) -> Result<Vec<Vec<u8>>, TransportError> {
         Ok(self.runtime.block_on(self.repo.operations_since(since))?)
     }
 
-    fn missing(&self, ids: Vec<Vec<u8>>) -> Result<Vec<Vec<u8>>, RemoteError> {
+    fn missing(&self, ids: &[ObjectId]) -> Result<Vec<ObjectId>, TransportError> {
         Ok(self.runtime.block_on(self.repo.missing(ids))?)
     }
 
-    fn upload(&self, objects: Vec<Vec<u8>>) -> Result<Vec<u8>, RemoteError> {
+    fn upload(&self, objects: Vec<Vec<u8>>) -> Result<SegmentId, TransportError> {
         *self.uploads.lock().unwrap() += 1;
         Ok(self.runtime.block_on(self.repo.upload(objects))?)
     }
 
-    fn publish(&self, request: &PublishRequest) -> Result<Published, RemoteError> {
+    fn publish(&self, request: &PublishRequest) -> Result<Published, TransportError> {
         if std::mem::take(&mut *self.lose_next.lock().unwrap()) {
             return Ok(Published::Stale(self.runtime.block_on(self.repo.head())?));
         }
         Ok(self
             .runtime
-            .block_on(self.repo.publish(request, &self.author))?)
+            .block_on(self.repo.publish(request.clone(), self.author.clone()))?)
     }
 }
 
@@ -98,7 +100,7 @@ fn settings() -> UserSettings {
     layer.set_value("user.name", "Ada").unwrap();
     layer.set_value("user.email", "ada@example.com").unwrap();
     config.add_layer(layer);
-    config.add_layer(jjforge_store::config());
+    config.add_layer(client::config());
     UserSettings::from_config_and_home_dir(config, None).unwrap()
 }
 
@@ -155,11 +157,9 @@ impl Clone {
     fn new(forge: Arc<Forge>) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let settings = settings();
-        let (workspace, _) = block_on(jjforge_store::init(&settings, dir.path())).unwrap();
+        let (workspace, _) = block_on(client::init(&settings, dir.path())).unwrap();
         let repo_path = workspace.repo_path().to_owned();
-        ForgeDir::new(&repo_path)
-            .set_url("https://forge.example/sync/v1/acme/forge")
-            .unwrap();
+        client::set_forge_url(&repo_path, "https://forge.example/sync/v1/acme/forge").unwrap();
         let repo = load(&repo_path, &forge);
         let mut clone = Self {
             _dir: dir,
@@ -172,26 +172,23 @@ impl Clone {
     }
 
     fn fetch(&mut self) -> Result<bool, SyncError> {
-        let fetched = block_on(jjforge_store::fetch(
-            &self.repo,
-            &self.repo_path,
-            self.forge.as_ref(),
-        ))?;
-        self.repo = fetched.repo;
-        Ok(fetched.changed)
+        let forge = client::Forge::new(&self.repo_path, self.forge.as_ref());
+        Ok(self.take(block_on(forge.fetch(&self.repo))?))
     }
 
     fn push(&mut self, name: &str) -> Result<(), SyncError> {
-        match block_on(jjforge_store::push(
-            &self.repo,
-            &self.repo_path,
-            self.forge.as_ref(),
-            &[name.to_owned()],
-        ))? {
-            Pushed::Nothing => {}
-            Pushed::Done(repo) => self.repo = repo,
-        }
+        let forge = client::Forge::new(&self.repo_path, self.forge.as_ref());
+        self.take(block_on(forge.push(&self.repo, &[name.to_owned()]))?);
         Ok(())
+    }
+
+    /// Moves to the repository a sync left, and says whether it changed.
+    fn take(&mut self, synced: Synced) -> bool {
+        let Synced::Changed(repo) = synced else {
+            return false;
+        };
+        self.repo = repo;
+        true
     }
 
     /// Commits a file on top of `parent` and points `bookmark` at it.
@@ -412,7 +409,7 @@ impl Clone {
 fn load(repo_path: &Path, forge: &Arc<Forge>) -> Arc<ReadonlyRepo> {
     let forge = forge.clone();
     let mut factories = default_backend_factories();
-    factories.merge(jjforge_store::factories(Arc::new(move |_| {
+    factories.merge(client::factories(Arc::new(move |_| {
         Ok(Some(forge.clone() as Arc<dyn Fetch>))
     })));
     let loader = RepoLoader::init_from_file_system(&settings(), repo_path, &factories).unwrap();
@@ -467,7 +464,7 @@ fn the_forge_names_who_made_each_operation() {
     let operation = block_on(
         bob.repo
             .loader()
-            .load_operation(&jj_lib::op_store::OperationId::new(head)),
+            .load_operation(&jj_lib::op_store::OperationId::new(head.to_vec())),
     )
     .unwrap();
 
@@ -572,7 +569,7 @@ fn a_clone_holds_the_forges_operations_under_their_ids() {
     .into_iter()
     .map(|op| op.id().to_bytes())
     .collect();
-    assert!(ancestors.contains(&head));
+    assert!(ancestors.contains(&head.to_vec()));
 }
 
 #[test]
@@ -644,12 +641,14 @@ fn a_publish_that_names_an_incomplete_object_is_refused() {
         },
         secure_sig: None,
     };
-    let bytes = jjforge_store::encode(&jjforge_store::Object::Commit(Box::new(commit))).unwrap();
+    let ada = Clone::new(forge.clone());
+    let (id, _) = block_on(ada.repo.store().backend().write_commit(commit, None)).unwrap();
+    let bytes = std::fs::read(ada.repo_path.join("store").join(id.hex())).unwrap();
     let segment = forge.upload(vec![bytes]).unwrap();
 
     let request = PublishRequest {
-        expected_operation_id: forge.head().unwrap(),
-        segment_ids: vec![segment],
+        expected_operation_id: forge.head().unwrap().to_vec(),
+        segment_ids: vec![segment.to_vec()],
         ..PublishRequest::default()
     };
 
@@ -664,7 +663,7 @@ fn a_publish_that_changes_nothing_writes_no_operation() {
 
     let published = forge
         .publish(&PublishRequest {
-            expected_operation_id: head.clone(),
+            expected_operation_id: head.to_vec(),
             ..PublishRequest::default()
         })
         .unwrap();
@@ -789,20 +788,14 @@ fn a_replica_forgets_a_deleted_repository() {
     let mut ada = Clone::new(forge.clone());
     let pushed = ada.commit(None, "main", "README", "hello\n");
     ada.push("main").unwrap();
-    let id = pushed.id().to_bytes();
+    let id = ObjectId::try_from(pushed.id().as_bytes()).unwrap();
     let other = two.get("acme", "forge").unwrap();
-    assert_eq!(
-        runtime.block_on(other.missing(vec![id.clone()])).unwrap(),
-        Vec::<Vec<u8>>::new()
-    );
+    assert_eq!(runtime.block_on(other.missing(&[id])).unwrap(), []);
 
     runtime.block_on(forge.repo.delete()).unwrap();
     runtime.block_on(forge.repo.create()).unwrap();
 
-    assert_eq!(
-        runtime.block_on(other.missing(vec![id.clone()])).unwrap(),
-        [id]
-    );
+    assert_eq!(runtime.block_on(other.missing(&[id])).unwrap(), [id]);
 }
 
 #[test]
@@ -813,10 +806,14 @@ fn a_push_publishes_no_version_that_never_left_the_clone() {
     ada.rewrite_file("main", "config", "token=redacted\n");
     ada.push("main").unwrap();
 
-    let secret =
-        jjforge_store::encode(&jjforge_store::Object::File(b"token=hunter2\n".to_vec())).unwrap();
-    let id = blake3::hash(&secret).as_bytes().to_vec();
-    assert_eq!(ada.forge.missing(vec![id.clone()]).unwrap(), [id]);
+    // A file's ID is the hash of its content, so writing it again names it.
+    let secret = block_on(ada.repo.store().write_file(
+        RepoPath::from_internal_string("config").unwrap(),
+        &mut "token=hunter2\n".as_bytes(),
+    ))
+    .unwrap();
+    let id = ObjectId::try_from(secret.as_bytes()).unwrap();
+    assert_eq!(ada.forge.missing(&[id]).unwrap(), [id]);
 }
 
 #[test]

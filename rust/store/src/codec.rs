@@ -44,7 +44,7 @@ use prost::Message;
 
 /// An object of a repository, as jj-lib models it.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Object {
+pub(crate) enum Object {
     File(Vec<u8>),
     Symlink(String),
     Tree(Tree),
@@ -55,7 +55,7 @@ pub enum Object {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub(crate) enum Error {
     #[error("the bytes are not a store.v1 object")]
     Decode(#[from] prost::DecodeError),
     #[error("the {0} is missing")]
@@ -80,7 +80,7 @@ pub enum Error {
 ///
 /// Fails on the git parts of jj, which `store.v1` leaves out, as ADR 0001
 /// decides: a git submodule, git refs, and git heads.
-pub fn encode(object: &Object) -> Result<Vec<u8>, Error> {
+pub(crate) fn encode(object: &Object) -> Result<Vec<u8>, Error> {
     Ok(stored_object(object)?.encode_to_vec())
 }
 
@@ -108,7 +108,7 @@ fn stored_object(object: &Object) -> Result<proto::StoredObject, Error> {
 /// Fails when the bytes aren't a `StoredObject`, when it breaks a rule of
 /// jj-lib, such as a tree whose entries aren't sorted, or when `encode` would
 /// give the object other bytes, and so another ID.
-pub fn decode(bytes: &[u8]) -> Result<Object, Error> {
+pub(crate) fn decode(bytes: &[u8]) -> Result<Object, Error> {
     let message = proto::StoredObject::decode(bytes)?;
     // The store sets an operation's segments, which jj-lib never sees, so
     // the check carries them over.

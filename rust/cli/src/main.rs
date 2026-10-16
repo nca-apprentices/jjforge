@@ -12,15 +12,16 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use jj_cli::cli_util::CliRunner;
-use jjforge_store::Fetch;
-use jjforge_store::ForgeDir;
+use jjforge_store::client;
+use jjforge_store::client::Fetch;
+use jjforge_store::client::TransportError;
 
 fn main() -> ExitCode {
     // The about text comes last, because each addition replaces it with its
     // doc comment.
     commands::add(CliRunner::init())
-        .add_store_factories(jjforge_store::factories(Arc::new(find_forge)))
-        .add_extra_config(jjforge_store::config())
+        .add_store_factories(client::factories(Arc::new(find_forge)))
+        .add_extra_config(client::config())
         .name("jf")
         .about("The jjforge command-line client")
         .version(env!("CARGO_PKG_VERSION"))
@@ -30,10 +31,8 @@ fn main() -> ExitCode {
 
 /// The forge of a clone, so its backend fetches the trees and files it
 /// lacks, or `None` for a repository without one.
-fn find_forge(
-    repo_path: &Path,
-) -> Result<Option<Arc<dyn Fetch>>, Box<dyn std::error::Error + Send + Sync>> {
-    let Some(url) = ForgeDir::new(repo_path).url()? else {
+fn find_forge(repo_path: &Path) -> Result<Option<Arc<dyn Fetch>>, TransportError> {
+    let Some(url) = client::forge_url(repo_path)? else {
         return Ok(None);
     };
     let token = std::env::var("JJFORGE_TOKEN").ok();

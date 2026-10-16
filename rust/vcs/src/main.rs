@@ -19,7 +19,7 @@ use std::sync::Arc;
 use clap::Parser;
 use jjforge_proto::echo::v1::echo_service_server::EchoServiceServer;
 use jjforge_proto::source::v1::repo_service_server::RepoServiceServer;
-use jjforge_store::Repos;
+use jjforge_store::server::Repos;
 use tonic_tracing_opentelemetry::middleware::server::OtelGrpcLayer;
 
 use crate::auth::Verifier;
