@@ -93,7 +93,7 @@ mod tests {
     use jjforge_proto::echo::v1::echo_service_server::EchoServiceServer;
 
     use super::*;
-    use crate::echo::Echo;
+    use crate::grpc::Echo;
 
     #[test]
     fn metered_labels_calls_by_method() {

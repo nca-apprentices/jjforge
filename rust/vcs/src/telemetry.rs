@@ -254,7 +254,7 @@ mod tests {
         use tower::Layer;
         use tower::Service;
 
-        use crate::echo::Echo;
+        use crate::grpc::Echo;
 
         const CALLER: &str = "00f067aa0ba902b7";
 

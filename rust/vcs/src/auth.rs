@@ -12,6 +12,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use std::time::Instant;
 
+use jjforge_store::server::Author;
 use jsonwebtoken::Algorithm;
 use jsonwebtoken::DecodingKey;
 use jsonwebtoken::Validation;
@@ -75,6 +76,15 @@ pub(crate) enum AuthError {
     /// how vcs parses a token.
     #[error("the token is invalid")]
     Invalid(String),
+}
+
+impl From<Principal> for Author {
+    fn from(principal: Principal) -> Self {
+        Self {
+            subject: principal.subject,
+            delegation: principal.delegation,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -342,7 +352,25 @@ impl Verifier {
 }
 
 #[cfg(test)]
+mod testing;
+
+#[cfg(test)]
+pub(crate) use testing::TestKey;
+#[cfg(test)]
+pub(crate) use testing::issuer_with;
+#[cfg(test)]
+pub(crate) use testing::token_with;
+
+#[cfg(test)]
 mod tests {
+    use jsonwebtoken::EncodingKey;
+    use jsonwebtoken::Header;
+
+    use super::testing::TestKey;
+    use super::testing::base64url;
+    use super::testing::issuer_serving;
+    use super::testing::issuer_with;
+    use super::testing::token_with;
     use super::*;
 
     fn principal(scope: &str) -> Principal {
@@ -398,5 +426,87 @@ mod tests {
             verifier.verify(Some("Bearer not.a.token")).await,
             Err(AuthError::Invalid(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn an_issuer_grants_nothing_outside_its_organization() {
+        let key = TestKey::new();
+        let other = issuer_with("other", &key).await;
+        let verifier = Verifier::new(vec![Issuer::new("other", other.clone())]).unwrap();
+        let token = token_with(&other, &key, "sync:write:acme");
+
+        let principal = verifier
+            .verify(Some(&format!("Bearer {token}")))
+            .await
+            .unwrap();
+
+        assert!(!principal.may(Access::Read, "acme"));
+    }
+
+    #[tokio::test]
+    async fn two_issuers_may_name_their_keys_alike() {
+        let (one, two) = (TestKey::new(), TestKey::new());
+        let first = issuer_with("acme", &one).await;
+        let second = issuer_with("other", &two).await;
+        let verifier = Verifier::new(vec![
+            Issuer::new("acme", first.clone()),
+            Issuer::new("acme", second.clone()),
+        ])
+        .unwrap();
+
+        for (issuer, key) in [(&first, &one), (&second, &two)] {
+            let token = token_with(issuer, key, "sync:read:acme");
+            assert!(
+                verifier
+                    .verify(Some(&format!("Bearer {token}")))
+                    .await
+                    .is_ok(),
+                "{issuer}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_key_set_without_algorithms_still_verifies() {
+        let key = TestKey::new();
+        let mut jwk = key.jwk();
+        jwk.as_object_mut().unwrap().remove("alg");
+        let issuer = issuer_serving("acme", jwk).await;
+        let verifier = Verifier::new(vec![Issuer::new("acme", issuer.clone())]).unwrap();
+
+        let token = token_with(&issuer, &key, "sync:read:acme");
+
+        assert!(
+            verifier
+                .verify(Some(&format!("Bearer {token}")))
+                .await
+                .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_symmetric_key_in_a_key_set_is_refused() {
+        let secret = b"published, so anyone could sign with it";
+        let issuer = issuer_serving(
+            "acme",
+            serde_json::json!({ "kty": "oct", "kid": "test", "alg": "HS256", "k": base64url(secret) }),
+        )
+        .await;
+        let verifier = Verifier::new(vec![Issuer::new("acme", issuer.clone())]).unwrap();
+        let mut header = Header::new(jsonwebtoken::Algorithm::HS256);
+        header.kid = Some("test".to_owned());
+        let claims = serde_json::json!({
+            "iss": issuer.as_str(), "sub": "mallory", "aud": "jjforge",
+            "exp": 4_102_444_800_u64, "scope": "sync:write:acme",
+        });
+        let token =
+            jsonwebtoken::encode(&header, &claims, &EncodingKey::from_secret(secret)).unwrap();
+
+        assert!(
+            verifier
+                .verify(Some(&format!("Bearer {token}")))
+                .await
+                .is_err()
+        );
     }
 }

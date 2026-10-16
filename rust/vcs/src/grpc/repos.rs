@@ -3,8 +3,6 @@
 //! caller's token, and vcs verifies it as `sync/v1` does. Creating and
 //! deleting need the admin scope, which a token for pushing lacks.
 
-use std::sync::Arc;
-
 use jjforge_proto::source::v1::CreateRepoRequest;
 use jjforge_proto::source::v1::CreateRepoResponse;
 use jjforge_proto::source::v1::DeleteRepoRequest;
@@ -15,18 +13,15 @@ use jjforge_proto::source::v1::RepoRef;
 use jjforge_proto::source::v1::repo_service_server::RepoService;
 use jjforge_store::server::Repo;
 use jjforge_store::server::RepoError;
-use jjforge_store::server::Repos;
 use tonic::Request;
 use tonic::Response;
 use tonic::Status;
 
 use crate::auth::Access;
-use crate::auth::Verifier;
+use crate::gate::Gate;
+use crate::gate::Refused;
 
-pub(crate) struct Service {
-    pub(crate) repos: Arc<Repos>,
-    pub(crate) verifier: Arc<Verifier>,
-}
+pub(crate) struct Service(pub(crate) Gate);
 
 impl Service {
     async fn open<T>(
@@ -41,18 +36,21 @@ impl Service {
             .metadata()
             .get("authorization")
             .and_then(|value| value.to_str().ok());
-        let principal = self
-            .verifier
-            .verify(authorization)
-            .await
-            .map_err(|err| Status::unauthenticated(err.to_string()))?;
-        if !principal.may(Access::Read, &repo.org_id) {
-            return Err(Status::not_found("the repository doesn't exist"));
+        let (repo, _) = self
+            .0
+            .open(authorization, &repo.org_id, &repo.repo_id, access)
+            .await?;
+        Ok(repo)
+    }
+}
+
+impl From<Refused> for Status {
+    fn from(err: Refused) -> Self {
+        match err {
+            Refused::Unauthenticated(_) => Status::unauthenticated(err.to_string()),
+            Refused::Forbidden => Status::permission_denied(err.to_string()),
+            Refused::Repo(err) => status(err),
         }
-        if !principal.may(access, &repo.org_id) {
-            return Err(Status::permission_denied("the token doesn't allow this"));
-        }
-        self.repos.get(&repo.org_id, &repo.repo_id).map_err(status)
     }
 }
 
