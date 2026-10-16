@@ -35,8 +35,9 @@ spec:
 {{- end }}
 {{- if and .Values.ingress.enabled .Values.vcs.sync.store }}
 ---
-# sync/v1 on the same host, without the middlewares, since jf sends a bearer
-# token that vcs verifies itself and passes no login page. Traefik routes the
+# sync/v1 on the same host, with syncMiddlewares in place of the middlewares,
+# since jf sends a bearer token that vcs verifies itself and passes no login
+# page. Traefik routes the
 # longer path here and the rest to the server.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -46,6 +47,9 @@ metadata:
     {{- include "jjforge.labels" . | nindent 4 }}
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    {{- with .Values.ingress.syncMiddlewares }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ range $i, $name := . }}{{ if $i }},{{ end }}{{ $.Release.Namespace }}-{{ $name }}@kubernetescrd{{ end }}
+    {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   {{- if .Values.ingress.tls.enabled }}

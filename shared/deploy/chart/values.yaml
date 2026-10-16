@@ -55,6 +55,9 @@ ingress:
   # Traefik Middlewares in the release's namespace that every request passes,
   # such as [github-login].
   middlewares: []
+  # The Middlewares of /sync/v1, which jf reaches with a bearer token and no
+  # login page, such as [no-cookies].
+  syncMiddlewares: []
   tls:
     enabled: true
     secretName: jjforge-tls
