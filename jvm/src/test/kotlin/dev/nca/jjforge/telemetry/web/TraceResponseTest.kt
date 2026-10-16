@@ -1,6 +1,7 @@
 package dev.nca.jjforge.telemetry.web
 
 import dev.nca.jjforge.TestcontainersConfiguration
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
@@ -33,6 +34,20 @@ class TraceResponseTest
                     .exchange { _, response -> response.headers.getFirst("traceresponse") }
 
             assertEquals(TRACE, response?.split("-")?.get(1))
+        }
+
+        @Test
+        fun `a caller can't turn off its trace`() {
+            val response =
+                RestClient
+                    .create("http://localhost:$port")
+                    .get()
+                    .uri("/api/v1/orgs")
+                    .header("traceparent", "00-$TRACE-00f067aa0ba902b7-00")
+                    .exchange { _, response -> response.headers.getFirst("traceresponse") }
+
+            assertEquals(TRACE, response?.split("-")?.get(1))
+            assertEquals("01", response?.split("-")?.get(3))
         }
 
         private companion object {
