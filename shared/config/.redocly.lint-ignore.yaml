@@ -1,9 +1,9 @@
 # Deliberate exceptions to shared/config/redocly.yaml.
-../openapi.yaml:
+../api/auth/paths.yaml:
   # A browser sign-in only ever redirects.
   operation-2xx-response:
-    - "#/paths/~1oauth~1authorize/get/responses"
-  # The activity stream's events. OpenAPI 3.1 can't reference a schema from a
-  # text/event-stream response, so only the operation's description names it.
-  no-unused-components:
-    - "#/components/schemas/Activity"
+    - "#/authorize/get/responses"
+  # Takes the bearer token but lists no 401. Open until #11 says whether
+  # revocation needs a token.
+  rule/authenticated-answers-401:
+    - "#/revoke/post/responses"

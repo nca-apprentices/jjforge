@@ -1,9 +1,0 @@
-# `mise run api:build` compiles src/main.tsp, the tspMain of package.json, to
-# shared/openapi.yaml.
-emit:
-  - "@typespec/openapi3"
-options:
-  "@typespec/openapi3":
-    openapi-versions: ["3.1.0"]
-    emitter-output-dir: "{project-root}/.."
-    output-file: "openapi.yaml"

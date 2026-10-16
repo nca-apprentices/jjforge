@@ -50,7 +50,10 @@ design half.
    of every refusal and the exit code that `shared/docs/cli.md` gives it. A
    Bats file loads `forge` for its helpers.
 8. **Contract.** Change `shared/api/` and `shared/proto/` until every assert
-   is expressible. Change the contract, never the scenario.
+   is expressible. Change the contract, never the scenario. A REST operation
+   goes in the `paths.yaml` of its aspect, and `shared/api/openapi.yaml`
+   references its path. Each parameter, header, and body carries an example
+   that uses the values of the scenario.
 9. **Unknowns.** Each question the page can't answer yet goes under
    `## Open questions` with the issue that answers it.
 10. **Check.** `mise run prose`, `mise run lint`, and `mise run api:breaking`

@@ -1,0 +1,95 @@
+# Each failure answers a Problem as application/problem+json, so an operation
+# lists only the statuses it can answer. The OAuth endpoints answer the JSON
+# error of RFC 6749 instead.
+Ambiguous:
+  description: The revision matches more than one change. Code `rev_ambiguous`, with `candidates`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: schemas.yaml#/Problem
+      example:
+        code: rev_ambiguous
+        title: The revision matches more than one change
+        status: 422
+        candidates:
+          - changeId: kmzvqrtsnpwlyxuo
+            commitId: 5e1c9a7b3d2f4e6a8b0c1d2e3f4a5b6c7d8e9f01
+            description: "Add the sync endpoint\n"
+            author:
+              name: Alice
+              email: alice@example.com
+              time: "2026-10-14T16:20:00Z"
+            parents:
+              - a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5
+            conflicted: false
+            bookmarks:
+              - main
+
+Conflict:
+  description: Conflicts with the current state. Code `name_taken` or `precondition_failed`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: schemas.yaml#/Problem
+      example:
+        code: name_taken
+        title: The name is taken
+        status: 409
+        detail: An organization named acme exists.
+
+Forbidden:
+  description: The token doesn't allow this. Code `forbidden`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: schemas.yaml#/Problem
+      example:
+        code: forbidden
+        title: The token doesn't allow this
+        status: 403
+
+Invalid:
+  description: The request is malformed. Code `invalid`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: schemas.yaml#/Problem
+      example:
+        code: invalid
+        title: The request is malformed
+        status: 400
+        detail: name must match ^[a-z0-9][a-z0-9-]{0,38}$.
+
+NotFound:
+  description: |-
+    Not found, or not visible to the principal. Code `not_found`,
+    `rev_not_found`, or `path_not_found`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: schemas.yaml#/Problem
+      example:
+        code: not_found
+        title: Not found
+        status: 404
+
+OAuthFailure:
+  description: An OAuth error (RFC 6749, section 5.2).
+  content:
+    application/json:
+      schema:
+        $ref: ../auth/schemas.yaml#/OAuthError
+      example:
+        error: authorization_pending
+        error_description: The user hasn't approved the device yet.
+
+Unauthenticated:
+  description: No valid token. Code `unauthenticated`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: schemas.yaml#/Problem
+      example:
+        code: unauthenticated
+        title: No valid token
+        status: 401

@@ -6,12 +6,12 @@
 # deployed as a second thing to keep in sync.
 FROM node:24.21.0-slim AS web
 RUN corepack enable
-# The web install generates the API client from the compiled contract, so the
-# contract is compiled first. Corepack reads the pinned pnpm version from the
+# The web install generates the API client from the bundled contract, so the
+# contract is bundled first. Corepack reads the pinned pnpm version from the
 # working directory, so each package is built from its own.
 WORKDIR /src/shared/api
 COPY shared/api ./
-RUN pnpm install --frozen-lockfile && pnpm exec tsp compile .
+RUN pnpm install --frozen-lockfile && pnpm exec redocly bundle openapi.yaml --output ../openapi.yaml
 WORKDIR /src/web
 COPY web ./
 RUN pnpm install --frozen-lockfile && pnpm build

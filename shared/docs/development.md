@@ -37,8 +37,9 @@ mise run rust:test    # cargo test
 The REST contract has its own tasks:
 
 ```text
-mise run api:build     # compile shared/api/ to shared/openapi.yaml
-mise run api:lint      # TypeSpec formatting, then Redocly
+mise run api:build     # bundle shared/api/ into shared/openapi.yaml
+mise run api:lint      # Redocly, with the rules in shared/config/redocly.yaml
+mise run api:redocly   # the pinned Redocly CLI with this config, as in `api:redocly lint`
 mise run api:breaking  # compare the REST contract with main using oasdiff
 ```
 

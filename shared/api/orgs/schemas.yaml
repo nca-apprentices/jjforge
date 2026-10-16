@@ -1,0 +1,140 @@
+AccessRecord:
+  type: object
+  required:
+    - id
+    - time
+    - principal
+    - action
+    - resource
+    - decision
+    - policy
+  properties:
+    id:
+      type: string
+      format: uuid
+    time:
+      type: string
+      format: date-time
+    principal:
+      $ref: ../auth/schemas.yaml#/Principal
+    action:
+      type: string
+    resource:
+      type: string
+    decision:
+      type: string
+      enum:
+        - allow
+        - deny
+    policy:
+      type: string
+      description: The policy that decided.
+
+AccessRecordPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/AccessRecord
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
+
+IdentityProvider:
+  type: object
+  required:
+    - issuer
+    - clientId
+  properties:
+    issuer:
+      type: string
+      format: uri
+    clientId:
+      type: string
+      maxLength: 256
+    clientSecret:
+      type: string
+      writeOnly: true
+      maxLength: 1024
+  description: The OpenID Connect provider that signs in the organization's members.
+
+Member:
+  type: object
+  required:
+    - principal
+    - role
+  properties:
+    principal:
+      $ref: ../auth/schemas.yaml#/Principal
+    role:
+      $ref: schemas.yaml#/Role
+  description: A principal and its role in the organization.
+
+MemberPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/Member
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
+
+MemberUpdate:
+  type: object
+  required:
+    - role
+  properties:
+    role:
+      $ref: schemas.yaml#/Role
+  description: The role to give a member.
+
+Org:
+  type: object
+  required:
+    - id
+    - name
+    - role
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      $ref: ../common/schemas.yaml#/Name
+    role:
+      $ref: schemas.yaml#/Role
+  description: An organization and the principal's role in it.
+
+OrgCreate:
+  type: object
+  required:
+    - name
+  properties:
+    name:
+      $ref: ../common/schemas.yaml#/Name
+  description: The name of a new organization.
+
+OrgPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/Org
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
+
+Role:
+  type: string
+  enum:
+    - owner
+    - member

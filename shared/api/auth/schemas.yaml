@@ -1,0 +1,238 @@
+AuthorizationServerMetadata:
+  type: object
+  required:
+    - issuer
+    - authorization_endpoint
+    - token_endpoint
+    - device_authorization_endpoint
+    - revocation_endpoint
+    - keys_uri
+  properties:
+    issuer:
+      type: string
+      format: uri
+    authorization_endpoint:
+      type: string
+      format: uri
+    token_endpoint:
+      type: string
+      format: uri
+    device_authorization_endpoint:
+      type: string
+      format: uri
+    revocation_endpoint:
+      type: string
+      format: uri
+    keys_uri:
+      type: string
+      format: uri
+    scopes_supported:
+      type: array
+      items:
+        type: string
+  description: The OAuth endpoints of this forge (RFC 8414).
+
+DeviceAuthorization:
+  type: object
+  required:
+    - device_code
+    - user_code
+    - verification_uri
+    - expires_in
+    - interval
+  properties:
+    device_code:
+      type: string
+    user_code:
+      type: string
+    verification_uri:
+      type: string
+      format: uri
+    verification_uri_complete:
+      type: string
+      format: uri
+    expires_in:
+      type: integer
+    interval:
+      type: integer
+  description: A pending device sign-in and the code its user confirms (RFC 8628).
+
+DeviceAuthorizationRequest:
+  type: object
+  required:
+    - client_id
+  properties:
+    client_id:
+      type: string
+      maxLength: 256
+    scope:
+      type: string
+      maxLength: 256
+  description: The client that starts a device sign-in.
+
+KeySet:
+  type: object
+  required:
+    - keys
+  properties:
+    keys:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          algorithm:
+            type: string
+            enum:
+              - ed25519
+          publicKey:
+            type: string
+            description: Hex-encoded.
+          expiresAt:
+            type: string
+            format: date-time
+        required:
+          - id
+          - algorithm
+          - publicKey
+  description: The Ed25519 keys that sign tokens, the current one and the next.
+
+OAuthError:
+  type: object
+  required:
+    - error
+  properties:
+    error:
+      type: string
+    error_description:
+      type: string
+  description: An OAuth error (RFC 6749, section 5.2).
+
+Principal:
+  type: object
+  required:
+    - id
+    - kind
+    - name
+  properties:
+    id:
+      type: string
+      format: uuid
+    kind:
+      type: string
+      enum:
+        - human
+        - agent
+        - component
+        - workload
+    name:
+      type: string
+  description: A human, an agent, a component, or a workload that acts on the forge.
+
+RevocationRequest:
+  type: object
+  required:
+    - token
+  properties:
+    token:
+      type: string
+      maxLength: 4096
+    token_type_hint:
+      type: string
+      enum:
+        - access_token
+        - refresh_token
+  description: The token to revoke (RFC 7009).
+
+Session:
+  type: object
+  required:
+    - id
+    - client
+    - createdAt
+    - lastUsedAt
+    - current
+  properties:
+    id:
+      type: string
+      format: uuid
+    client:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    lastUsedAt:
+      type: string
+      format: date-time
+    current:
+      type: boolean
+
+SessionPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/Session
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
+
+Token:
+  type: object
+  required:
+    - access_token
+    - token_type
+    - expires_in
+  properties:
+    access_token:
+      type: string
+    token_type:
+      type: string
+      enum:
+        - Bearer
+    expires_in:
+      type: integer
+    refresh_token:
+      type: string
+    scope:
+      type: string
+  description: An access token, and a refresh token when the grant allows one.
+
+TokenRequest:
+  type: object
+  required:
+    - grant_type
+    - client_id
+  properties:
+    grant_type:
+      type: string
+      enum:
+        - authorization_code
+        - refresh_token
+        - urn:ietf:params:oauth:grant-type:device_code
+    client_id:
+      type: string
+      maxLength: 256
+    code:
+      type: string
+      maxLength: 512
+    redirect_uri:
+      type: string
+      format: uri
+    code_verifier:
+      type: string
+      pattern: ^[A-Za-z0-9._~-]{43,128}$
+    device_code:
+      type: string
+      maxLength: 512
+    refresh_token:
+      type: string
+      maxLength: 4096
+    scope:
+      type: string
+      maxLength: 256
+  description: A grant to exchange for a token. The grant type names the fields it needs.

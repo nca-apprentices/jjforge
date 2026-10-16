@@ -1,0 +1,231 @@
+orgs:
+  get:
+    tags:
+      - orgs
+    operationId: listOrgs
+    summary: List the organizations the principal belongs to
+    parameters:
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      "200":
+        description: One page of organizations.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/OrgPage
+            example:
+              items:
+                - &acme
+                  id: 3f1a2b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b
+                  name: acme
+                  role: owner
+              next: b3JnOmFjbWU
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+  post:
+    tags:
+      - orgs
+    operationId: createOrg
+    summary: Create an organization, owned by the principal
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: schemas.yaml#/OrgCreate
+          example:
+            name: acme
+    responses:
+      "201":
+        description: Created.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/Org
+            example: *acme
+      "400":
+        $ref: ../common/responses.yaml#/Invalid
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "409":
+        $ref: ../common/responses.yaml#/Conflict
+
+org:
+  get:
+    tags:
+      - orgs
+    operationId: getOrg
+    summary: Show one organization
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+    responses:
+      "200":
+        description: The organization.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/Org
+            example: *acme
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+
+access-records:
+  get:
+    tags:
+      - orgs
+    operationId: listAccessRecords
+    summary: List the organization's access decisions, newest first
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      "200":
+        description: One page of access records.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/AccessRecordPage
+            example:
+              items:
+                - id: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+                  time: "2026-10-16T07:30:00Z"
+                  principal: &releaseBot
+                    id: 6e2d4a8c-1f3b-4c9e-8d7a-5b0f2e4c6a91
+                    kind: agent
+                    name: release-bot
+                  action: repo.push
+                  resource: acme/forge
+                  decision: deny
+                  policy: agents-push-to-own-bookmarks
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "403":
+        $ref: ../common/responses.yaml#/Forbidden
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+
+identity-provider:
+  put:
+    tags:
+      - orgs
+    operationId: setIdentityProvider
+    summary: Connect the organization's identity provider
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: schemas.yaml#/IdentityProvider
+          example:
+            issuer: https://login.acme.example
+            clientId: jjforge
+            clientSecret: s3cr3t
+    responses:
+      "200":
+        description: Verified and saved.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/IdentityProvider
+            example:
+              issuer: https://login.acme.example
+              clientId: jjforge
+      "400":
+        $ref: ../common/responses.yaml#/Invalid
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "403":
+        $ref: ../common/responses.yaml#/Forbidden
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+
+members:
+  get:
+    tags:
+      - orgs
+    operationId: listMembers
+    summary: List the organization's members and their roles
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      "200":
+        description: One page of members.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/MemberPage
+            example:
+              items:
+                - principal:
+                    id: 0b9f6c1e-4d2a-4f8e-9a51-3c7d2e8b6a10
+                    kind: human
+                    name: alice
+                  role: owner
+                - principal: *releaseBot
+                  role: member
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+
+member:
+  put:
+    tags:
+      - orgs
+    operationId: putMember
+    summary: Add a member or change their role
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Principal
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: schemas.yaml#/MemberUpdate
+          example:
+            role: member
+    responses:
+      "200":
+        description: The member with their role.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/Member
+            example:
+              principal: *releaseBot
+              role: member
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "403":
+        $ref: ../common/responses.yaml#/Forbidden
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+  delete:
+    tags:
+      - orgs
+    operationId: removeMember
+    summary: Remove a member
+    description: Removing the last owner fails with `precondition_failed`.
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Principal
+    responses:
+      "204":
+        description: There is no content to send for this request, but the headers may be useful.
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "403":
+        $ref: ../common/responses.yaml#/Forbidden
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+      "409":
+        $ref: ../common/responses.yaml#/Conflict

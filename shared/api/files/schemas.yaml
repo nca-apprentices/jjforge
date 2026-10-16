@@ -1,0 +1,144 @@
+# OpenAPI 3.1 writes bytes as contentMediaType, which the generators map to an
+# untyped body. `format: binary` keeps them on byte arrays.
+Binary:
+  type: string
+  format: binary
+  description: Raw file content.
+
+ConflictedFile:
+  type: object
+  required:
+    - path
+    - sides
+  properties:
+    path:
+      type: string
+    sides:
+      type: array
+      items:
+        type: object
+        properties:
+          kind:
+            type: string
+            enum:
+              - add
+              - remove
+          binary:
+            type: boolean
+          content:
+            type: string
+            description: Absent for binary content.
+        required:
+          - kind
+          - binary
+  description: A conflicted file as the sides that jj records for it.
+
+FileDiff:
+  type: object
+  required:
+    - path
+    - status
+    - binary
+    - hunks
+  properties:
+    path:
+      type: string
+    oldPath:
+      type: string
+      description: Set for a rename.
+    status:
+      type: string
+      enum:
+        - added
+        - modified
+        - deleted
+        - renamed
+    binary:
+      type: boolean
+      description: True when the content isn't shown as text.
+    hunks:
+      type: array
+      items:
+        $ref: schemas.yaml#/Hunk
+
+FileDiffPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/FileDiff
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
+
+Hunk:
+  type: object
+  required:
+    - oldStart
+    - oldLines
+    - newStart
+    - newLines
+    - lines
+  properties:
+    oldStart:
+      type: integer
+    oldLines:
+      type: integer
+    newStart:
+      type: integer
+    newLines:
+      type: integer
+    lines:
+      type: array
+      items:
+        type: object
+        properties:
+          kind:
+            type: string
+            enum:
+              - context
+              - added
+              - removed
+          text:
+            type: string
+        required:
+          - kind
+          - text
+
+TreeEntry:
+  type: object
+  required:
+    - name
+    - path
+    - kind
+  properties:
+    name:
+      type: string
+    path:
+      type: string
+    kind:
+      type: string
+      enum:
+        - file
+        - directory
+        - symlink
+        - submodule
+    size:
+      type: integer
+      format: int64
+
+TreeEntryPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/TreeEntry
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
