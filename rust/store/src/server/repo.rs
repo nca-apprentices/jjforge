@@ -333,6 +333,9 @@ impl Repo {
 
         let mut catalog = self.catalog.write().await;
         if !met_known {
+            if !catalog.operations.is_empty() {
+                tracing::warn!(operations = catalog.operations.len(), "catalog starts over");
+            }
             *catalog = Catalog::default();
         }
         tracing::Span::current().record("jjforge.operations.read", seen.len());

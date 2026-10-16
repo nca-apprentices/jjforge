@@ -21,6 +21,8 @@ pub mod server;
 mod codec;
 mod ids;
 mod jj;
+#[cfg(test)]
+mod testing;
 
 pub use ids::InvalidId;
 pub use ids::ObjectId;

@@ -129,6 +129,9 @@ pub(crate) async fn as_problem(response: Response) -> Response {
         .unwrap_or_default();
     let detail = String::from_utf8_lossy(&body).into_owned();
     if status.is_server_error() {
+        // A server error writes a line, so it outlasts a trace that is
+        // sampled out or lost, as ADR 0005 decides.
+        tracing::error!(status = status.as_u16(), %detail, "request failed");
         return Problem::internal(status, detail).into_response();
     }
     Problem::new(status, "invalid", detail).into_response()
@@ -142,5 +145,29 @@ pub(crate) fn etag(operation_id: &[u8]) -> String {
 pub(crate) fn set_etag(response: &mut Response, head: OperationId) {
     if let Ok(tag) = HeaderValue::try_from(etag(head.as_bytes())) {
         response.headers_mut().insert(header::ETAG, tag);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tracing::Instrument as _;
+
+    use super::*;
+    use crate::telemetry::events;
+    use crate::telemetry::finished_spans;
+
+    #[tokio::test]
+    async fn a_server_error_that_axum_answers_writes_a_line() {
+        let response = StatusCode::INTERNAL_SERVER_ERROR.into_response();
+
+        let (response, spans) = finished_spans(async {
+            as_problem(response)
+                .instrument(tracing::info_span!("request"))
+                .await
+        })
+        .await;
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(events(&spans), ["request failed"]);
     }
 }

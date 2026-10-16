@@ -291,6 +291,7 @@ impl Verifier {
             return;
         }
         *reloaded = Some(Instant::now());
+        tracing::info!(issuers = self.issuers.len(), "key sets reload");
 
         for Issuer { org, url: issuer } in &self.issuers {
             match self.key_set(issuer).await {

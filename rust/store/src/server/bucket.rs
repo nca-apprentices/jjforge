@@ -177,6 +177,7 @@ impl Bucket {
             let current = self.get(key).await?.map(|tagged| tagged.bytes);
             if current != expected.map(|tagged| tagged.bytes.clone()) {
                 tracing::Span::current().record("jjforge.object_store.swap", Swap::Lost.name());
+                tracing::info!("swap lost");
                 return Ok(Swap::Lost);
             }
             self.store.put(&path, payload).await
@@ -200,6 +201,9 @@ impl Bucket {
             Err(err) => return Err(err),
         };
         tracing::Span::current().record("jjforge.object_store.swap", swap.name());
+        if matches!(swap, Swap::Lost) {
+            tracing::info!("swap lost");
+        }
         Ok(swap)
     }
 
@@ -240,6 +244,7 @@ impl Bucket {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::messages_of;
 
     fn memory() -> Bucket {
         Bucket::open(&Url::parse("memory:///").unwrap()).unwrap()
@@ -277,6 +282,16 @@ mod tests {
             ));
             assert_eq!(bucket.get("HEAD").await.unwrap().unwrap().bytes, b"2");
         }
+    }
+
+    #[tokio::test]
+    async fn a_lost_swap_shows_in_the_trace() {
+        let bucket = memory();
+        bucket.swap("HEAD", None, b"1".to_vec()).await.unwrap();
+
+        let (_, messages) = messages_of(bucket.swap("HEAD", None, b"2".to_vec())).await;
+
+        assert_eq!(messages, ["swap lost"]);
     }
 
     #[tokio::test]

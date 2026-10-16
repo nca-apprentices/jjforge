@@ -214,23 +214,59 @@ impl Visit for Fields {
 }
 
 /// Runs `future` under a subscriber that keeps the spans it finishes, so a
-/// test can read what a request recorded.
+/// test can read what a request recorded. It fails the test when an event
+/// fires outside a span, because every request must be traceable, as ADR
+/// 0005 decides.
 #[cfg(test)]
 pub(crate) async fn finished_spans<F: std::future::Future>(
     future: F,
 ) -> (F::Output, Vec<opentelemetry_sdk::trace::SpanData>) {
     use tracing::instrument::WithSubscriber as _;
 
+    // A request continues its caller's trace only through the propagator
+    // that `install` sets.
+    opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
     let exporter = opentelemetry_sdk::trace::InMemorySpanExporter::default();
     let provider = SdkTracerProvider::builder()
         .with_simple_exporter(exporter.clone())
         .build();
+    let orphans = Orphans::default();
     let subscriber = tracing_subscriber::registry()
-        .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")));
+        .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")))
+        .with(orphans.clone());
     let output = future.with_subscriber(subscriber).await;
     #[allow(clippy::unwrap_used, reason = "only tests call it")]
     let spans = exporter.get_finished_spans().unwrap();
+    #[allow(clippy::unwrap_used, reason = "only tests call it")]
+    let orphans = orphans.0.lock().unwrap();
+    assert!(orphans.is_empty(), "events outside a span: {orphans:?}");
     (output, spans)
+}
+
+/// The targets of the events that fired outside any span.
+#[cfg(test)]
+#[derive(Clone, Default)]
+struct Orphans(std::sync::Arc<std::sync::Mutex<Vec<String>>>);
+
+#[cfg(test)]
+impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for Orphans {
+    fn on_event(&self, event: &Event<'_>, ctx: layer::Context<'_, S>) {
+        if ctx.event_span(event).is_none()
+            && let Ok(mut orphans) = self.0.lock()
+        {
+            orphans.push(event.metadata().target().to_owned());
+        }
+    }
+}
+
+/// The names of the events on `spans`.
+#[cfg(test)]
+pub(crate) fn events(spans: &[opentelemetry_sdk::trace::SpanData]) -> Vec<String> {
+    spans
+        .iter()
+        .flat_map(|span| span.events.iter())
+        .map(|event| event.name.to_string())
+        .collect()
 }
 
 /// The value of `key` on any of `spans`.

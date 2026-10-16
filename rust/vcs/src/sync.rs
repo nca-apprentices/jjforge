@@ -554,4 +554,73 @@ mod tests {
             Some("get")
         );
     }
+
+    #[tokio::test]
+    async fn every_route_is_traceable_with_its_org_repo_and_principal() {
+        const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
+        let fixture = fixture().await;
+        let app = fixture
+            .router
+            .clone()
+            .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
+        let id = "07".repeat(32);
+        let routes = [
+            ("GET", "head".to_owned()),
+            ("GET", "operations".to_owned()),
+            ("POST", "objects/missing".to_owned()),
+            ("POST", "objects/fetch".to_owned()),
+            ("GET", format!("objects/{id}")),
+            ("POST", "objects".to_owned()),
+            ("POST", "publish".to_owned()),
+        ];
+
+        for (method, route) in routes {
+            let request = Request::builder()
+                .method(method)
+                .uri(format!("/sync/v1/acme/demo/{route}"))
+                .header("traceparent", format!("00-{TRACE}-00f067aa0ba902b7-01"))
+                .header(
+                    header::AUTHORIZATION,
+                    format!("Bearer {}", token(&fixture, "sync:write:acme")),
+                )
+                .body(Body::empty())
+                .unwrap();
+
+            let (_, spans) = crate::telemetry::finished_spans(app.clone().oneshot(request)).await;
+
+            assert!(
+                spans
+                    .iter()
+                    .all(|span| span.span_context.trace_id().to_string() == TRACE),
+                "{route}"
+            );
+            for (key, value) in [
+                ("jjforge.org.id", "acme"),
+                ("jjforge.repo.id", "demo"),
+                ("jjforge.principal.id", "ada"),
+            ] {
+                assert_eq!(
+                    crate::telemetry::attribute(&spans, key).as_deref(),
+                    Some(value),
+                    "{route}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_request_that_reloads_the_key_sets_shows_it() {
+        let fixture = fixture().await;
+        let app = fixture
+            .router
+            .clone()
+            .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
+
+        let (_, spans) = crate::telemetry::finished_spans(
+            app.oneshot(get_head(&fixture, Some("sync:read:acme"))),
+        )
+        .await;
+
+        assert!(crate::telemetry::events(&spans).contains(&"key sets reload".to_owned()));
+    }
 }

@@ -45,6 +45,7 @@ use jjforge_store::server::Author;
 use jjforge_store::server::Repo;
 use jjforge_store::server::Repos;
 use tempfile::TempDir;
+use tracing_subscriber::layer::SubscriberExt as _;
 use url::Url;
 
 /// The forge repository, called as `jf` would call it over HTTP.
@@ -795,7 +796,40 @@ fn a_replica_forgets_a_deleted_repository() {
     runtime.block_on(forge.repo.delete()).unwrap();
     runtime.block_on(forge.repo.create()).unwrap();
 
-    assert_eq!(runtime.block_on(other.missing(&[id])).unwrap(), [id]);
+    let messages = Messages::default();
+    let subscriber = tracing_subscriber::registry().with(messages.clone());
+    let missing = tracing::subscriber::with_default(subscriber, || {
+        runtime.block_on(other.missing(&[id])).unwrap()
+    });
+    assert_eq!(missing, [id]);
+    assert!(
+        messages
+            .0
+            .lock()
+            .unwrap()
+            .contains(&"catalog starts over".to_owned()),
+        "the trace shows that the replica dropped what it knew"
+    );
+}
+
+/// Keeps the message of each event, so a test can check what a trace shows.
+#[derive(Clone, Default)]
+struct Messages(Arc<std::sync::Mutex<Vec<String>>>);
+
+impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for Messages {
+    fn on_event(&self, event: &tracing::Event<'_>, _: tracing_subscriber::layer::Context<'_, S>) {
+        struct Message(String);
+        impl tracing::field::Visit for Message {
+            fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+                if field.name() == "message" {
+                    self.0 = format!("{value:?}");
+                }
+            }
+        }
+        let mut message = Message(String::new());
+        event.record(&mut message);
+        self.0.lock().unwrap().push(message.0);
+    }
 }
 
 #[test]

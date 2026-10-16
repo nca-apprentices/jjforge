@@ -153,40 +153,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_call_names_its_org_repo_and_principal() {
+    async fn every_call_is_traceable_with_its_org_repo_and_principal() {
+        const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
         let key = TestKey::new();
         let issuer = issuer_with("acme", &key).await;
         let cache = tempfile::tempdir().unwrap();
         let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path()).unwrap();
-        repos.get("acme", "demo").unwrap().create().await.unwrap();
         let verifier = Verifier::new(vec![Issuer::new("acme", issuer.clone())]).unwrap();
         let mut service = OtelGrpcLayer::default()
             .layer(RepoServiceServer::new(Service(Gate::new(repos, verifier))));
-        let body = frame(&GetHeadRequest {
-            repo: Some(RepoRef {
+        let token = token_with(&issuer, &key, "sync:admin:acme sync:read:acme");
+        let repo = || {
+            Some(RepoRef {
                 org_id: "acme".to_owned(),
                 repo_id: "demo".to_owned(),
-            }),
-        });
-        let request = http::Request::post("/source.v1.RepoService/GetHead")
-            .header("content-type", "application/grpc")
-            .header(
-                "authorization",
-                format!("Bearer {}", token_with(&issuer, &key, "sync:read:acme")),
-            )
-            .body(tonic::body::Body::new(axum::body::Body::from(body)))
-            .unwrap();
+            })
+        };
+        let calls = [
+            ("CreateRepo", frame(&CreateRepoRequest { repo: repo() })),
+            ("GetHead", frame(&GetHeadRequest { repo: repo() })),
+            ("DeleteRepo", frame(&DeleteRepoRequest { repo: repo() })),
+        ];
 
-        let (_, spans) = finished_spans(service.call(request)).await;
+        for (method, body) in calls {
+            let request = http::Request::post(format!("/source.v1.RepoService/{method}"))
+                .header("content-type", "application/grpc")
+                .header("traceparent", format!("00-{TRACE}-00f067aa0ba902b7-01"))
+                .header("authorization", format!("Bearer {token}"))
+                .body(tonic::body::Body::new(axum::body::Body::from(body)))
+                .unwrap();
 
-        assert_eq!(attribute(&spans, "jjforge.org.id").as_deref(), Some("acme"));
-        assert_eq!(
-            attribute(&spans, "jjforge.repo.id").as_deref(),
-            Some("demo")
-        );
-        assert_eq!(
-            attribute(&spans, "jjforge.principal.id").as_deref(),
-            Some("ada")
-        );
+            let (_, spans) = finished_spans(service.call(request)).await;
+
+            assert!(
+                spans
+                    .iter()
+                    .all(|span| span.span_context.trace_id().to_string() == TRACE),
+                "{method}"
+            );
+            for (key, value) in [
+                ("jjforge.org.id", "acme"),
+                ("jjforge.repo.id", "demo"),
+                ("jjforge.principal.id", "ada"),
+            ] {
+                assert_eq!(attribute(&spans, key).as_deref(), Some(value), "{method}");
+            }
+        }
     }
 }
