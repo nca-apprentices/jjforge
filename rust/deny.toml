@@ -27,23 +27,17 @@ allow = [
 crate = "option-ext"
 allow = ["MPL-2.0"]
 
-# The gRPC trace layer of vcs is in the public domain.
-[[licenses.exceptions]]
-crate = "tonic-tracing-opentelemetry"
-allow = ["CC0-1.0"]
-
-[[licenses.exceptions]]
-crate = "tracing-opentelemetry-instrumentation-sdk"
-allow = ["CC0-1.0"]
-
 [bans]
 # Two versions of one crate build slower but work, so they only warn.
 multiple-versions = "warn"
 wildcards = "deny"
 allow-wildcard-paths = true
-# Each layer reaches jj-lib only through the one above it, as ADR 0003
-# decides.
-deny = [{ crate = "jj-lib", wrappers = ["jj-cli", "jjforge-store"] }]
+# Each layer reaches jj-lib and the object store only through the one above
+# it, as ADR 0003 decides.
+deny = [
+  { crate = "jj-lib", wrappers = ["jj-cli", "jjforge-store"] },
+  { crate = "object_store", wrappers = ["jjforge-store"] },
+]
 
 [sources]
 unknown-registry = "deny"

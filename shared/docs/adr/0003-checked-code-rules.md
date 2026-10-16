@@ -14,6 +14,9 @@ rule a tool checked.
 | Konsist for the server's architecture rules | Reads Kotlin source, and predates Kotlin 2.4                 |
 | ArchUnit                                    | Reads compiled classes. Spring Modulith builds on it. Chosen |
 
+The store crate serves two crates, `jf` and vcs, and its flat root mixed
+the API of each. Each crate couldn't tell which items were its own.
+
 The REST contract, written by hand in `shared/openapi.yaml`, repeated every
 page schema and error response. An operation that no controller served
 answered 404, which looks like a typo, not like work to do.
@@ -138,16 +141,17 @@ its own.
 
 ### vcs and `jf`, in `mise run rust:lint`
 
-| Rule                                                                                                                | Check                               |
-| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| Settings come from flags or the environment into one struct. An invalid value stops the binary with a usage message | clap                                |
-| No `unwrap` or `expect` outside tests, no `unsafe`, and the `pedantic` group denied                                 | clippy                              |
-| No rustdoc warning                                                                                                  | rustdoc                             |
-| No unused dependency                                                                                                | cargo-machete                       |
-| No disallowed license, security advisory, or unknown source                                                         | cargo-deny                          |
-| A crate is a module, and its root declares its API. A module declares its submodules with `mod`, never `pub mod`    | `rg`, outside the generated `proto` |
-| An item outside a crate's API is `pub(crate)` or private                                                            | the `unreachable_pub` lint          |
-| Only jj-cli and the store crate of ADR 0001 depend on jj-lib                                                        | cargo-deny `wrappers`               |
+| Rule                                                                                                                                                                                                                           | Check                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| Settings come from flags or the environment into one struct. An invalid value stops the binary with a usage message                                                                                                            | clap                                                           |
+| No `unwrap` or `expect` outside tests, no `unsafe`, and the `pedantic` group denied                                                                                                                                            | clippy                                                         |
+| No rustdoc warning                                                                                                                                                                                                             | rustdoc                                                        |
+| No unused dependency                                                                                                                                                                                                           | cargo-machete                                                  |
+| No disallowed license, security advisory, or unknown source                                                                                                                                                                    | cargo-deny                                                     |
+| A crate is a module, and its root declares its API. A module declares its submodules with `mod`, never `pub mod`. The store crate's root declares one `pub mod` per crate that uses it: `client` for `jf` and `server` for vcs | `rg`, outside the generated `proto` and the store crate's root |
+| Every public item of the store crate has a doc comment                                                                                                                                                                         | the `missing_docs` lint                                        |
+| An item outside a crate's API is `pub(crate)` or private                                                                                                                                                                       | the `unreachable_pub` lint                                     |
+| Only jj-cli and the store crate of ADR 0001 depend on jj-lib                                                                                                                                                                   | cargo-deny `wrappers`                                          |
 
 ### The web app, in `mise run web:lint`
 

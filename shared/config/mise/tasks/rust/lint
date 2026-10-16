@@ -8,8 +8,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace
 
 # A module keeps its submodules private, so a sibling reaches only its API,
-# as ADR 0003 decides. The generated code in proto/ is exempt.
-if rg --type rust --glob '!proto/**' '^\s*pub(\([^)]*\))?\s+mod\s' .; then
+# as ADR 0003 decides. The generated code in proto/ is exempt, and so is the
+# store crate's root, which holds one module per crate that uses it.
+if rg --type rust --glob '!proto/**' --glob '!store/src/lib.rs' '^\s*pub(\([^)]*\))?\s+mod\s' .; then
   echo "error: declare submodules with \`mod\`, never \`pub mod\`" >&2
   exit 1
 fi

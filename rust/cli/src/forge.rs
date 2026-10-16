@@ -1,11 +1,31 @@
-//! The forge's REST API, as `jf` calls it. Every request carries the trace of
-//! its command, as ADR 0005 decides, so no call names a trace.
+//! The forge's REST API and `sync/v1`, as `jf` calls them. Every request
+//! carries the trace of its command, as ADR 0005 decides, so no call names a
+//! trace.
 
 use std::fmt;
 
+use jjforge_proto::sync::v1::HashList;
+use jjforge_proto::sync::v1::Head;
+use jjforge_proto::sync::v1::ObjectBundle;
+use jjforge_proto::sync::v1::PublishRequest;
+use jjforge_proto::sync::v1::PublishResponse;
+use jjforge_proto::sync::v1::Uploaded;
+use jjforge_store::ObjectId;
+use jjforge_store::OperationId;
+use jjforge_store::Published;
+use jjforge_store::SegmentId;
+use jjforge_store::client::Fetch;
+use jjforge_store::client::Transport;
+use jjforge_store::client::TransportError;
+use prost::Message;
+use reqwest::StatusCode;
 use reqwest::Url;
+use reqwest::header::AUTHORIZATION;
+use reqwest::header::CONTENT_TYPE;
+use reqwest::header::ETAG;
 use reqwest::header::HeaderMap;
 use reqwest::header::HeaderValue;
+use reqwest::header::IF_MATCH;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -22,6 +42,12 @@ pub(crate) struct Client {
     endpoint: Url,
     http: reqwest::Client,
     trace: Trace,
+}
+
+impl fmt::Debug for Trace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
 }
 
 impl Client {
@@ -73,6 +99,194 @@ impl Client {
             .json()
             .await?;
         Ok(answer.message)
+    }
+}
+
+const PROTOBUF: &str = "application/x-protobuf";
+
+/// A failure the forge answered as `application/problem+json`.
+#[derive(Debug, thiserror::Error)]
+#[error("the forge answered {status}: {}", detail.as_deref().unwrap_or(code.as_deref().unwrap_or("no detail")))]
+pub(crate) struct Problem {
+    status: StatusCode,
+    code: Option<String>,
+    detail: Option<String>,
+    /// The forge's head, from the `ETag` of a stale publish.
+    head: Option<OperationId>,
+}
+
+#[derive(Deserialize)]
+struct ProblemBody {
+    code: Option<String>,
+    detail: Option<String>,
+}
+
+/// One repository's `sync/v1`, as the store crate's `Transport` asks. jj-cli
+/// runs commands on its own executor, so each call blocks on a runtime of
+/// its own.
+#[derive(Debug)]
+pub(crate) struct SyncClient {
+    client: Client,
+    base: Url,
+    token: Option<String>,
+    runtime: tokio::runtime::Runtime,
+}
+
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Client({}, trace {})", self.endpoint, self.trace)
+    }
+}
+
+impl SyncClient {
+    /// Calls the repository at the clone address `base`, with the token of
+    /// `JJFORGE_TOKEN` when one is set.
+    pub(crate) fn new(base: Url, token: Option<String>) -> anyhow::Result<Self> {
+        Ok(Self {
+            client: Client::new(base.clone())?,
+            base,
+            token,
+            runtime: tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?,
+        })
+    }
+
+    fn url(&self, path: &str) -> Result<Url, TransportError> {
+        let base = self.base.as_str().trim_end_matches('/');
+        Ok(Url::parse(&format!("{base}/{path}"))?)
+    }
+
+    fn send(&self, request: reqwest::RequestBuilder) -> Result<reqwest::Response, TransportError> {
+        let request = match &self.token {
+            Some(token) => request.header(AUTHORIZATION, format!("Bearer {token}")),
+            None => request,
+        };
+        self.runtime.block_on(async {
+            let response = request.send().await?;
+            if response.status().is_success() {
+                return Ok(response);
+            }
+            Err(problem(response).await.into())
+        })
+    }
+
+    fn post<M: Message + Default>(
+        &self,
+        path: &str,
+        body: &impl Message,
+    ) -> Result<M, TransportError> {
+        let response = self.send(
+            self.client
+                .http
+                .post(self.url(path)?)
+                .header(CONTENT_TYPE, PROTOBUF)
+                .body(body.encode_to_vec()),
+        )?;
+        decode(&self.runtime, response)
+    }
+}
+
+async fn problem(response: reqwest::Response) -> Problem {
+    let status = response.status();
+    let head = response
+        .headers()
+        .get(ETAG)
+        .and_then(|tag| tag.to_str().ok())
+        .and_then(|tag| tag.trim_matches('"').parse().ok());
+    let body: Option<ProblemBody> = response.json().await.ok();
+    Problem {
+        status,
+        code: body.as_ref().and_then(|body| body.code.clone()),
+        detail: body.and_then(|body| body.detail),
+        head,
+    }
+}
+
+fn hash_list(ids: &[ObjectId]) -> HashList {
+    HashList {
+        ids: ids.iter().map(ObjectId::to_vec).collect(),
+    }
+}
+
+fn decode<M: Message + Default>(
+    runtime: &tokio::runtime::Runtime,
+    response: reqwest::Response,
+) -> Result<M, TransportError> {
+    let bytes = runtime.block_on(response.bytes())?;
+    Ok(M::decode(bytes)?)
+}
+
+impl Fetch for SyncClient {
+    fn fetch(&self, ids: &[ObjectId]) -> Result<Vec<Vec<u8>>, TransportError> {
+        let bundle: ObjectBundle = self.post("objects/fetch", &hash_list(ids))?;
+        Ok(bundle.objects)
+    }
+}
+
+impl Transport for SyncClient {
+    fn head(&self) -> Result<OperationId, TransportError> {
+        let response = self.send(self.client.http.get(self.url("head")?))?;
+        let head: Head = decode(&self.runtime, response)?;
+        Ok(OperationId::try_from(head.operation_id.as_slice())?)
+    }
+
+    fn operations(&self, since: Option<OperationId>) -> Result<Vec<Vec<u8>>, TransportError> {
+        let mut url = self.url("operations")?;
+        if let Some(since) = since {
+            url.query_pairs_mut()
+                .append_pair("since", &since.to_string());
+        }
+        let response = self.send(self.client.http.get(url))?;
+        let bundle: ObjectBundle = decode(&self.runtime, response)?;
+        Ok(bundle.objects)
+    }
+
+    fn missing(&self, ids: &[ObjectId]) -> Result<Vec<ObjectId>, TransportError> {
+        let missing: HashList = self.post("objects/missing", &hash_list(ids))?;
+        Ok(missing
+            .ids
+            .iter()
+            .map(|id| ObjectId::try_from(id.as_slice()))
+            .collect::<Result<_, _>>()?)
+    }
+
+    fn upload(&self, objects: Vec<Vec<u8>>) -> Result<SegmentId, TransportError> {
+        let uploaded: Uploaded = self.post("objects", &ObjectBundle { objects })?;
+        Ok(SegmentId::try_from(uploaded.segment_id.as_slice())?)
+    }
+
+    /// Answers a stale head as `Published::Stale` with the head the forge
+    /// names in its `ETag`, as #89 decides.
+    fn publish(&self, request: &PublishRequest) -> Result<Published, TransportError> {
+        let http = self
+            .client
+            .http
+            .post(self.url("publish")?)
+            .header(CONTENT_TYPE, PROTOBUF)
+            .header(
+                IF_MATCH,
+                format!("\"{}\"", hex::encode(&request.expected_operation_id)),
+            )
+            .body(request.encode_to_vec());
+        match self.send(http) {
+            Ok(response) => {
+                let published: PublishResponse = decode(&self.runtime, response)?;
+                Ok(Published::Moved(OperationId::try_from(
+                    published.operation_id.as_slice(),
+                )?))
+            }
+            Err(err) => match err.downcast::<Problem>() {
+                Ok(problem) if problem.status == StatusCode::PRECONDITION_FAILED => {
+                    match problem.head {
+                        Some(head) => Ok(Published::Stale(head)),
+                        None => Err(problem),
+                    }
+                }
+                Ok(problem) => Err(problem),
+                Err(err) => Err(err),
+            },
+        }
     }
 }
 

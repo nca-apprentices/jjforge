@@ -1,6 +1,6 @@
 # 0005. Logs, traces, and metrics through OpenTelemetry
 
-Status: proposed, 2026-10-07. Deciders: jjforge maintainers.
+Status: accepted, 2026-10-16. Deciders: jjforge maintainers.
 
 ## Context
 
@@ -62,20 +62,25 @@ people build on jjforge. This record covers telemetry about jjforge itself.
 
 ### Signals
 
-| Signal | Answers                                                    | Transport            | Store           | Retention                   |
-| ------ | ---------------------------------------------------------- | -------------------- | --------------- | --------------------------- |
-| Trace  | Where one request spent its time, and where it failed      | OTLP                 | VictoriaTraces  | 7 days                      |
-| Metric | How many, how fast, and how full, over time                | Prometheus, scraped  | VictoriaMetrics | 90 days                     |
-| Log    | What a process did that its spans and metrics don't record | JSON lines on stdout | VictoriaLogs    | 30 days                     |
-| Audit  | Who did what                                               | A row and its event  | Postgres        | As long as its organization |
+| Signal | Answers                                                                                 | Transport            | Store           | Retention                   |
+| ------ | --------------------------------------------------------------------------------------- | -------------------- | --------------- | --------------------------- |
+| Trace  | Where one request spent its time, and where it failed                                   | OTLP                 | VictoriaTraces  | 7 days                      |
+| Metric | How many, how fast, and how full, over time                                             | Prometheus, scraped  | VictoriaMetrics | 90 days                     |
+| Log    | What a process did beyond its spans, and one record per request that outlasts its trace | JSON lines on stdout | VictoriaLogs    | 30 days                     |
+| Audit  | Who did what                                                                            | A row and its event  | Postgres        | As long as its organization |
 
-- Telemetry is expendable. A fact that must last, such as who changed what,
-  is a row in Postgres, as [ADR 0002](0002-state-boundaries-and-tokens.md)
-  decides, and never only a log line.
-- The infra repository runs the stores, sets their retention, and opens the
-  network path to them. The chart installs no store.
-- `shared/deploy/compose.yaml` runs VictoriaTraces as the twin of the trace
-  store.
+- Telemetry is expendable. A fact that must last is a Postgres row, as
+  [ADR 0002](0002-state-boundaries-and-tokens.md) decides.
+- The infra repository runs the stores and the network path to them. The
+  chart installs none. `shared/deploy/compose.yaml` runs VictoriaTraces as
+  the twin.
+- No signal holds a secret, a token, a credential header, a request body,
+  repository content, or personal data. A principal appears as its ID. A
+  span and a line name a route's template and leave out the path and query
+  that a caller sent, because the server's paths name an organization and a
+  repository, which may name a person. An object store key holds only IDs
+  and hashes, and SQL runs with parameters. Nothing redacts at the
+  Collector, so the rule rests on the instrumentation.
 
 ### Traces
 
@@ -92,98 +97,146 @@ flowchart LR
     collector --> traces[("VictoriaTraces")]
 ```
 
-- The chart passes `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` to both binaries. A
-  binary without it exports nothing and runs as before.
-- The endpoint is an OpenTelemetry Collector in the infra repository, which
-  every app's namespace reaches. It only receives, because the trace store
-  serves reads and deletes on the port that takes writes.
-- Each binary sets `service.name` to `jjforge-server` or `jjforge-vcs`, and
-  `service.version` to its release. The chart sets
-  `deployment.environment.name` through `OTEL_RESOURCE_ATTRIBUTES`.
-- Every binary propagates W3C Trace Context and nothing else. Baggage stays
-  off, because every binary would forward what a caller sets.
-- Each request a binary serves gets a server span. Each call that leaves the
-  process gets a client span, whether HTTP, gRPC, SQL, or the object store.
-  Spans follow the OpenTelemetry semantic conventions.
-- Tracing is cross-cutting, so no endpoint can forget it. The libraries and
-  one place per binary trace every request, and the checks below refuse
-  tracing code anywhere else.
-- The server uses `spring-boot-starter-opentelemetry`, and Spring gRPC traces
-  its calls to vcs.
-- vcs records spans with `tracing` and exports them through
-  `tracing-opentelemetry` and `opentelemetry-otlp`.
-  `tonic-tracing-opentelemetry` in `main` continues a trace at every gRPC
-  service.
+- The chart passes `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`. Without it a binary
+  exports nothing. The endpoint is a Collector in the infra repository that
+  only receives, because the trace store serves reads and deletes on its
+  write port.
+- `service.name` is `jjforge-server` or `jjforge-vcs`, `service.version` the
+  release, and the chart sets `deployment.environment.name`.
+- Only W3C Trace Context travels. Baggage stays off, because every binary
+  would forward what a caller sets.
+- Tracing is cross-cutting: the libraries and one module per binary trace
+  every request, and the checks refuse tracing code elsewhere. The server
+  uses `spring-boot-starter-opentelemetry`. vcs uses `tracing` with
+  `tracing-opentelemetry`, and its `telemetry` module starts the span of
+  every gRPC call and `sync/v1` request.
 - `jf` exports nothing, because it runs on people's machines. It starts a
-  trace per command, and the one client it builds sends `traceparent` with
-  every request, so the server and vcs continue the trace of `jf`.
-- The web app sends no trace context while the OpenTelemetry browser
-  instrumentation is experimental. The server starts the trace.
-- The server names the trace of every response in a `traceresponse` header,
-  from W3C Trace Context Level 2, whatever answers it. `jf` prints its trace
-  ID on failure and the web app shows the header's, so a person can quote it.
-- Every binary samples by its parent, and a new trace by the ratio of its
-  trace ID, set to 1.0 until the trace store's volume asks for less. When
-  it drops, the Collector samples by the whole trace and keeps every error.
-- A span names its organization, repository, and principal in
-  `jjforge.org.id`, `jjforge.repo.id`, and `jjforge.principal.id`.
+  trace per command and sends `traceparent` with every request.
+- The web app sends no trace context while the browser instrumentation is
+  experimental.
+- The server names each response's trace in `traceresponse`. `jf` prints its
+  trace ID on failure and the web app shows the header's, so a person can
+  quote it.
+- Every binary records every span, whatever the sampled flag of an incoming
+  `traceparent` says, and keeps the caller's trace ID, so the ID that `jf`
+  prints finds the request. Only the Collector reduces volume, behind a tier
+  that routes by trace ID, and it keeps every trace with an error, or with
+  a `forbidden` or `hidden` refusal, first. Any caller can cause as many
+  `unauthenticated` refusals as it likes, so only their `request` lines
+  record them for sure. A refusal is a 4xx, which leaves a server span's status unset,
+  so the Collector finds it by `jjforge.refusal`, a name the infra
+  repository depends on.
+- Every request is traceable. Each gRPC method and HTTP route has a server
+  span, one wide event of who, where, what, and how it ended:
+  `jjforge.principal.id`, `jjforge.org.id`, `jjforge.repo.id`, and on
+  refusal `jjforge.refusal`. A call without a repository, such as
+  `echo/v1`, names what it did.
+- Each call that leaves a binary gets a client span. Work outside a request,
+  such as a job or a listener, gets a span of its own.
+- In vcs, only the store crate's `server` side adds spans below the request:
+
+| Span                       | Attributes                                                                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `repo head`                | `jjforge.operation.id`                                                                                                                   |
+| `repo operations`          | `jjforge.operation.since`, `jjforge.operations.count`                                                                                    |
+| `repo missing`             | `jjforge.ids.asked`, `jjforge.ids.missing`                                                                                               |
+| `repo fetch`               | `jjforge.ids.asked`, `jjforge.fetch.bytes`                                                                                               |
+| `repo upload`              | `jjforge.upload.objects`, `jjforge.upload.bytes`, `jjforge.segment.id`                                                                   |
+| `repo publish`             | `jjforge.operation.expected`, `jjforge.publish.bookmarks`, `jjforge.publish.segments`, `jjforge.publish.outcome`, `jjforge.operation.id` |
+| `advance`                  | `jjforge.operations.read`                                                                                                                |
+| `echo`                     | `jjforge.echo.bytes`                                                                                                                     |
+| `object_store {operation}` | `jjforge.object_store.operation`, `jjforge.object_store.key`, and on a write `jjforge.object_store.bytes`, `jjforge.object_store.swap`   |
+
+- The outcome of a publish is `moved`, `unchanged`, or `stale`, with
+  `HEAD` after it in `jjforge.operation.id`. A count never names what it
+  counts.
 
 ### Metrics
 
 - The chart keeps the ports named `management` and `metrics`, which the
   infra scrape selects.
-- A metric that a library defines keeps the library's name, because the
-  infra alerts read it.
-- A metric of jjforge's own takes its name from the semantic conventions
-  where they define one, and starts with `jjforge.` otherwise, such as
-  `jjforge.push.conflicts`.
-- A label takes its values from a set that the code bounds, such as a method
-  or a status code. An ID never labels a metric. It goes on the span or the
-  log line.
+- A library's metric keeps its name, because the infra alerts read it. One
+  of jjforge's own takes its name from the semantic conventions, or starts
+  with `jjforge.`, such as `jjforge.push.conflicts`.
+- A label takes values from a set the code bounds. An ID never labels a
+  metric.
 
 ### Logs
 
-- Each binary writes one JSON object per line to stdout, with the text in
-  `message`, which the collector reads, and `trace_id` and `span_id` while a
-  span is active. The server uses the structured logging of Spring Boot, and
-  vcs uses `tracing-subscriber`.
-- A message is a constant, and what varies goes in fields, so a search for a
-  message finds every line that wrote it.
-- A served request writes no line, because its span and its metrics record
-  it. A client error writes none either, because the caller made the
-  mistake.
-- No signal holds a secret, a token, a credential header, a request body,
-  repository content, or personal data. A principal appears as its ID.
+Each binary writes one JSON object per line to stdout, with `message`, and
+`trace_id` and `span_id` inside a span. A message is a constant, and what
+varies goes in fields.
 
-| Level | When                                                                              |
-| ----- | --------------------------------------------------------------------------------- |
-| ERROR | A person must act, such as after a server error or lost work                      |
-| WARN  | The binary handled something unexpected, such as with a retry                     |
-| INFO  | The process starts or stops, or background work finishes                          |
-| DEBUG | A diagnosis needs detail. Off where jjforge is deployed, and turned on per logger |
+| Line        | When                                                                                                                                                                                                                     | Level                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- |
+| `request`   | Each request ends. Route or method, status, outcome, refusal reason, duration, and its organization, repository, and principal. It repeats the span on purpose, so the record survives a lost, sampled, or expired trace | INFO                          |
+| An event    | A step changed a request's course, such as a retry, a lost race, a cache that starts over, or a reload                                                                                                                   | INFO, or WARN when unexpected |
+| A failure   | The binary itself failed                                                                                                                                                                                                 | ERROR                         |
+| Start, stop | The process starts, stops, or can't run. The only lines outside a span                                                                                                                                                   | INFO                          |
+
+- A line inside a request carries its trace, so trace views show it on the
+  span, and the request's organization, repository, and principal. This
+  follows OpenTelemetry, which deprecates span events in favor of such log
+  records.
+- No line narrates, such as one on entering a function, and none but
+  `request` repeats the span, so a client error writes no other line.
+- A refusal's `request` line names the reason: `unauthenticated`,
+  `forbidden`, or `hidden` for an organization the principal may not see.
+  It's the refusal's only record, kept 30 days, until an audit spec makes
+  refusals rows.
+- DEBUG is off where jjforge is deployed, and turned on per logger.
+
+vcs writes these events:
+
+| Event                 | Span                | When                                                       |
+| --------------------- | ------------------- | ---------------------------------------------------------- |
+| `key sets reload`     | the request's       | A token names an unknown key, so vcs fetches the key sets  |
+| `catalog starts over` | `advance`           | A repository was created again under the same IDs, at WARN |
+| `swap lost`           | `object_store swap` | Another writer moved `HEAD` first                          |
 
 ### Checks
 
-| Rule                                                                                 | Check                                    |
-| ------------------------------------------------------------------------------------ | ---------------------------------------- |
-| The server logs through SLF4J, never through `System.out` or `java.util.logging`     | `ArchitectureTest`, ArchUnit             |
-| vcs logs through `tracing`, never through `println!` or `eprintln!`                  | clippy `print_stdout` and `print_stderr` |
-| Only the server's `telemetry` module uses a tracing API                              | `ArchitectureTest`, ArchUnit             |
-| Every response of the server names its trace                                         | `TraceResponseTest`                      |
-| Only `forge::Client` builds an HTTP client in `jf`                                   | clippy `disallowed-methods`              |
-| A request that carries `traceparent` has spans of the server and vcs under its trace | `mise run e2e`, which queries the twin   |
+| Rule                                                                         | Check                                                                                                                      |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| The server logs through SLF4J, never `System.out` or `java.util.logging`     | `ArchitectureTest`, ArchUnit                                                                                               |
+| vcs logs through `tracing`, never `println!` or `eprintln!`                  | clippy `print_stdout` and `print_stderr`                                                                                   |
+| Only the server's `telemetry` module uses a tracing API                      | `ArchitectureTest`, ArchUnit                                                                                               |
+| Every response of the server names its trace                                 | `TraceResponseTest`                                                                                                        |
+| Only `forge::Client` builds an HTTP client in `jf`                           | clippy `disallowed-methods`                                                                                                |
+| A request with `traceparent` has spans of the server and vcs under its trace | `mise run e2e`, which queries the twin                                                                                     |
+| Each gRPC method and `sync/v1` route of vcs has a span with its context      | `every_call_is_traceable_with_its_org_repo_and_principal` and `every_route_is_traceable_with_its_org_repo_and_principal`   |
+| A binary records a request whatever its sampled flag                         | `a_caller_can_not_turn_off_its_trace`, and for the server `TraceResponseTest`, which sends flag `00` and expects `01`      |
+| A request writes one `request` line                                          | `a_request_writes_one_line_when_it_ends`, `a_grpc_call_writes_one_line_when_it_ends`, and `RequestLineTest` for the server |
+| A line inside a request carries its context                                  | `a_line_inside_a_request_carries_its_context`                                                                              |
+| A refusal names its reason, and its principal when known                     | `a_refused_request_names_who_asked` and `a_request_without_a_token_names_why_it_was_refused`                               |
+| No attribute of a span and no field of a line holds a caller's path          | `no_span_or_line_names_a_path_no_route_matched`, and `SpanNamesTest` for the server                                        |
+| An event of vcs falls inside a span                                          | `finished_spans` fails a test on an event outside one, and a vcs or store test per event                                   |
+| A failure of vcs writes an ERROR line                                        | `a_server_error_that_axum_answers_writes_a_line`                                                                           |
 
 ## Consequences
 
-- Traces wait for the infra repository. It runs VictoriaTraces and the
-  Collector, lets every app's namespace reach the Collector, adds the trace
-  store to Grafana, and links `trace_id` in VictoriaLogs to it.
-- An upgrade of VictoriaTraces before 1.0 may discard the stored traces,
-  which costs at most 7 days of them.
-- A caller outside the cluster decides whether its trace is kept. That holds
-  while the ratio is 1.0. Lowering it changes this record.
+- Traces wait for the infra repository to run VictoriaTraces and the
+  Collector, open the path to it, and link `trace_id` in VictoriaLogs. The
+  `request` lines don't wait, so each request has a record from the first
+  deployment.
+- An upgrade of VictoriaTraces before 1.0 may discard up to 7 days of
+  traces. Logs live 30, so an older line's `trace_id` finds no trace.
+- A caller chooses its trace ID, so it can join any trace whose ID it
+  knows, and people quote IDs. A joined span names the joiner's principal,
+  so it adds noise but forges nothing, apart from an unauthenticated
+  refusal, which names no principal.
+- The server names no organization, repository, or principal on its spans
+  and lines until it authenticates, as #6 plans.
+- An `@ApplicationModuleListener` runs on another thread after its request.
+  Its span joins the request's trace only once the server propagates the
+  context, and an event republished after a restart starts a new trace. A
+  test holds this once a module publishes its first event.
+- `traceresponse` comes from Trace Context Level 2, which isn't final.
+- Traces that `jf` starts lack their root span, which some views flag.
+- No metric carries an exemplar yet, so a latency spike leads to traces
+  only through a search by time.
 - A SQL client span needs an instrumented data source, chosen with the first
   module that uses Postgres.
-- Once the trace SDK of opentelemetry-rust is stable, vcs moves its edges to
-  that API and this record changes.
-- No check holds the label rule or the rule against secrets yet.
+- Once the opentelemetry-rust trace SDK is stable, vcs moves its edges to
+  it and this record changes.
+- No check holds the label rule or the secrets rule yet.

@@ -22,14 +22,15 @@ option java_package = "dev.nca.jjforge.sync.v1";
 //                                        immutable, or a redirect to a
 //                                        short-lived signed URL
 //   POST {base}/objects/fetch         HashList -> ObjectBundle
-//   POST {base}/objects               ObjectBundle -> 204
+//   POST {base}/objects               ObjectBundle -> Uploaded
 //   POST {base}/publish               PublishRequest -> PublishResponse,
 //                                        with `If-Match` naming the expected
 //                                        head
 //
 // A publish whose expected head is stale answers 412 with
 // `precondition_failed` and the current head. `jf` fetches, merges, and tries
-// again or reports the conflict.
+// again or reports the conflict. A repository that vcs hasn't created
+// answers 404 `not_found` on every route.
 
 message Head {
   bytes operation_id = 1;
@@ -45,6 +46,12 @@ message ObjectBundle {
   repeated bytes objects = 1;
 }
 
+// An upload is stored as one segment, which a publish names so that its
+// operation makes the objects visible.
+message Uploaded {
+  bytes segment_id = 1;
+}
+
 message BookmarkUpdate {
   string name = 1;
   // The target the client last saw, as encoded store.v1.RefTarget. Empty
@@ -54,8 +61,10 @@ message BookmarkUpdate {
   bytes new_target = 3;
 }
 
-// The change a client proposes. vcs builds the operation from it, so the
-// principal and the time come from the forge, never from the client.
+// The change a client proposes. vcs builds the operation from it with
+// jj-lib, so the principal and the time come from the forge, never from the
+// client. Each new bookmark target and each of `head_ids` becomes visible,
+// and each commit that `commit_predecessors` names as replaced is hidden.
 message PublishRequest {
   bytes expected_operation_id = 1;
   repeated BookmarkUpdate bookmarks = 2;
@@ -67,6 +76,8 @@ message PublishRequest {
   // in hexadecimal, as an encoded store.v1.CommitIds.
   map<string, bytes> commit_predecessors = 5;
   string description = 6;
+  // The segments of the uploads that hold this publish's new objects.
+  repeated bytes segment_ids = 7;
 }
 
 message PublishResponse {

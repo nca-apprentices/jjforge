@@ -41,12 +41,39 @@ spec:
             {{- with include "jjforge.telemetryEnv" . }}
             {{- . | trim | nindent 12 }}
             {{- end }}
+            {{- with .Values.vcs.sync.store }}
+            # Sync of ADR 0001: the repositories in the object store, jj's
+            # index in the cache, and the issuers whose tokens vcs trusts.
+            - name: VCS_STORE
+              value: {{ . | quote }}
+            - name: VCS_SYNC_ADDR
+              value: 0.0.0.0:8081
+            - name: VCS_CACHE
+              value: /cache
+            - name: VCS_TOKEN_ISSUERS
+              value: {{ join "," $.Values.vcs.sync.tokenIssuers | quote }}
+            {{- with $.Values.vcs.sync.endpoint }}
+            - name: AWS_ENDPOINT
+              value: {{ . | quote }}
+            - name: AWS_ALLOW_HTTP
+              value: {{ hasPrefix "http://" . | quote }}
+            {{- end }}
+            - name: AWS_REGION
+              value: {{ $.Values.vcs.sync.region | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ required "vcs.sync.secretName is required with vcs.sync.store" $.Values.vcs.sync.secretName }}
+            {{- end }}
           ports:
             - name: grpc
               containerPort: 50052
             # Prometheus metrics, off the Service.
             - name: metrics
               containerPort: 9090
+            {{- if .Values.vcs.sync.store }}
+            - name: sync
+              containerPort: 8081
+            {{- end }}
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -57,6 +84,15 @@ spec:
             readOnlyRootFilesystem: true
           resources:
             {{- toYaml .Values.vcs.resources | nindent 12 }}
+          {{- if .Values.vcs.sync.store }}
+          volumeMounts:
+            - name: cache
+              mountPath: /cache
+      # jj's index, which vcs rebuilds from the log when the pod is new.
+      volumes:
+        - name: cache
+          emptyDir: {}
+          {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -72,3 +108,8 @@ spec:
     - name: grpc
       port: 50052
       targetPort: grpc
+    {{- if .Values.vcs.sync.store }}
+    - name: sync
+      port: 8081
+      targetPort: sync
+    {{- end }}

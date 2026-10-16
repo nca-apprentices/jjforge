@@ -13,6 +13,7 @@ publish = false
 
 [workspace.dependencies]
 jjforge-proto = { path = "proto" }
+jjforge-store = { path = "store" }
 
 # One jj version per jf release, as ADR 0001 decides. Without git, because
 # jjforge has none.
@@ -20,9 +21,21 @@ jj-cli = { version = "=0.46.0", default-features = false }
 jj-lib = { version = "=0.46.0", default-features = false }
 
 anyhow = "1.0.104"
+async-trait = "0.1.89"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "matched-path", "query", "tokio"] }
+blake3 = "1.8.2"
 clap = { version = "4.6.7", features = ["derive", "env"] }
+futures = "0.3.31"
+hex = "0.4.3"
+# Verifies the tokens of sync/v1 offline, as ADR 0002 decides. Version 9 runs
+# on ring, as the TLS stack does. Version 10 and later need aws-lc or the rsa
+# crate, which carries an open advisory.
+jsonwebtoken = "9.3.1"
 http = "1.5.0"
 metrics = "0.24.6"
+# The S3 client of the store crate, as ADR 0002 decides, on the TLS stack of
+# reqwest below.
+object_store = { version = "0.14.2", default-features = false, features = ["aws-base", "fs", "reqwest", "ring"] }
 # The push gateway would pull in a TLS stack that /metrics doesn't need.
 metrics-exporter-prometheus = { version = "0.18.3", default-features = false, features = ["http-listener"] }
 # Traces over OTLP, as ADR 0005 decides. HTTP with protobuf, the transport the
@@ -38,6 +51,9 @@ prost = "0.14.4"
 # The protoc that tonic-prost-build runs, so no system protoc is needed.
 protoc-bin-vendored = "3.3.0"
 # The TLS stack jf uses: rustls on ring, with the roots of the platform.
+# Generates the keys of the token tests at run time, so no private key lives
+# in the repository.
+ring = "0.17.14"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
 rustls = { version = "0.23.45", default-features = false, features = ["ring"] }
 serde = { version = "1.0.229", features = ["derive"] }
@@ -48,9 +64,8 @@ tokio = { version = "1.53.2", features = ["macros", "rt-multi-thread"] }
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
 tonic-prost-build = "0.14.6"
-# Its spans start at the info level, which the default log filter passes.
-tonic-tracing-opentelemetry = { version = "0.42.1", features = ["tracing_level_info"] }
 tower = "0.5.3"
+url = "2.5.7"
 tracing = "0.1.44"
 tracing-opentelemetry = { version = "0.34.0", default-features = false }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["env-filter", "fmt", "std"] }

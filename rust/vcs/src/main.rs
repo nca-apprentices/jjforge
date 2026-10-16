@@ -1,22 +1,32 @@
-//! vcs serves `echo/v1` on one port. The server calls it, which is all it
-//! has to prove for now. Prometheus metrics are served on a second port.
+//! vcs serves gRPC on one port: `echo/v1`, and the `RepoService` of
+//! `source/v1` that creates and deletes repositories. It serves `sync/v1`
+//! to `jf` over HTTP on a second port, and Prometheus metrics on a third.
+//!
+//! ```text
+//! server ──gRPC──▶ grpc ─┐
+//!                        ├─▶ gate ──▶ store crate's Repos ──▶ object store
+//! jf ───sync/v1──▶ sync ─┘     │
+//!                              └─ auth verifies the token
+//! ```
 
 // A line written past `tracing` reaches no log store as JSON and carries no
 // trace, as ADR 0005 decides.
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
+mod auth;
 mod config;
-mod echo;
+mod gate;
+mod grpc;
 mod metrics;
+mod sync;
 mod telemetry;
 
 use clap::Parser;
-use jjforge_proto::echo::v1::echo_service_server::EchoServiceServer;
-use tonic_tracing_opentelemetry::middleware::server::OtelGrpcLayer;
+use jjforge_store::server::Repos;
 
+use crate::auth::Verifier;
 use crate::config::Config;
-use crate::echo::Echo;
-use crate::metrics::Meter;
+use crate::gate::Gate;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -24,17 +34,30 @@ async fn main() -> anyhow::Result<()> {
     let traces = telemetry::install(&config.log, config.traces_endpoint.as_ref())?;
     metrics::install(config.metrics_addr)?;
 
-    tracing::info!(addr = %config.addr, metrics_addr = %config.metrics_addr, "vcs listening");
-    // The trace layer wraps every service added here, so none needs code of
-    // its own to be traced.
-    tonic::transport::Server::builder()
-        .layer(Meter)
-        .layer(OtelGrpcLayer::default())
-        .add_service(EchoServiceServer::new(Echo))
-        .serve_with_shutdown(config.addr, async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
+    // The S3 client and the key set client share reqwest's TLS, which
+    // leaves the provider to the binary. A second install changes nothing.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
+
+    // Without a store, vcs serves only `echo/v1`.
+    let gate = match &config.store {
+        Some(url) => {
+            let cache = config
+                .cache
+                .clone()
+                .unwrap_or_else(|| std::env::temp_dir().join("vcs"));
+            let repos = Repos::open(url, &cache)?;
+            let verifier = Verifier::new(config.token_issuers.clone())?;
+            Some(Gate::new(repos, verifier))
+        }
+        None => None,
+    };
+    if let Some(gate) = &gate {
+        sync::serve(config.sync_addr, gate.clone()).await?;
+    }
+    tracing::info!(metrics_addr = %config.metrics_addr, "metrics listening");
+    grpc::serve(config.addr, gate).await?;
 
     traces.shutdown()?;
     Ok(())

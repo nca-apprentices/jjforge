@@ -17,4 +17,4 @@ options, its rules, and what follows.
 | [0002](0002-state-boundaries-and-tokens.md)     | Repositories in the object store, the product in Postgres      | Accepted |
 | [0003](0003-checked-code-rules.md)              | Code rules are checked, not reviewed                           | Accepted |
 | [0004](0004-specified-tested-built.md)          | A requirement is specified, tested against twins, then built   | Accepted |
-| [0005](0005-telemetry-through-opentelemetry.md) | Logs, traces, and metrics through OpenTelemetry                | Proposed |
+| [0005](0005-telemetry-through-opentelemetry.md) | Logs, traces, and metrics through OpenTelemetry                | Accepted |
