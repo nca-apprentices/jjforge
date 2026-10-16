@@ -64,8 +64,6 @@ tokio = { version = "1.53.2", features = ["macros", "rt-multi-thread"] }
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
 tonic-prost-build = "0.14.6"
-# Its spans start at the info level, which the default log filter passes.
-tonic-tracing-opentelemetry = { version = "0.42.1", features = ["tracing_level_info"] }
 tower = "0.5.3"
 url = "2.5.7"
 tracing = "0.1.44"

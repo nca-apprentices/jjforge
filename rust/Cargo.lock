@@ -2557,12 +2557,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "opentelemetry-semantic-conventions"
-version = "0.33.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a3cf639fefd3e852869114f9925b578da6dd8e99281a2089bb0e773ead46962"
-
-[[package]]
 name = "opentelemetry_sdk"
 version = "0.33.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4350,26 +4344,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tonic-tracing-opentelemetry"
-version = "0.42.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f49b817caddd6c70da9082183c5586933898cc9a7e01d0787002cef1cebdd0cc"
-dependencies = [
- "futures-core",
- "futures-util",
- "http",
- "http-body",
- "hyper",
- "opentelemetry",
- "pin-project-lite",
- "tonic",
- "tower",
- "tracing",
- "tracing-opentelemetry",
- "tracing-opentelemetry-instrumentation-sdk",
-]
-
-[[package]]
 name = "tower"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4480,25 +4454,10 @@ checksum = "0a904802a1b902f43638b677ff2a650847e3b4404101b6c586d648e8c1e3e8fe"
 dependencies = [
  "js-sys",
  "opentelemetry",
- "smallvec",
  "tracing",
  "tracing-core",
- "tracing-log",
  "tracing-subscriber",
  "web-time",
-]
-
-[[package]]
-name = "tracing-opentelemetry-instrumentation-sdk"
-version = "0.42.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cf241306a1d759615c23986f97e859dc4258483bf751802a7cfcf94949dfcbe"
-dependencies = [
- "http",
- "opentelemetry",
- "opentelemetry-semantic-conventions",
- "tracing",
- "tracing-opentelemetry",
 ]
 
 [[package]]
@@ -4674,7 +4633,6 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tonic",
- "tonic-tracing-opentelemetry",
  "tower",
  "tracing",
  "tracing-opentelemetry",

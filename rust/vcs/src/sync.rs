@@ -518,6 +518,10 @@ mod tests {
             crate::telemetry::attribute(&spans, "jjforge.principal.id").as_deref(),
             Some("ada")
         );
+        assert_eq!(
+            crate::telemetry::attribute(&spans, "jjforge.refusal").as_deref(),
+            Some("forbidden")
+        );
     }
 
     #[tokio::test]
@@ -622,5 +626,22 @@ mod tests {
         .await;
 
         assert!(crate::telemetry::events(&spans).contains(&"key sets reload".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn a_request_without_a_token_names_why_it_was_refused() {
+        let fixture = fixture().await;
+        let app = fixture
+            .router
+            .clone()
+            .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
+
+        let (_, spans) =
+            crate::telemetry::finished_spans(app.oneshot(get_head(&fixture, None))).await;
+
+        assert_eq!(
+            crate::telemetry::attribute(&spans, "jjforge.refusal").as_deref(),
+            Some("unauthenticated")
+        );
     }
 }

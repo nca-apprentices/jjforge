@@ -46,8 +46,8 @@ impl Gate {
     /// Verifies the bearer token in `authorization`, checks that it grants
     /// `access` to the repositories of `org`, and opens `org/repo`. The
     /// current span records whom the request was for, as ADR 0005 decides,
-    /// so it must declare `jjforge.org.id`, `jjforge.repo.id`, and
-    /// `jjforge.principal.id`.
+    /// and why it refused it, so it must declare `jjforge.org.id`,
+    /// `jjforge.repo.id`, `jjforge.principal.id`, and `jjforge.refusal`.
     ///
     /// # Errors
     ///
@@ -65,13 +65,21 @@ impl Gate {
         let span = tracing::Span::current();
         span.record("jjforge.org.id", org);
         span.record("jjforge.repo.id", repo);
-        let principal = self.verifier.verify(authorization).await?;
+        let principal = match self.verifier.verify(authorization).await {
+            Ok(principal) => principal,
+            Err(err) => {
+                span.record("jjforge.refusal", "unauthenticated");
+                return Err(err.into());
+            }
+        };
         span.record("jjforge.principal.id", principal.subject.as_str());
 
         if !principal.may(Access::Read, org) {
+            span.record("jjforge.refusal", "hidden");
             return Err(RepoError::NotFound(format!("repository {org}/{repo}")).into());
         }
         if !principal.may(access, org) {
+            span.record("jjforge.refusal", "forbidden");
             return Err(Refused::Forbidden);
         }
         Ok((self.repos.get(org, repo)?, principal.into()))

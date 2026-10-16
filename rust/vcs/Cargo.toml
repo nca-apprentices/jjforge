@@ -29,7 +29,6 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["net", "signal"] }
 tonic.workspace = true
-tonic-tracing-opentelemetry.workspace = true
 tower.workspace = true
 tracing.workspace = true
 tracing-opentelemetry.workspace = true
