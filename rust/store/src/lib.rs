@@ -18,16 +18,9 @@
 pub mod client;
 pub mod server;
 
-mod backend;
-mod bucket;
 mod codec;
 mod ids;
-mod lazy;
-mod op_heads;
-mod op_store;
-mod segment;
-mod shelf;
-mod workspace;
+mod jj;
 
 pub use ids::InvalidId;
 pub use ids::ObjectId;

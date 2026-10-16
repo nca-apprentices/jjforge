@@ -16,11 +16,11 @@ use jj_lib::op_store::OperationId;
 use jj_lib::op_store::View;
 use jj_lib::op_store::ViewId;
 
+use super::shelf::Shelf;
+use super::shelf::Source;
 use crate::codec;
 use crate::codec::Object;
 use crate::ids;
-use crate::shelf::Shelf;
-use crate::shelf::Source;
 
 #[derive(Debug)]
 pub(crate) struct Store {
@@ -187,7 +187,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::shelf::Disk;
+    use crate::jj::Disk;
 
     fn store() -> (TempDir, Store) {
         let dir = tempfile::tempdir().unwrap();

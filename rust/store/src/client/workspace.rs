@@ -16,13 +16,13 @@ use jj_lib::signing_factory::signer_from_settings;
 use jj_lib::workspace::Workspace;
 use jj_lib::workspace::WorkspaceInitError;
 
-use crate::backend;
-use crate::lazy::Fetch;
-use crate::lazy::Lazy;
-use crate::lazy::TransportError;
-use crate::op_heads;
-use crate::op_store;
-use crate::shelf::Disk;
+use super::Fetch;
+use super::TransportError;
+use super::lazy::Lazy;
+use crate::jj::Backend;
+use crate::jj::Disk;
+use crate::jj::OperationHeads;
+use crate::jj::OperationStore;
 
 /// Finds the forge of the repository in a directory, or `None` for a
 /// repository that has none. `jf` implements it over `sync/v1`.
@@ -44,18 +44,18 @@ pub fn factories(find_forge: Arc<FindForge>) -> StoreFactories {
     );
     factories.add_op_store(
         crate::NAME,
-        Box::new(|_, dir, _| Ok(Box::new(op_store::Store::new(Box::new(Disk::new(dir)))))),
+        Box::new(|_, dir, _| Ok(Box::new(OperationStore::new(Box::new(Disk::new(dir)))))),
     );
     factories.add_op_heads_store(
         crate::NAME,
-        Box::new(|_, dir| Ok(Box::new(op_heads::Store::load(dir)))),
+        Box::new(|_, dir| Ok(Box::new(OperationHeads::load(dir)))),
     );
     factories
 }
 
-fn local_backend(dir: &Path, fetch: Option<Arc<dyn Fetch>>) -> backend::Store {
+fn local_backend(dir: &Path, fetch: Option<Arc<dyn Fetch>>) -> Backend {
     // A local disk serves one read at a time as fast as several.
-    backend::Store::new(Box::new(Lazy::new(Disk::new(dir), fetch)), 1)
+    Backend::new(Box::new(Lazy::new(Disk::new(dir), fetch)), 1)
 }
 
 /// Creates a workspace in `root` on a new repository of the store type
@@ -76,8 +76,8 @@ pub async fn init(
         &|_, dir| Ok(Box::new(local_backend(dir, None))),
         signer_from_settings(settings)?,
         ReadonlyRepo::default_workspace_store_initializer(),
-        &|_, dir, _| Ok(Box::new(op_store::Store::new(Box::new(Disk::new(dir))))),
-        &|_, dir, root_operation_id| Ok(Box::new(op_heads::Store::init(dir, root_operation_id)?)),
+        &|_, dir, _| Ok(Box::new(OperationStore::new(Box::new(Disk::new(dir))))),
+        &|_, dir, root_operation_id| Ok(Box::new(OperationHeads::init(dir, root_operation_id)?)),
         ReadonlyRepo::default_index_store_initializer(),
         ReadonlyRepo::default_submodule_store_initializer(),
         &*default_working_copy_factory(),

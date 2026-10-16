@@ -31,11 +31,11 @@ use jj_lib::object_id::ObjectId;
 use jj_lib::repo_path::RepoPath;
 use jj_lib::repo_path::RepoPathBuf;
 
+use super::shelf::Shelf;
+use super::shelf::Source;
 use crate::codec;
 use crate::codec::Object;
 use crate::ids;
-use crate::shelf::Shelf;
-use crate::shelf::Source;
 
 /// The objects of one repository.
 #[derive(Debug)]
@@ -289,7 +289,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::shelf::Disk;
+    use crate::jj::Disk;
 
     fn store() -> (TempDir, Store) {
         let dir = tempfile::tempdir().unwrap();

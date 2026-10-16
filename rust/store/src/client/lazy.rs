@@ -12,9 +12,9 @@ use crate::codec;
 use crate::codec::Object;
 use crate::ids;
 use crate::ids::ObjectId;
-use crate::shelf::Disk;
-use crate::shelf::Shelf;
-use crate::shelf::Source;
+use crate::jj::Disk;
+use crate::jj::Shelf;
+use crate::jj::Source;
 
 /// A failure to reach the forge or of the forge itself, which `jf` reports
 /// as it is.
