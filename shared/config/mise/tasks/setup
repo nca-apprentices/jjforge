@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Install the toolchain and dependencies, and generate the files the IDE needs"
+#MISE depends=["api:build"]
+set -euo pipefail
+
+mise install
+
+# Installing web/ runs `prepare` in web/shared/api, which generates
+# contract.gen.ts from the shared/openapi.yaml that api:build writes.
+pnpm --dir web install --frozen-lockfile

@@ -4,6 +4,12 @@ Run these from the repository root. `mise install` provides the whole
 toolchain, and `mise trust` once lets mise read `mise.toml`. The tasks live in
 `shared/config/mise/tasks/`, and `mise tasks` lists them.
 
+```text
+mise run setup  # toolchain, dependencies, and the generated files the IDE needs
+mise run clean  # delete build output, dependencies, generated files, and
+                # agent scratch files, but not local state such as .idea/
+```
+
 ## Checking
 
 ```text
