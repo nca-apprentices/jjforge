@@ -1,0 +1,165 @@
+contents:
+  get:
+    tags:
+      - files
+    operationId: readFile
+    summary: Read a file at a revision
+    description: |-
+      Text answers `text/plain`, and binary content answers
+      `application/octet-stream`. A `Range` header reads part of the file.
+      A conflicted file answers its sides as JSON.
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Repo
+      - $ref: ../common/parameters.yaml#/Rev
+      - $ref: ../common/parameters.yaml#/FilePath
+      - name: Range
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 256
+        example: bytes=0-1023
+    responses:
+      "200":
+        description: The whole file.
+        content:
+          text/plain:
+            schema:
+              type: string
+              description: The file as text.
+            example: |
+              //! The sync/v1 endpoint of vcs.
+          application/octet-stream:
+            schema:
+              $ref: schemas.yaml#/Binary
+          application/json:
+            schema:
+              $ref: schemas.yaml#/ConflictedFile
+            example:
+              path: README.md
+              sides:
+                - kind: add
+                  binary: false
+                  content: "# jjforge\n"
+                - kind: add
+                  binary: false
+                  content: "# jj forge\n"
+                - kind: remove
+                  binary: false
+                  content: "# forge\n"
+      "206":
+        description: The requested range.
+        content:
+          application/octet-stream:
+            schema:
+              $ref: schemas.yaml#/Binary
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+      "422":
+        $ref: ../common/responses.yaml#/Ambiguous
+
+diff:
+  get:
+    tags:
+      - files
+    operationId: getDiff
+    summary: Compare a change with its parents, or two revisions
+    description: Pass `rev` for a change against its parents, or `from` and `to` for two revisions.
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Repo
+      - name: rev
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 256
+        explode: false
+        example: kmzvqrtsnpwlyxuo
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 256
+        explode: false
+        example: main
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 256
+        explode: false
+        example: kmzvqrtsnpwlyxuo
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      "200":
+        description: One page of file diffs.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/FileDiffPage
+            example:
+              items:
+                - path: README.md
+                  status: modified
+                  binary: false
+                  hunks:
+                    - oldStart: 1
+                      oldLines: 1
+                      newStart: 1
+                      newLines: 1
+                      lines:
+                        - kind: removed
+                          text: "# forge"
+                        - kind: added
+                          text: "# jjforge"
+      "400":
+        $ref: ../common/responses.yaml#/Invalid
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+      "422":
+        $ref: ../common/responses.yaml#/Ambiguous
+
+tree:
+  get:
+    tags:
+      - files
+    operationId: listTree
+    summary: List a directory at a revision
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Repo
+      - $ref: ../common/parameters.yaml#/Rev
+      - $ref: ../common/parameters.yaml#/Path
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      "200":
+        description: One page of entries, directories first, then by name.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/TreeEntryPage
+            example:
+              items:
+                - name: rust
+                  path: rust
+                  kind: directory
+                - name: README.md
+                  path: README.md
+                  kind: file
+                  size: 1832
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+      "422":
+        $ref: ../common/responses.yaml#/Ambiguous

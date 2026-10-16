@@ -4,12 +4,20 @@
 #USAGE arg "[base]" default="origin/main"
 set -euo pipefail
 
-# The compiled file isn't committed, so the base ref's TypeSpec is compiled
+# The bundled file isn't committed, so the base ref's contract is bundled
 # into a scratch directory.
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 git archive "${usage_base:?}" shared/api | tar -x -C "$scratch"
-pnpm --dir "$scratch/shared/api" install --frozen-lockfile
-pnpm --dir "$scratch/shared/api" exec tsp compile . --option "@typespec/openapi3.emitter-output-dir=$scratch"
+
+# The YAML contract is the first baseline. A base from before it has
+# nothing to compare.
+if [[ ! -f $scratch/shared/api/openapi.yaml ]]; then
+  echo "${usage_base} has no shared/api/openapi.yaml, so nothing to compare."
+  exit 0
+fi
+
+export REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true
+pnpm --dir shared/api exec redocly bundle "$scratch/shared/api/openapi.yaml" --output "$scratch/openapi.yaml"
 
 oasdiff breaking "$scratch/openapi.yaml" shared/openapi.yaml --fail-on ERR

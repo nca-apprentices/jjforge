@@ -1,0 +1,75 @@
+Activity:
+  type: object
+  required:
+    - id
+    - time
+    - principal
+    - kind
+  properties:
+    id:
+      type: string
+    time:
+      type: string
+      format: date-time
+    principal:
+      $ref: ../auth/schemas.yaml#/Principal
+    kind:
+      type: string
+      enum:
+        - push
+        - bookmark_moved
+    bookmark:
+      type: string
+    from:
+      type: string
+      description: The commit ID before.
+    to:
+      type: string
+      description: The commit ID after.
+
+Repo:
+  type: object
+  required:
+    - id
+    - org
+    - name
+    - cloneUrl
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    org:
+      $ref: ../common/schemas.yaml#/Name
+    name:
+      $ref: ../common/schemas.yaml#/Name
+    cloneUrl:
+      type: string
+      format: uri
+      description: "The sync address `jf` clones from: `https://{host}/sync/v1/{orgId}/{repoId}`."
+    createdAt:
+      type: string
+      format: date-time
+  description: A repository and the address `jf` clones it from.
+
+RepoCreate:
+  type: object
+  required:
+    - name
+  properties:
+    name:
+      $ref: ../common/schemas.yaml#/Name
+  description: The name of a new repository.
+
+RepoPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/Repo
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-#MISE description="Compile the TypeSpec in shared/api to shared/openapi.yaml"
+#MISE description="Bundle the OpenAPI files in shared/api into shared/openapi.yaml"
 set -euo pipefail
 
 pnpm --dir shared/api install --frozen-lockfile
-pnpm --dir shared/api exec tsp compile .
+
+# Redocly reports usage and checks for updates unless told not to.
+export REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true
+pnpm --dir shared/api exec redocly bundle openapi.yaml --output ../openapi.yaml

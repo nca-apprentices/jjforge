@@ -1,0 +1,291 @@
+metadata:
+  get:
+    tags:
+      - auth
+    operationId: getAuthorizationServerMetadata
+    summary: Describe the authorization server (RFC 8414)
+    security: []
+    responses:
+      "200":
+        description: The server's endpoints and capabilities.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/AuthorizationServerMetadata
+            example:
+              issuer: https://jjforge.example
+              authorization_endpoint: https://jjforge.example/oauth/authorize
+              token_endpoint: https://jjforge.example/oauth/token
+              device_authorization_endpoint: https://jjforge.example/oauth/device
+              revocation_endpoint: https://jjforge.example/oauth/revoke
+              keys_uri: https://jjforge.example/oauth/keys
+              scopes_supported:
+                - repo
+                - org
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+
+me:
+  get:
+    tags:
+      - auth
+    operationId: getMe
+    summary: Show the signed-in principal
+    responses:
+      "200":
+        description: The principal behind the token.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/Principal
+            example:
+              id: 0b9f6c1e-4d2a-4f8e-9a51-3c7d2e8b6a10
+              kind: human
+              name: alice
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+
+sessions:
+  get:
+    tags:
+      - auth
+    operationId: listSessions
+    summary: List the signed-in principal's sessions
+    parameters:
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      "200":
+        description: One page of sessions.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/SessionPage
+            example:
+              items:
+                - id: 9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a
+                  client: jf
+                  createdAt: "2026-10-10T08:00:00Z"
+                  lastUsedAt: "2026-10-16T07:45:00Z"
+                  current: true
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+
+session:
+  delete:
+    tags:
+      - auth
+    operationId: revokeSession
+    summary: Revoke one session
+    parameters:
+      - name: session
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a
+    responses:
+      "204":
+        description: There is no content to send for this request, but the headers may be useful.
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+
+authorize:
+  get:
+    tags:
+      - auth
+    operationId: authorize
+    summary: Start a browser sign-in
+    description: Redirects to the organization's identity provider, then back to `redirect_uri` with a code. PKCE with S256 is required.
+    security: []
+    parameters:
+      - name: response_type
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+            - code
+        explode: false
+        example: code
+      - name: client_id
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 256
+        explode: false
+        example: web
+      - name: redirect_uri
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uri
+        explode: false
+        example: https://jjforge.example/callback
+      - name: scope
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 256
+        explode: false
+        example: read write
+      - name: state
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 512
+        explode: false
+        example: af0ifjsldkj
+      - name: code_challenge
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+        explode: false
+        example: E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+      - name: code_challenge_method
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+            - S256
+        explode: false
+        example: S256
+    responses:
+      "302":
+        description: A redirect to the identity provider.
+        headers:
+          Location:
+            required: false
+            schema:
+              type: string
+              format: uri
+            example: https://login.acme.example/authorize?client_id=jjforge&state=af0ifjsldkj
+      "400":
+        $ref: ../common/responses.yaml#/Invalid
+
+device:
+  post:
+    tags:
+      - auth
+    operationId: authorizeDevice
+    summary: Start a sign-in on a machine without a browser (RFC 8628)
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: schemas.yaml#/DeviceAuthorizationRequest
+          example:
+            client_id: jf
+            scope: read write
+    responses:
+      "200":
+        description: The code to confirm on another device.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/DeviceAuthorization
+            example:
+              device_code: GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS
+              user_code: WDJB-MJHT
+              verification_uri: https://jjforge.example/device
+              verification_uri_complete: https://jjforge.example/device?user_code=WDJB-MJHT
+              expires_in: 900
+              interval: 5
+      "400":
+        $ref: ../common/responses.yaml#/OAuthFailure
+
+keys:
+  get:
+    tags:
+      - auth
+    operationId: getKeys
+    summary: List the public keys that verify tokens
+    description: vcs and other verifiers fetch these once and verify tokens offline.
+    security: []
+    responses:
+      "200":
+        description: The current and the next key.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/KeySet
+            example:
+              keys:
+                - id: 2026-10
+                  algorithm: ed25519
+                  publicKey: d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a
+                  expiresAt: "2026-11-30T00:00:00Z"
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+
+revoke:
+  post:
+    tags:
+      - auth
+    operationId: revoke
+    summary: Revoke a token and its session (RFC 7009)
+    requestBody:
+      required: true
+      content:
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: schemas.yaml#/RevocationRequest
+          example:
+            token: rt_8f2a6c1e9b4d
+            token_type_hint: refresh_token
+    responses:
+      "200":
+        description: The request has succeeded.
+      "400":
+        $ref: ../common/responses.yaml#/OAuthFailure
+
+token:
+  post:
+    tags:
+      - auth
+    operationId: token
+    summary: Exchange a grant for a token
+    description: |-
+      Grants: `authorization_code` after a browser sign-in, the device code
+      grant after a confirmed device sign-in, and `refresh_token`. The scope
+      `read` gives a read-only session, and `write` adds changes.
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: schemas.yaml#/TokenRequest
+          example:
+            grant_type: authorization_code
+            client_id: web
+            code: SplxlOBeZQQYbYS6WxSbIA
+            redirect_uri: https://jjforge.example/callback
+            code_verifier: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+    responses:
+      "200":
+        description: A JWT access token.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/Token
+            example:
+              access_token: eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiJhbGljZSJ9.c2lnbmF0dXJl
+              token_type: Bearer
+              expires_in: 3600
+              refresh_token: rt_8f2a6c1e9b4d
+              scope: repo org
+      "400":
+        $ref: ../common/responses.yaml#/OAuthFailure

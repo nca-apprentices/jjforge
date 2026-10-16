@@ -1,0 +1,211 @@
+Bookmark:
+  type: object
+  required:
+    - name
+    - targets
+  properties:
+    name:
+      type: string
+    targets:
+      type: array
+      items:
+        type: string
+      description: Change IDs. More than one means the bookmark is conflicted.
+
+BookmarkPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/Bookmark
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
+
+Change:
+  type: object
+  required:
+    - changeId
+    - commitId
+    - description
+    - author
+    - committer
+    - parents
+    - conflicted
+    - bookmarks
+    - files
+  properties:
+    changeId:
+      type: string
+    commitId:
+      type: string
+    description:
+      type: string
+    author:
+      $ref: schemas.yaml#/Signature
+    committer:
+      $ref: schemas.yaml#/Signature
+    parents:
+      type: array
+      items:
+        type: string
+      description: Parent commit IDs.
+    conflicted:
+      type: boolean
+    bookmarks:
+      type: array
+      items:
+        type: string
+    files:
+      type: array
+      items:
+        $ref: schemas.yaml#/ChangedFile
+  description: A change with its committer and the files it touches.
+
+ChangePage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/ChangeSummary
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
+
+ChangeSummary:
+  type: object
+  required:
+    - changeId
+    - commitId
+    - description
+    - author
+    - parents
+    - conflicted
+    - bookmarks
+  properties:
+    changeId:
+      type: string
+    commitId:
+      type: string
+    description:
+      type: string
+    author:
+      $ref: schemas.yaml#/Signature
+    parents:
+      type: array
+      items:
+        type: string
+      description: Parent commit IDs.
+    conflicted:
+      type: boolean
+    bookmarks:
+      type: array
+      items:
+        type: string
+
+ChangedFile:
+  type: object
+  required:
+    - path
+    - status
+    - conflicted
+  properties:
+    path:
+      type: string
+    oldPath:
+      type: string
+      description: Set for a rename.
+    status:
+      type: string
+      enum:
+        - added
+        - modified
+        - deleted
+        - renamed
+    conflicted:
+      type: boolean
+
+Operation:
+  type: object
+  required:
+    - id
+    - time
+    - description
+    - parents
+  properties:
+    id:
+      type: string
+    time:
+      type: string
+      format: date-time
+    principal:
+      $ref: ../auth/schemas.yaml#/Principal
+    description:
+      type: string
+    parents:
+      type: array
+      items:
+        type: string
+
+OperationPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/Operation
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
+
+Signature:
+  type: object
+  required:
+    - name
+    - email
+    - time
+  properties:
+    name:
+      type: string
+    email:
+      type: string
+    time:
+      type: string
+      format: date-time
+
+Version:
+  type: object
+  required:
+    - commitId
+    - time
+    - operationId
+  properties:
+    commitId:
+      type: string
+    time:
+      type: string
+      format: date-time
+    operationId:
+      type: string
+      description: The operation that wrote this version.
+
+VersionPage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/Version
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.

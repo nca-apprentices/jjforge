@@ -18,13 +18,14 @@ The REST contract, written by hand in `shared/openapi.yaml`, repeated every
 page schema and error response. An operation that no controller served
 answered 404, which looks like a typo, not like work to do.
 
-| Option                                              | Cost                                                                                                                      |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| One YAML contract, or YAML bundled with Redocly     | The repetition stays, and references are checked late                                                                     |
-| TypeSpec compiled to OpenAPI                        | One more language and a compile step. A trial compiled with no change oasdiff reports, in 932 lines against 1,298. Chosen |
-| Hand-written request mappings                       | A missing operation answers 404                                                                                           |
-| Generated interfaces, default methods answering 501 | Chosen while a tag has pending requirements                                                                               |
-| Generated abstract interfaces                       | The compiler lists every operation the server doesn't serve. Chosen once a tag is served in full                          |
+| Option                                              | Cost                                                                                                             |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| One YAML contract                                   | One file of 2,000 lines, and every error response repeated                                                       |
+| TypeSpec compiled to OpenAPI                        | One more language and a compile step, which pay off only for the page and error templates                        |
+| YAML split by aspect, bundled by Redocly            | Each page schema is written out. Shared responses remove the repetition, and Redocly rules hold the rest. Chosen |
+| Hand-written request mappings                       | A missing operation answers 404                                                                                  |
+| Generated interfaces, default methods answering 501 | Chosen while a tag has pending requirements                                                                      |
+| Generated abstract interfaces                       | The compiler lists every operation the server doesn't serve. Chosen once a tag is served in full                 |
 
 In the web app, any file imported any other. State kept by hand contradicted
 the libraries that own it and was lost when a link was shared
@@ -50,22 +51,33 @@ review.
 
 ```mermaid
 flowchart LR
-    tsp["shared/api/<br/>TypeSpec"]
+    src["shared/api/<br/>OpenAPI by aspect"]
     yaml["shared/openapi.yaml<br/>ignored by git"]
-    tsp -- "mise run api:build" --> yaml
+    src -- "mise run api:build" --> yaml
     yaml -- "kotlin-spring generator" --> iface["one interface per tag"]
     iface -- "implemented by" --> ctrl["one @RestController per tag"]
-    yaml -- "Redocly, in api:lint" --> lint(["lint"])
+    src -- "Redocly, in api:lint" --> lint(["lint"])
     yaml --> image["server image, release asset"]
 ```
 
 - Nobody edits `shared/openapi.yaml`. Every task that reads it depends on
   `api:build`.
-- `mise run api:lint` fails when a `.tsp` file isn't formatted, then lints
-  the compiled file with Redocly.
-- Operations stay in the `jjforge` namespace, each with its own `@tag` and
-  full `@route`, because a nested namespace renames the generated methods. A
-  spread of parameters names its namespace, as in `...Parameters.Org`.
+- Each aspect, one per tag, keeps its path items in `<aspect>/paths.yaml`
+  and its schemas in `<aspect>/schemas.yaml`. The parameters, the error
+  responses, and the schemas every aspect shares stay in `common/`.
+- `mise run api:lint` runs Redocly's strict rules and the rules of
+  `shared/config/redocly.yaml`: one tag per operation, operation IDs in
+  camel case, kebab-case paths, failures that reference `common/responses.yaml`,
+  JSON bodies with named schemas, lists that answer a page with `items` and
+  `next`, a 401 on every operation that takes a token, and an example on
+  every parameter, header, and body that isn't raw bytes. Redocly checks
+  each example against its schema.
+- Every string a client sends has a bound: a length, a list of values, a
+  format, or a pattern. Operation IDs start with a verb, properties are in camel case
+  except in the OAuth operations, and each body's schema has a description.
+- `mise run api:breaking` compares the contract with its base using
+  oasdiff. The first YAML contract is the baseline, so a base without one
+  has nothing to compare.
 - An interface has default methods while its tag has pending requirements,
   and is abstract once the tag is served in full. A default method answers
   501.
@@ -188,8 +200,9 @@ task scripts.
 - OpenAPI 3.1 can't name the event schema of a `text/event-stream` response,
   so `Activity` is reachable only through the description of
   `streamActivity`, until the generators support OpenAPI 3.2.
-- The compiled file repeats error responses per operation, marks operations
-  without authentication `security: [{}]`, and gives a 204 TypeSpec's default
-  description. The generated code doesn't change.
+- `Activity` stays in the bundle only through an entry in the root
+  `components`, because nothing references it.
+- Redocly can't match a schema by name across files, so the page rule finds
+  a page through the `Page` suffix of the reference that a list answers.
 - detekt 2 is an alpha release, because detekt 1.23 can't run on JDK 25. A
   release candidate replaces it once one exists.

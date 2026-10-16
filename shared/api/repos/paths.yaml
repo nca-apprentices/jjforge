@@ -1,0 +1,137 @@
+repos:
+  get:
+    tags:
+      - repos
+    operationId: listRepos
+    summary: List the organization's repositories
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      "200":
+        description: One page of repositories.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/RepoPage
+            example:
+              items:
+                - &forge
+                  id: 7c8d9e0f-1a2b-4c3d-9e4f-5a6b7c8d9e0f
+                  org: acme
+                  name: forge
+                  cloneUrl: https://jjforge.example/sync/v1/3f1a2b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b/7c8d9e0f-1a2b-4c3d-9e4f-5a6b7c8d9e0f
+                  createdAt: "2026-10-01T09:00:00Z"
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+  post:
+    tags:
+      - repos
+    operationId: createRepo
+    summary: Create an empty repository
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: schemas.yaml#/RepoCreate
+          example:
+            name: forge
+    responses:
+      "201":
+        description: Created.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/Repo
+            example: *forge
+      "400":
+        $ref: ../common/responses.yaml#/Invalid
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "403":
+        $ref: ../common/responses.yaml#/Forbidden
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+      "409":
+        $ref: ../common/responses.yaml#/Conflict
+
+repo:
+  get:
+    tags:
+      - repos
+    operationId: getRepo
+    summary: Show one repository and its clone address
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Repo
+    responses:
+      "200":
+        description: The repository.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/Repo
+            example: *forge
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+  delete:
+    tags:
+      - repos
+    operationId: deleteRepo
+    summary: Delete a repository and everything in it
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Repo
+    responses:
+      "204":
+        description: There is no content to send for this request, but the headers may be useful.
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "403":
+        $ref: ../common/responses.yaml#/Forbidden
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+
+activity:
+  get:
+    tags:
+      - repos
+    operationId: streamActivity
+    summary: Stream the repository's activity as server-sent events
+    description: |-
+      Replays recent activity, newest last, then sends each new event as it
+      happens. Each event's `data` is one `Activity` as JSON. Reconnecting
+      with `Last-Event-ID` resumes after that event.
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Repo
+      - name: Last-Event-ID
+        in: header
+        required: false
+        schema:
+          type: string
+          maxLength: 256
+        example: 01JA7Z3K8Q2W
+    responses:
+      "200":
+        description: An event stream of `Activity`.
+        content:
+          text/event-stream:
+            schema:
+              type: string
+              description: Server-sent events, each with one `Activity` as JSON.
+            example: |
+              id: 01JA7Z3K8Q2W
+              data: {"id":"01JA7Z3K8Q2W","time":"2026-10-16T07:30:00Z","principal":{"id":"0b9f6c1e-4d2a-4f8e-9a51-3c7d2e8b6a10","kind":"human","name":"alice"},"kind":"bookmark_moved","bookmark":"main","from":"a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5","to":"5e1c9a7b3d2f4e6a8b0c1d2e3f4a5b6c7d8e9f01"}
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound

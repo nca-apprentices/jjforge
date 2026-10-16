@@ -1,0 +1,35 @@
+Name:
+  type: string
+  pattern: ^[a-z0-9][a-z0-9-]{0,38}$
+
+Problem:
+  type: object
+  required:
+    - code
+    - title
+    - status
+  properties:
+    code:
+      type: string
+      enum:
+        - invalid
+        - unauthenticated
+        - forbidden
+        - not_found
+        - rev_not_found
+        - path_not_found
+        - rev_ambiguous
+        - name_taken
+        - precondition_failed
+    title:
+      type: string
+    status:
+      type: integer
+    detail:
+      type: string
+    candidates:
+      type: array
+      items:
+        $ref: ../history/schemas.yaml#/ChangeSummary
+      description: For `rev_ambiguous`, every change the revision matches.
+  description: RFC 9457 problem details with a stable `code`.

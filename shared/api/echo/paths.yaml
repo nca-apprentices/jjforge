@@ -1,0 +1,26 @@
+echo:
+  post:
+    tags:
+      - echo
+    operationId: echo
+    summary: Echo a message through vcs
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: schemas.yaml#/Echo
+          example:
+            message: hello
+    responses:
+      "200":
+        description: The message vcs answered.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/Echo
+            example:
+              message: hello
+      "400":
+        $ref: ../common/responses.yaml#/Invalid

@@ -1,0 +1,89 @@
+Cursor:
+  name: cursor
+  in: query
+  required: false
+  description: The `next` value of the previous page.
+  schema:
+    type: string
+    maxLength: 512
+  explode: false
+  example: b3JnOmFjbWU
+
+FilePath:
+  name: path
+  in: query
+  required: true
+  description: A file relative to the repository root.
+  schema:
+    type: string
+    maxLength: 4096
+  explode: false
+  example: rust/vcs/src/sync.rs
+
+Limit:
+  name: limit
+  in: query
+  required: false
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 50
+  explode: false
+  example: 20
+
+Org:
+  name: org
+  in: path
+  required: true
+  schema:
+    $ref: schemas.yaml#/Name
+  example: acme
+
+Path:
+  name: path
+  in: query
+  required: false
+  description: A directory relative to the repository root. Defaults to the root.
+  schema:
+    type: string
+    maxLength: 4096
+  explode: false
+  example: rust/vcs
+
+Principal:
+  name: principal
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+  example: 6e2d4a8c-1f3b-4c9e-8d7a-5b0f2e4c6a91
+
+Repo:
+  name: repo
+  in: path
+  required: true
+  schema:
+    $ref: schemas.yaml#/Name
+  example: forge
+
+Rev:
+  name: rev
+  in: query
+  required: false
+  description: A change ID, a commit ID, a unique prefix of either, or a bookmark. Defaults to the trunk bookmark.
+  schema:
+    type: string
+    maxLength: 256
+  explode: false
+  example: main
+
+RevPath:
+  name: rev
+  in: path
+  required: true
+  schema:
+    type: string
+    maxLength: 256
+  example: kmzvqrtsnpwlyxuo
