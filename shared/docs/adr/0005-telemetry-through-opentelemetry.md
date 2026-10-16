@@ -1,6 +1,6 @@
 # 0005. Logs, traces, and metrics through OpenTelemetry
 
-Status: proposed, 2026-10-07. Deciders: jjforge maintainers.
+Status: accepted, 2026-10-16. Deciders: jjforge maintainers.
 
 ## Context
 
