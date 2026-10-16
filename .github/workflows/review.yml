@@ -1,17 +1,18 @@
 name: Review
 
 # Reviews each PR that is ready for review with Claude Code by the jf-review
-# skill, and again when someone with write access comments `@claude review`.
+# skill, and again when a member of the organization comments `@claude review`.
 # The review comes from the Claude GitHub App.
 #
 # Every event runs this file from main, and only main may use the
 # claude-review environment that holds the token, so no PR changes what runs
-# with it. For a PR from a branch of this repository, a job without secrets
-# builds its jf and images. The review job runs them only in containers that
-# main's compose file defines and in Claude's sandboxed commands, never on the
-# runner itself. A PR from a fork runs nothing: Claude reads main and the PR's
-# diff and can only comment. The denied paths hold the tokens, so a PR that
-# tells Claude to read them gets nothing to post.
+# with it. Only a PR that a member of the organization opens from a branch
+# of this repository gets a review. Every other PR skips the build and the
+# review. A job without secrets builds the PR's jf and images. The review job
+# runs them only in containers that main's compose file defines and in
+# Claude's sandboxed commands, never on the runner itself. The denied paths
+# hold the tokens, so a PR that tells Claude to read them gets nothing to
+# post.
 on:
   # Starts only the dispatch job, which checks out nothing.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
@@ -35,7 +36,8 @@ jobs:
     name: Dispatch
     if: >-
       github.event_name == 'pull_request_target' &&
-      !github.event.pull_request.draft && github.event.pull_request.user.type != 'Bot'
+      !github.event.pull_request.draft && github.event.pull_request.user.type != 'Bot' &&
+      contains(fromJSON('["MEMBER", "OWNER"]'), github.event.pull_request.author_association)
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -47,13 +49,15 @@ jobs:
 
   # Builds the PR's jf and images in a job without secrets and with a
   # read-only token, so the PR's code never runs on the runner that holds the
-  # Claude token. A build that fails leaves its log for the review.
+  # Claude token. A build that fails leaves its log for the review. The first
+  # step checks the PR again, since a comment or a dispatch names any PR.
   build:
     name: Build
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '@claude review') && !endsWith(github.actor, '[bot]'))
+      startsWith(github.event.comment.body, '@claude review') && !endsWith(github.actor, '[bot]') &&
+      contains(fromJSON('["MEMBER", "OWNER"]'), github.event.comment.author_association))
     # In the jobs, so a comment that triggers no review cancels none.
     concurrency:
       group: ${{ github.workflow }}-${{ inputs.pr || github.event.issue.number }}
@@ -64,7 +68,7 @@ jobs:
       pull-requests: read
     outputs:
       sha: ${{ steps.pr.outputs.sha }}
-      fork: ${{ steps.pr.outputs.fork }}
+      trusted: ${{ steps.pr.outputs.trusted }}
     env:
       PR: ${{ inputs.pr || github.event.issue.number }}
       MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
@@ -74,22 +78,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid,isCrossRepository \
-            --jq '"sha=\(.headRefOid)\nfork=\(.isCrossRepository)"' >>"$GITHUB_OUTPUT"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '
+            "sha=\(.head.sha)",
+            "trusted=\(.head.repo.full_name == .base.repo.full_name and
+              (.author_association | IN("MEMBER", "OWNER")))"' >>"$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.pr.outputs.fork == 'false'
+        if: steps.pr.outputs.trusted == 'true'
         with:
           ref: ${{ steps.pr.outputs.sha }}
           persist-credentials: false
       # The PR's build could change the installed tools, and a cache saved
       # here would serve them to main.
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        if: steps.pr.outputs.fork == 'false'
+        if: steps.pr.outputs.trusted == 'true'
         with:
           install_args: rust
           cache: false
       - name: Build
-        if: steps.pr.outputs.fork == 'false'
+        if: steps.pr.outputs.trusted == 'true'
         run: |
           mkdir build
           cargo build --manifest-path rust/Cargo.toml --bin jf >build/jf.log 2>&1 &&
@@ -101,7 +107,7 @@ jobs:
               docker save --output "build/$name.tar" "$image" || true
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: steps.pr.outputs.fork == 'false'
+        if: steps.pr.outputs.trusted == 'true'
         with:
           name: review-build
           path: build/
@@ -111,9 +117,10 @@ jobs:
     name: Review
     needs: [build]
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      needs.build.outputs.trusted == 'true' && (github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '@claude review') && !endsWith(github.actor, '[bot]'))
+      startsWith(github.event.comment.body, '@claude review') && !endsWith(github.actor, '[bot]') &&
+      contains(fromJSON('["MEMBER", "OWNER"]'), github.event.comment.author_association)))
     # In the jobs, so a comment that triggers no review cancels none.
     concurrency:
       group: ${{ github.workflow }}-${{ inputs.pr || github.event.issue.number }}
@@ -133,7 +140,6 @@ jobs:
     timeout-minutes: 60
     env:
       PR: ${{ inputs.pr || github.event.issue.number }}
-      FORK: ${{ needs.build.outputs.fork }}
       # The second file publishes Postgres, so Claude can query it without
       # Docker.
       COMPOSE_FILE: shared/deploy/compose.yaml:review/compose.yaml
@@ -150,7 +156,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: env.FORK == 'false'
         with:
           ref: ${{ needs.build.outputs.sha }}
           path: pr
@@ -169,11 +174,9 @@ jobs:
             gh issue view "$n" --json title,body,comments > "review/issues/$n.json"
           done
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        if: env.FORK == 'false'
         with:
           install_args: docker-compose hurl bats grpcurl
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        if: env.FORK == 'false'
         with:
           name: review-build
           path: review/build
@@ -181,7 +184,6 @@ jobs:
       # the PR's images and streams its logs to a file. A stack that fails to
       # start is a finding, so the review goes on.
       - name: Start the stack
-        if: env.FORK == 'false'
         continue-on-error: true
         run: |
           printf 'services:\n  postgres:\n    ports: ["5432:5432"]\n' > review/compose.yaml
@@ -211,19 +213,16 @@ jobs:
             Review PR #${{ env.PR }} by .claude/skills/jf-review/SKILL.md.
             review/ holds what steps 1 and 2 read: the PR with its reviews, comments, and checks in pr.json,
             its diff in pr.diff, its review threads in threads.json, and the issues it closes in issues/.
-            Unless the PR comes from a fork, its branch is checked out in pr/, the job has started the
-            stack from it, which step 3 says how to use, and steps 3 and 5 are required. The stack runs
-            with main's compose file, so say so when the PR changes shared/deploy/compose.yaml.
+            Its branch is checked out in pr/, the job has started the stack from it, which step 3 says
+            how to use, and steps 3 and 5 are required. The stack runs with main's compose file, so say
+            so when the PR changes shared/deploy/compose.yaml.
             Post the report as one review: create a pending review, add each finding as a comment on its
             line, add the answer to each unresolved thread as a comment on that thread's line that starts
             with @ and the thread author's login, and submit it with event COMMENT and the Blocking part as its body.
           claude_args: >-
             --model claude-opus-5-5
-            ${{ env.FORK == 'false'
-            && '--allowedTools Bash,Read,Glob,Grep,Write,mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review
-            --disallowedTools Edit,NotebookEdit,WebFetch,WebSearch'
-            || '--allowedTools Read,Glob,Grep,mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review
-            --disallowedTools Bash,Write,Edit,NotebookEdit,WebFetch,WebSearch' }}
+            --allowedTools Bash,Read,Glob,Grep,Write,mcp__github__create_pending_pull_request_review,mcp__github__add_comment_to_pending_review,mcp__github__submit_pending_pull_request_review
+            --disallowedTools Edit,NotebookEdit,WebFetch,WebSearch
           # The scenarios outlast the default Bash timeout. The scrub leaves
           # the GitHub tokens in Claude's commands, so the settings blank them.
           # The action's MCP servers get the App token in their own env.
