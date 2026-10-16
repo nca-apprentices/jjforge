@@ -112,7 +112,7 @@ openApiGenerate {
             "useTags" to "true",
             "documentationProvider" to "none",
             "annotationLibrary" to "none",
-            "useBeanValidation" to "false",
+            "useBeanValidation" to "true",
             // Kotlin style, and it keeps a value such as `context`, a soft keyword,
             // from being read as Kotlin syntax.
             "enumPropertyNaming" to "UPPERCASE",

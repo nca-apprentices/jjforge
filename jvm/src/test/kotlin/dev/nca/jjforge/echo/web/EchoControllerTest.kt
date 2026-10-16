@@ -4,6 +4,7 @@ import dev.nca.jjforge.echo.application.EchoService
 import dev.nca.jjforge.echo.client.VcsClient
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
@@ -26,5 +27,17 @@ class EchoControllerTest {
                     .content("""{"message":"hello"}"""),
             ).andExpect(status().isOk)
             .andExpect(jsonPath("$.message").value("hello"))
+    }
+
+    @Test
+    fun `rejects a message over the contract's maxLength`() {
+        mvc
+            .perform(
+                post("/api/v1/echo")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"message":"${"a".repeat(1025)}"}"""),
+            ).andExpect(status().isBadRequest)
+
+        verifyNoInteractions(vcs)
     }
 }
