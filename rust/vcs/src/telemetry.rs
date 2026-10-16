@@ -441,6 +441,10 @@ pub(crate) async fn finished_spans<F: std::future::Future>(
 ) -> (F::Output, Vec<opentelemetry_sdk::trace::SpanData>) {
     use tracing::instrument::WithSubscriber as _;
 
+    // tracing caches whether a callsite is wanted when it first fires. A
+    // test without a subscriber could cache "never" while this one starts,
+    // and lose its spans, so the global subscriber wants every callsite.
+    let _ = tracing::subscriber::set_global_default(tracing_subscriber::registry());
     // A request continues its caller's trace only through the propagator
     // that `install` sets.
     opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
@@ -637,6 +641,9 @@ mod tests {
     /// what it returned with the lines it wrote.
     async fn lines<F: std::future::Future>(future: F) -> (F::Output, Vec<Value>) {
         use tracing::instrument::WithSubscriber as _;
+
+        // As in `finished_spans`, so no callsite is cached as unwanted.
+        let _ = tracing::subscriber::set_global_default(tracing_subscriber::registry());
 
         opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
         let provider = builder().build();

@@ -38,6 +38,10 @@ impl<S: Subscriber> Layer<S> for Messages {
 /// Runs `future` and returns what it returned, with the message of each
 /// event it emitted.
 pub(crate) async fn messages_of<F: Future>(future: F) -> (F::Output, Vec<String>) {
+    // tracing caches whether a callsite is wanted when it first fires. A
+    // test without a subscriber could cache "never" while this one starts,
+    // and lose its events, so the global subscriber wants every callsite.
+    let _ = tracing::subscriber::set_global_default(tracing_subscriber::registry());
     let messages = Messages::default();
     let subscriber = tracing_subscriber::registry().with(messages.clone());
     let output = future.with_subscriber(subscriber).await;

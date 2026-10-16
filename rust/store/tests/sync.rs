@@ -796,6 +796,8 @@ fn a_replica_forgets_a_deleted_repository() {
     runtime.block_on(forge.repo.delete()).unwrap();
     runtime.block_on(forge.repo.create()).unwrap();
 
+    // As in the crate's own tests, so no callsite is cached as unwanted.
+    let _ = tracing::subscriber::set_global_default(tracing_subscriber::registry());
     let messages = Messages::default();
     let subscriber = tracing_subscriber::registry().with(messages.clone());
     let missing = tracing::subscriber::with_default(subscriber, || {
