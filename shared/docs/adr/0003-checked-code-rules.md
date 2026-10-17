@@ -4,10 +4,10 @@ Status: accepted, 2026-10-05. Deciders: jjforge maintainers.
 
 ## Context
 
-Apprentices write most of the code, and a rule that only review holds is
-applied unevenly. The server read its one setting with `@Value` and never
-validated it, vcs parsed its address by hand, and formatting was the only
-rule a tool checked.
+Many people write the code, and a rule that only review holds is applied
+unevenly. The server read its one setting with `@Value` and never validated
+it, vcs parsed its address by hand, and formatting was the only rule a tool
+checked.
 
 | Option                                      | Cost                                                         |
 | ------------------------------------------- | ------------------------------------------------------------ |

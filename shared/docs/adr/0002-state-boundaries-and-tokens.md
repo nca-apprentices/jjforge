@@ -21,14 +21,14 @@ The server's modules need lists, filters, joins, unique names, and a read
 that sees the write before it. They must later shard by organization without
 a rewrite.
 
-| Option                                                       | Cost                                                                                                   |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| Server state as event streams, with Postgres as a read model | A read lags its write, a unique name needs a claim, and apprentices learn event sourcing before Spring |
-| Offset pagination, random UUIDs                              | Rows that arrive between pages break the list, and random IDs scatter the index                        |
+| Option                                                       | Cost                                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Server state as event streams, with Postgres as a read model | A read lags its write, and a unique name needs a claim                          |
+| Offset pagination, random UUIDs                              | Rows that arrive between pages break the list, and random IDs scatter the index |
 
-Apprentices learn Spring Boot, Spring Data, Flyway, and SQL by building the
-features in parallel, and one maintainer keeps the Rust code. jjforge must
-run on one machine and in a cluster without two code paths.
+Several developers build the server's features in parallel with Spring
+Boot, Spring Data, Flyway, and SQL, and one maintainer keeps the Rust code.
+jjforge must run on one machine and in a cluster without two code paths.
 
 | Option                                                    | Cost                                                                           |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------ |

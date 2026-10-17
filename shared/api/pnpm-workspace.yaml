@@ -1,5 +1,3 @@
-# Every version lives here, and package.json names "catalog:". Strict mode
-# makes `pnpm add` write new versions here too.
 catalogMode: strict
 catalog:
-  "@redocly/cli": 2.61.0
+  "@redocly/cli": 2.62.1
