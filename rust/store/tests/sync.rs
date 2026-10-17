@@ -997,3 +997,50 @@ fn the_server_reads_history_files_and_diffs_of_a_pushed_repository() {
     let evolution = block_on_tokio(repo.evolution("main", "", 0)).unwrap();
     assert_eq!(evolution.items[0].commit_id, second.id().hex());
 }
+
+#[test]
+fn a_watch_yields_each_push_in_order() {
+    use futures::StreamExt as _;
+    use futures::TryStreamExt as _;
+
+    let world = World::new();
+    let repo = world.repos.get("acme", "forge").unwrap();
+    let watcher = std::thread::spawn(move || {
+        block_on_tokio(async move {
+            repo.watch(None, std::time::Duration::from_millis(10))
+                .take(2)
+                .try_collect::<Vec<_>>()
+                .await
+        })
+    });
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.commit(None, "main", "README", "one\n");
+    ada.push("main").unwrap();
+    ada.commit(Some("main"), "main", "README", "two\n");
+    ada.push("main").unwrap();
+
+    let operations = watcher.join().unwrap().unwrap();
+
+    assert_eq!(operations[1].parent_ids, [operations[0].id.clone()]);
+    assert_eq!(operations[0].principal_id, "ada");
+}
+
+#[test]
+fn a_watch_from_an_operation_outside_the_log_fails() {
+    use futures::StreamExt as _;
+
+    let world = World::new();
+    let repo = world.repos.get("acme", "forge").unwrap();
+    let elsewhere: OperationId = "07".repeat(32).parse().unwrap();
+
+    let first = block_on_tokio(async move {
+        repo.watch(Some(elsewhere), std::time::Duration::from_millis(10))
+            .next()
+            .await
+    });
+
+    assert!(matches!(
+        first,
+        Some(Err(jjforge_store::server::RepoError::NotFound(_)))
+    ));
+}

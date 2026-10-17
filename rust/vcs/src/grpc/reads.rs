@@ -1,6 +1,7 @@
 //! `HistoryService`, `FileService`, and `DiffService` of `source/v1`, which
 //! the server reads repositories through for the REST routes of #34, #41,
-//! and #47. Each call needs read access, as `sync/v1` gives it.
+//! and #47, and follows every push through, as #98 needs. Each call needs
+//! read access, as `sync/v1` gives it.
 
 use std::pin::Pin;
 
@@ -24,9 +25,12 @@ use jjforge_proto::source::v1::ReadFileRequest;
 use jjforge_proto::source::v1::ReadFileResponse;
 use jjforge_proto::source::v1::ResolveRequest;
 use jjforge_proto::source::v1::ResolveResponse;
+use jjforge_proto::source::v1::WatchOperationsRequest;
+use jjforge_proto::source::v1::WatchOperationsResponse;
 use jjforge_proto::source::v1::diff_service_server::DiffService;
 use jjforge_proto::source::v1::file_service_server::FileService;
 use jjforge_proto::source::v1::history_service_server::HistoryService;
+use jjforge_store::OperationId;
 use tonic::Request;
 use tonic::Response;
 use tonic::Status;
@@ -39,6 +43,10 @@ use crate::gate::Gate;
 /// The bytes of one `ReadFileResponse`, so a large file arrives in parts.
 const CHUNK: usize = 64 << 10;
 
+/// How often a watch reads `HEAD` again. Another replica may have moved it,
+/// so vcs reads the object store rather than waiting for its own pushes.
+const POLL: std::time::Duration = std::time::Duration::from_secs(1);
+
 type Answers<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
 
 fn answers<T: Send + 'static>(items: Vec<T>) -> Answers<T> {
@@ -50,6 +58,35 @@ pub(crate) struct Service(pub(crate) Gate);
 #[tonic::async_trait]
 impl HistoryService for Service {
     type LogStream = Answers<LogResponse>;
+    type WatchOperationsStream = Answers<WatchOperationsResponse>;
+
+    async fn watch_operations(
+        &self,
+        request: Request<WatchOperationsRequest>,
+    ) -> Result<Response<Self::WatchOperationsStream>, Status> {
+        let repo = open(
+            &self.0,
+            &request,
+            request.get_ref().repo.as_ref(),
+            Access::Read,
+        )?;
+        let since = match request.get_ref().since.as_str() {
+            "" => None,
+            since => Some(
+                since
+                    .parse::<OperationId>()
+                    .map_err(|err| Status::invalid_argument(format!("since: {err}")))?,
+            ),
+        };
+        let operations = repo.watch(since, POLL).map(|operation| {
+            operation
+                .map(|operation| WatchOperationsResponse {
+                    operation: Some(operation),
+                })
+                .map_err(status)
+        });
+        Ok(Response::new(operations.boxed()))
+    }
 
     async fn resolve(
         &self,

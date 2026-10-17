@@ -23,6 +23,10 @@ service HistoryService {
   rpc GetEvolution(GetEvolutionRequest) returns (GetEvolutionResponse);
   rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse);
   rpc ListBookmarks(ListBookmarksRequest) returns (ListBookmarksResponse);
+  // Streams each operation that moves the head, oldest first: those after
+  // `since`, then each new one as it lands. NOT_FOUND means `since` isn't in
+  // the log, and the caller starts again from an operation it is.
+  rpc WatchOperations(WatchOperationsRequest) returns (stream WatchOperationsResponse);
 }
 
 message Signature {
@@ -118,6 +122,16 @@ message Bookmark {
   string name = 1;
   // More than one target means the bookmark is conflicted.
   repeated string target_change_ids = 2;
+}
+
+message WatchOperationsRequest {
+  RepoRef repo = 1;
+  // The operation the caller saw last. Empty means every operation.
+  string since = 2;
+}
+
+message WatchOperationsResponse {
+  Operation operation = 1;
 }
 
 message ListBookmarksResponse {

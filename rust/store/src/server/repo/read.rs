@@ -43,6 +43,7 @@ use jjforge_proto::source::v1::tree_entry::Kind;
 use super::Repo;
 use super::RepoError;
 use super::internal;
+use crate::ids::OperationId;
 
 /// The bookmarks that name trunk, in the order `trunk()` tries them.
 const TRUNK: [&str; 3] = ["main", "master", "trunk"];
@@ -412,6 +413,103 @@ impl Repo {
             diff(&repo, &before, &after).await
         })
         .await
+    }
+}
+
+impl Repo {
+    /// The operations that `HEAD` reaches and `since` doesn't, oldest first,
+    /// and the operation at `HEAD`. Without `since`, every operation but the
+    /// root.
+    ///
+    /// # Errors
+    ///
+    /// Fails when `since` isn't an operation that `HEAD` reaches, or when
+    /// the store does.
+    pub async fn operations_after(
+        &self,
+        since: Option<OperationId>,
+    ) -> Result<(OperationId, Vec<source::Operation>), RepoError> {
+        let root = OperationId::root().to_vec();
+        let since = since.map_or_else(|| root.clone(), |id| id.to_vec());
+        let head = self.head().await?;
+        let mut next = head.to_vec();
+        let mut operations = vec![];
+        while next != since {
+            if next == root {
+                return Err(RepoError::NotFound(format!(
+                    "operation {} in the log",
+                    encode_hex(&since)
+                )));
+            }
+            let (_, operation) = self.read_operation(&next).await?;
+            operations.push(source::Operation {
+                id: encode_hex(&next),
+                time: Some(timestamp(&operation.metadata.time.end)),
+                principal_id: operation.metadata.username.clone(),
+                description: operation.metadata.description.clone(),
+                parent_ids: operation
+                    .parents
+                    .iter()
+                    .map(jj_lib::object_id::ObjectId::hex)
+                    .collect(),
+            });
+            // vcs writes a log without merges.
+            next = operation
+                .parents
+                .first()
+                .map_or_else(|| root.clone(), jj_lib::object_id::ObjectId::to_bytes);
+        }
+        operations.reverse();
+        Ok((head, operations))
+    }
+
+    /// Each operation after `since`, oldest first, then each new one as it
+    /// lands, read from `HEAD` every `poll`, since another replica may move
+    /// it. The stream ends after its first error.
+    pub fn watch(
+        &self,
+        since: Option<OperationId>,
+        poll: std::time::Duration,
+    ) -> futures::stream::BoxStream<'static, Result<source::Operation, RepoError>> {
+        struct Watch {
+            repo: Repo,
+            since: Option<OperationId>,
+            pending: std::collections::VecDeque<source::Operation>,
+            first: bool,
+            done: bool,
+        }
+        let watch = Watch {
+            repo: self.clone(),
+            since,
+            pending: std::collections::VecDeque::new(),
+            first: true,
+            done: false,
+        };
+        futures::stream::unfold(watch, move |mut watch| async move {
+            loop {
+                if watch.done {
+                    return None;
+                }
+                if let Some(operation) = watch.pending.pop_front() {
+                    return Some((Ok(operation), watch));
+                }
+                if !watch.first {
+                    tokio::time::sleep(poll).await;
+                }
+                watch.first = false;
+                match watch.repo.operations_after(watch.since).await {
+                    Ok((head, operations)) => {
+                        watch.since = Some(head);
+                        watch.pending.extend(operations);
+                    }
+                    Err(err) => {
+                        watch.done = true;
+                        return Some((Err(err), watch));
+                    }
+                }
+            }
+        })
+        .boxed()
     }
 }
 
