@@ -12,6 +12,7 @@ use ssh_key::certificate::Builder;
 use ssh_key::certificate::CertType;
 use ssh_key::rand_core::OsRng;
 
+use super::Audience;
 use super::AuthError;
 use super::Authority;
 use super::Claims;
@@ -110,7 +111,12 @@ impl TestPerson {
     pub(crate) fn session(&self, verifier: &Verifier) -> Result<(String, u64), AuthError> {
         let nonce = verifier.challenge().unwrap();
         let signature = self.sign(&signed(ORIGIN, &nonce), NAMESPACE);
-        verifier.session(&self.certificate(), ORIGIN, &nonce, &signature)
+        verifier.session(
+            &self.certificate(),
+            Audience::Origin(ORIGIN),
+            &nonce,
+            &signature,
+        )
     }
 }
 

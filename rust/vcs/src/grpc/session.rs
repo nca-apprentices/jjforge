@@ -37,7 +37,7 @@ impl SessionService for Service {
             .verifier()
             .session(
                 &request.certificate,
-                crate::auth::GRPC_AUDIENCE,
+                crate::auth::Audience::Server,
                 &request.nonce,
                 &request.signature,
             )

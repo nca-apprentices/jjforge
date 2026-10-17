@@ -27,9 +27,12 @@ vcs:
     repository: ghcr.io/nca-apprentices/jjforge-vcs
     tag: ""
   replicas: 1
+  # A read holds a file once, and a push holds its body once, each up to
+  # 64 MiB, while jj-lib decodes it, so a limit of twice that and more leaves
+  # room for both.
   resources:
     requests: { cpu: 50m, memory: 32Mi }
-    limits: { memory: 128Mi }
+    limits: { memory: 384Mi }
   # Sync of ADR 0001, off while store is empty. With a store, vcs serves
   # sync/v1 at /sync/v1 of the ingress host, and keeps jj's index in an
   # emptyDir.

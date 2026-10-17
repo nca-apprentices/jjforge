@@ -154,8 +154,10 @@ impl Repo {
         let rev = rev.to_owned();
         self.at_head(move |repo| async move {
             let start = commit(&repo, &rev).await?;
+            // The root commit is no change anyone made, as `jj log` hides it.
             let revset = ResolvedRevsetExpression::commit(start.id().clone())
                 .ancestors()
+                .minus(&ResolvedRevsetExpression::root())
                 .evaluate(repo.as_ref())
                 .map_err(internal)?;
             let ids: Vec<CommitId> = revset
@@ -227,6 +229,9 @@ impl Repo {
         self.at_head(move |repo| async move {
             let operations: Vec<_> =
                 jj_lib::op_walk::walk_ancestors(std::slice::from_ref(repo.operation()))
+                    // The root operation is no change anyone made, as a watch
+                    // leaves it out too.
+                    .try_filter(|operation| std::future::ready(!operation.parent_ids().is_empty()))
                     .skip(offset)
                     .take(size + 1)
                     .try_collect()
@@ -299,50 +304,73 @@ impl Repo {
     ) -> Result<Page<source::TreeEntry>, RepoError> {
         let (rev, offset, size) = (rev.to_owned(), offset(token)?, page_size(size));
         let dir = repo_path(path)?;
-        self.at_head(move |repo| async move {
-            let commit = commit(&repo, &rev).await?;
-            let trees = commit.tree().trees().await.map_err(internal)?;
-            let mut names = BTreeMap::new();
-            let mut found = false;
-            for tree in &trees {
-                let Some(sub) = tree.sub_tree_recursive(&dir).await.map_err(internal)? else {
-                    continue;
-                };
-                found = true;
-                for entry in sub.entries_non_recursive() {
-                    names
-                        .entry(entry.name().as_internal_str().to_owned())
-                        .or_insert_with(|| entry.value().clone());
-                }
-            }
-            if !found {
-                return Err(RepoError::NotFound(format!(
-                    "directory {}",
-                    dir.as_internal_file_string()
-                )));
-            }
-
-            let mut entries = vec![];
-            for (name, value) in names.into_iter().skip(offset).take(size + 1) {
-                let path =
-                    dir.join(jj_lib::repo_path::RepoPathComponent::new(&name).map_err(internal)?);
-                let (kind, size) = match &value {
-                    TreeValue::File { id, .. } => {
-                        (Kind::File, read_all(&repo, &path, id).await?.len())
+        let page = self
+            .at_head(move |repo| async move {
+                let commit = commit(&repo, &rev).await?;
+                let trees = commit.tree().trees().await.map_err(internal)?;
+                let mut names = BTreeMap::new();
+                let mut found = false;
+                for tree in &trees {
+                    let Some(sub) = tree.sub_tree_recursive(&dir).await.map_err(internal)? else {
+                        continue;
+                    };
+                    found = true;
+                    for entry in sub.entries_non_recursive() {
+                        names
+                            .entry(entry.name().as_internal_str().to_owned())
+                            .or_insert_with(|| entry.value().clone());
                     }
-                    TreeValue::Symlink(_) => (Kind::Symlink, 0),
-                    TreeValue::Tree(_) | TreeValue::GitSubmodule(_) => (Kind::Directory, 0),
-                };
-                entries.push(source::TreeEntry {
-                    name,
-                    path: path.as_internal_file_string().to_owned(),
-                    kind: kind.into(),
-                    size: i64::try_from(size).unwrap_or(i64::MAX),
-                });
+                }
+                if !found {
+                    return Err(RepoError::NotFound(format!(
+                        "directory {}",
+                        dir.as_internal_file_string()
+                    )));
+                }
+
+                let mut entries = vec![];
+                for (name, value) in names.into_iter().skip(offset).take(size + 1) {
+                    let path = dir
+                        .join(jj_lib::repo_path::RepoPathComponent::new(&name).map_err(internal)?);
+                    let (kind, file) = match &value {
+                        TreeValue::File { id, .. } => (Kind::File, Some(id.to_bytes())),
+                        TreeValue::Symlink(_) => (Kind::Symlink, None),
+                        TreeValue::Tree(_) | TreeValue::GitSubmodule(_) => (Kind::Directory, None),
+                    };
+                    let entry = source::TreeEntry {
+                        name,
+                        path: path.as_internal_file_string().to_owned(),
+                        kind: kind.into(),
+                        size: 0,
+                    };
+                    entries.push((entry, file));
+                }
+                Ok(page(entries, offset, size))
+            })
+            .await?;
+
+        // A file's size comes from where its object lies in a segment, so a
+        // listing reads no file.
+        let mut items = Vec::with_capacity(page.items.len());
+        for (mut entry, file) in page.items {
+            if let Some(id) = file {
+                entry.size = self
+                    .file_size(&id)
+                    .await
+                    .map_or(0, |size| i64::try_from(size).unwrap_or(i64::MAX));
             }
-            Ok(page(entries, offset, size))
+            items.push(entry);
+        }
+        Ok(Page {
+            items,
+            next: page.next,
         })
-        .await
+    }
+
+    async fn file_size(&self, id: &[u8]) -> Option<u64> {
+        let catalog = self.catalog.read().await;
+        let range = &catalog.locations.get(id)?.range;
+        content_len(range.end - range.start)
     }
 
     /// The bytes of the file at `path` in the tree of `rev`, from `offset`,
@@ -361,29 +389,48 @@ impl Repo {
     ) -> Result<FileRead, RepoError> {
         let rev = rev.to_owned();
         let path = repo_path(path)?;
-        self.at_head(move |repo| async move {
-            let commit = commit(&repo, &rev).await?;
-            let value = commit.tree().path_value(&path).await.map_err(internal)?;
-            let Some(Some(TreeValue::File { id, .. })) = value.as_resolved() else {
-                return Err(RepoError::NotFound(format!(
-                    "file {}",
-                    path.as_internal_file_string()
-                )));
-            };
-            let bytes = read_all(&repo, &path, id).await?;
-            let size = bytes.len();
-            let start = usize::try_from(offset).unwrap_or(usize::MAX).min(size);
-            let end = match usize::try_from(length) {
-                Ok(0) | Err(_) => size,
-                Ok(length) => start.saturating_add(length).min(size),
-            };
-            Ok(FileRead {
-                size: size as u64,
-                binary: is_binary(&bytes),
-                bytes: bytes[start..end].to_vec(),
+        // The read stops at the end of the range, or at the bytes that tell
+        // whether the file is binary, and the range is cut out in place, so a
+        // large file isn't copied again.
+        let end = match length {
+            0 => u64::MAX,
+            length => offset.saturating_add(length),
+        };
+        let probe = BINARY_PROBE as u64;
+        let (id, mut bytes) = self
+            .at_head(move |repo| async move {
+                let commit = commit(&repo, &rev).await?;
+                let value = commit.tree().path_value(&path).await.map_err(internal)?;
+                let Some(Some(TreeValue::File { id, .. })) = value.as_resolved() else {
+                    return Err(RepoError::NotFound(format!(
+                        "file {}",
+                        path.as_internal_file_string()
+                    )));
+                };
+                let mut reader = repo.store().read_file(&path, id).await.map_err(internal)?;
+                let mut bytes = vec![];
+                (&mut reader)
+                    .take(end.max(probe))
+                    .read_to_end(&mut bytes)
+                    .await
+                    .map_err(internal)?;
+                Ok((id.to_bytes(), bytes))
             })
+            .await?;
+        let binary = is_binary(&bytes);
+        let size = match self.file_size(&id).await {
+            Some(size) => size,
+            None => bytes.len() as u64,
+        };
+        let clamp = |at: u64| usize::try_from(at).unwrap_or(usize::MAX).min(bytes.len());
+        let (start, end) = (clamp(offset), clamp(end));
+        bytes.truncate(end);
+        bytes.drain(..start.min(end));
+        Ok(FileRead {
+            size,
+            binary,
+            bytes,
         })
-        .await
     }
 
     /// One `DiffResponse` per changed file: of `rev` against its parents
@@ -407,7 +454,13 @@ impl Repo {
                 (from, to)
             } else {
                 let commit = commit(&repo, &rev).await?;
-                let parent = commit.parent_tree(repo.as_ref()).await.map_err(internal)?;
+                // A merge's parents merge without resolving, since resolving
+                // writes trees that a read never may. `contents` resolves each
+                // path that merges cleanly.
+                let parent = commit
+                    .parent_tree_no_resolve(repo.as_ref())
+                    .await
+                    .map_err(internal)?;
                 (parent, commit.tree())
             };
             diff(&repo, &before, &after).await
@@ -645,6 +698,17 @@ async fn read_all(
     Ok(bytes)
 }
 
+/// The length of the content of a `StoredObject` of `encoded` bytes that
+/// holds one `File`: a tag and a length around the `File`, which is a tag and
+/// a length around the content, or nothing for an empty file.
+fn content_len(encoded: u64) -> Option<u64> {
+    let varint = |n: u64| u64::from(64 - n.max(1).leading_zeros()).div_ceil(7);
+    (encoded.saturating_sub(22)..=encoded).find(|&n| {
+        let file = if n == 0 { 0 } else { 1 + varint(n) + n };
+        1 + varint(file) + file == encoded
+    })
+}
+
 fn is_binary(bytes: &[u8]) -> bool {
     bytes[..bytes.len().min(BINARY_PROBE)].contains(&0)
 }
@@ -690,13 +754,18 @@ async fn diff(
     let mut files = vec![];
     for entry in entries {
         let values = entry.values.map_err(internal)?;
-        let status = match (values.before.is_absent(), values.after.is_absent()) {
+        let before = resolved(&values.before);
+        let after = resolved(&values.after);
+        if before == after {
+            continue;
+        }
+        let status = match (before.is_absent(), after.is_absent()) {
             (true, _) => Status::Added,
             (_, true) => Status::Deleted,
             _ => Status::Modified,
         };
-        let old = contents(repo, &entry.path, &values.before).await?;
-        let new = contents(repo, &entry.path, &values.after).await?;
+        let old = contents(repo, &entry.path, &before).await?;
+        let new = contents(repo, &entry.path, &after).await?;
         let (binary, hunks) = match (old, new) {
             (Some(old), Some(new)) if is_binary(&old) || is_binary(&new) => (true, vec![]),
             (Some(old), Some(new)) => (false, hunks(&old, &new)),
@@ -711,6 +780,17 @@ async fn diff(
         });
     }
     Ok(files)
+}
+
+/// A side of a diff with its trivial conflicts resolved, as a clean merge
+/// of the parents of a merge commit leaves them.
+fn resolved(value: &Merge<Option<TreeValue>>) -> Merge<Option<TreeValue>> {
+    value
+        .resolve_trivial(jj_lib::merge::SameChange::Accept)
+        .map_or_else(
+            || value.clone(),
+            |resolved| Merge::resolved(resolved.clone()),
+        )
 }
 
 /// The bytes of a side of a diff: empty when absent, `None` when it is no
@@ -799,10 +879,13 @@ fn hunks(old: &[u8], new: &[u8]) -> Vec<source::Hunk> {
             });
         }
         at = end;
+        // A side without lines starts at the line before the hunk, as git
+        // shows an added or a deleted file as `-0,0` or `+0,0`.
+        let start = |start: i32, lines: i32| if lines == 0 { start - 1 } else { start };
         hunks.push(source::Hunk {
-            old_start,
+            old_start: start(old_start, old_line - old_start),
             old_lines: old_line - old_start,
-            new_start,
+            new_start: start(new_start, new_line - new_start),
             new_lines: new_line - new_start,
             lines: out,
         });
@@ -866,6 +949,34 @@ mod tests {
 
         assert_eq!(hunks.len(), 2);
         assert_eq!(hunks[1].old_start, 16);
+    }
+
+    #[test]
+    fn a_file_object_names_the_length_of_its_content() {
+        use jjforge_proto::store::v1::File;
+        use jjforge_proto::store::v1::StoredObject;
+        use jjforge_proto::store::v1::stored_object::Kind;
+        use prost::Message as _;
+
+        for size in [0, 1, 127, 128, 16_383, 16_384, 70_000_000] {
+            let object = StoredObject {
+                kind: Some(Kind::File(File {
+                    content: vec![0; size],
+                })),
+            };
+
+            let encoded = object.encoded_len() as u64;
+
+            assert_eq!(content_len(encoded), Some(size as u64), "{size}");
+        }
+    }
+
+    #[test]
+    fn an_added_file_starts_its_old_side_at_zero() {
+        let hunks = hunks(b"", b"one\n");
+
+        assert_eq!((hunks[0].old_start, hunks[0].old_lines), (0, 0));
+        assert_eq!((hunks[0].new_start, hunks[0].new_lines), (1, 1));
     }
 
     #[test]

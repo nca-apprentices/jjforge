@@ -16,10 +16,11 @@ service HistoryService {
   // the revision is ambiguous.
   rpc Resolve(ResolveRequest) returns (ResolveResponse);
   // Streams the changes reachable from a revision, newest first, at most
-  // 1,000 of them.
+  // 1,000 of them, without the root commit.
   rpc Log(LogRequest) returns (stream LogResponse);
   rpc GetChange(GetChangeRequest) returns (GetChangeResponse);
-  // Lists the earlier versions of a change, newest first.
+  // Lists the versions of a change, newest first: the current one, then each
+  // earlier one.
   rpc GetEvolution(GetEvolutionRequest) returns (GetEvolutionResponse);
   rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse);
   rpc ListBookmarks(ListBookmarksRequest) returns (ListBookmarksResponse);

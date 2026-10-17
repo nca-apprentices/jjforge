@@ -129,8 +129,12 @@ jobs:
           docker load --input "$RUNNER_TEMP/artifacts/image-server/server.tar"
           docker load --input "$RUNNER_TEMP/artifacts/image-vcs/vcs.tar"
           chmod +x "$RUNNER_TEMP/artifacts/jf/jf"
+      # The dev certificate authority and keys that compose mounts, which
+      # nothing commits.
       - name: Start
-        run: docker-compose up --no-build --detach
+        run: |
+          shared/deploy/twins/cert server
+          docker-compose up --no-build --detach
       # vcs is distroless and has no shell for a compose healthcheck, so the
       # step polls an echo, which passes through both server and vcs.
       - name: Wait

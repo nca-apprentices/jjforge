@@ -85,6 +85,12 @@ impl Gate {
         Ok((self.repos.get(org, repo)?, principal.into()))
     }
 
+    /// When the session in `authorization` ends, in seconds since the
+    /// epoch, for a call that outlives the moment `open` checked it.
+    pub(crate) fn session_end(&self, authorization: Option<&str>) -> Result<u64, Refused> {
+        Ok(self.verifier.verify(authorization)?.expires_at)
+    }
+
     /// The verifier that opens sessions, for the routes that need no
     /// repository.
     pub(crate) fn verifier(&self) -> &Verifier {

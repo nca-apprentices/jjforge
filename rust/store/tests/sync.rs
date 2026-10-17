@@ -1044,3 +1044,80 @@ fn a_watch_from_an_operation_outside_the_log_fails() {
         Some(Err(jjforge_store::server::RepoError::NotFound(_)))
     ));
 }
+
+impl Clone {
+    /// Merges the commits that `left` and `right` point at, adds `path` on
+    /// top, and points `bookmark` at the merge.
+    fn merge(
+        &mut self,
+        left: &str,
+        right: &str,
+        bookmark: &str,
+        path: &str,
+    ) -> jj_lib::commit::Commit {
+        let repo = self.repo.clone();
+        let parent = |name: &str| {
+            repo.store()
+                .get_commit(
+                    repo.view()
+                        .get_local_bookmark(RefName::new(name))
+                        .as_normal()
+                        .unwrap(),
+                )
+                .unwrap()
+        };
+        let parents = [parent(left), parent(right)];
+        let merged =
+            block_on(jj_lib::rewrite::merge_commit_trees(repo.as_ref(), &parents)).unwrap();
+        let file = block_on(repo.store().write_file(
+            RepoPath::from_internal_string(path).unwrap(),
+            &mut "merged\n".as_bytes(),
+        ))
+        .unwrap();
+        let mut builder = MergedTreeBuilder::new(merged);
+        builder.set_or_remove(
+            RepoPathBuf::from_internal_string(path).unwrap(),
+            Merge::normal(TreeValue::File {
+                id: file,
+                executable: false,
+                copy_id: CopyId::placeholder(),
+            }),
+        );
+        let tree = block_on(builder.write_tree()).unwrap();
+        let mut tx = repo.start_transaction();
+        let commit = block_on(
+            tx.repo_mut()
+                .new_commit(parents.iter().map(|p| p.id().clone()).collect(), tree)
+                .set_description("merge")
+                .write(),
+        )
+        .unwrap();
+        tx.repo_mut().set_local_bookmark_target(
+            RefName::new(bookmark),
+            RefTarget::normal(commit.id().clone()),
+        );
+        self.repo = block_on(tx.commit("merge")).unwrap();
+        commit
+    }
+}
+
+#[test]
+fn the_diff_of_a_merge_shows_only_what_the_merge_added() {
+    use jjforge_proto::source::v1::diff_response::Status;
+
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.commit(None, "left", "README", "one\n");
+    ada.commit(None, "right", "NOTES", "two\n");
+    ada.merge("left", "right", "main", "MERGED");
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let diff = block_on_tokio(repo.diff("main", "", "")).unwrap();
+
+    let files: Vec<_> = diff
+        .iter()
+        .map(|file| (file.path.as_str(), file.status()))
+        .collect();
+    assert_eq!(files, [("MERGED", Status::Added)]);
+}

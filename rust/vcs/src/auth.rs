@@ -69,6 +69,8 @@ pub(crate) struct Principal {
     pub(crate) subject: String,
     /// The principals that delegated to this one, outermost first.
     pub(crate) delegation: Vec<String>,
+    /// When the session ends, in seconds since the epoch.
+    pub(crate) expires_at: u64,
     scopes: HashSet<String>,
     /// The organizations whose authorities signed the certificate, the
     /// only ones its scopes reach.
@@ -96,6 +98,7 @@ impl From<Claims> for Principal {
         Self {
             subject: claims.sub,
             delegation: claims.delegation,
+            expires_at: claims.exp,
             scopes: claims.scopes.into_iter().collect(),
             orgs: claims.orgs.into_iter().collect(),
         }
@@ -160,6 +163,23 @@ impl FromStr for Authority {
 /// its challenge.
 pub(crate) const GRPC_AUDIENCE: &str = "grpc:source/v1";
 
+/// Whom a client signed a challenge for: the origin of `sync/v1` that it
+/// connected to, or vcs itself over gRPC, as the server signs it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Audience<'a> {
+    Origin(&'a str),
+    Server,
+}
+
+impl Audience<'_> {
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Origin(origin) => origin,
+            Self::Server => GRPC_AUDIENCE,
+        }
+    }
+}
+
 /// What a client signs: the origin it connected to and the nonce, so a
 /// challenge that another site relays to it opens nothing here.
 pub(crate) fn signed(origin: &str, nonce: &[u8]) -> Vec<u8> {
@@ -191,10 +211,12 @@ impl Verifier {
         self
     }
 
-    fn allows(&self, origin: &str) -> bool {
-        if origin == GRPC_AUDIENCE {
-            return true;
-        }
+    fn allows(&self, audience: Audience<'_>) -> bool {
+        let origin = match audience {
+            Audience::Server => return true,
+            Audience::Origin(GRPC_AUDIENCE) => return false,
+            Audience::Origin(origin) => origin,
+        };
         if !self.origins.is_empty() {
             return self.origins.iter().any(|allowed| allowed == origin);
         }
@@ -222,11 +244,11 @@ impl Verifier {
     pub(crate) fn session(
         &self,
         certificate: &str,
-        origin: &str,
+        audience: Audience<'_>,
         nonce: &[u8],
         signature: &str,
     ) -> Result<(String, u64), AuthError> {
-        let result = self.open_session(certificate, origin, nonce, signature);
+        let result = self.open_session(certificate, audience, nonce, signature);
         if let Err(AuthError::Invalid(reason)) = &result {
             tracing::info!(%reason, "session refused");
         }
@@ -236,13 +258,14 @@ impl Verifier {
     fn open_session(
         &self,
         certificate: &str,
-        origin: &str,
+        audience: Audience<'_>,
         nonce: &[u8],
         signature: &str,
     ) -> Result<(String, u64), AuthError> {
         let now = now();
         let invalid = |reason: &str| AuthError::Invalid(reason.to_owned());
-        if !self.allows(origin) {
+        let origin = audience.as_str();
+        if !self.allows(audience) {
             return Err(AuthError::Invalid(format!(
                 "{origin} is not an origin of vcs"
             )));
@@ -352,7 +375,7 @@ pub(crate) fn operation_signer(path: &std::path::Path) -> anyhow::Result<Signer>
     }))
 }
 
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs())
@@ -378,6 +401,7 @@ mod tests {
         Principal {
             subject: "ada".to_owned(),
             delegation: vec![],
+            expires_at: u64::MAX,
             scopes: scope.split_whitespace().map(str::to_owned).collect(),
             orgs: HashSet::from(["acme".to_owned()]),
         }
@@ -479,7 +503,12 @@ mod tests {
         let signature = mallory.sign(&signed(ORIGIN, &nonce), NAMESPACE);
 
         assert!(matches!(
-            verifier.session(&ada.certificate(), ORIGIN, &nonce, &signature),
+            verifier.session(
+                &ada.certificate(),
+                Audience::Origin(ORIGIN),
+                &nonce,
+                &signature
+            ),
             Err(AuthError::Invalid(_))
         ));
     }
@@ -494,22 +523,34 @@ mod tests {
         let signature = ada.sign(&signed(ORIGIN, &nonce), "git");
 
         assert!(matches!(
-            verifier.session(&ada.certificate(), ORIGIN, &nonce, &signature),
+            verifier.session(
+                &ada.certificate(),
+                Audience::Origin(ORIGIN),
+                &nonce,
+                &signature
+            ),
             Err(AuthError::Invalid(_))
         ));
     }
 
     #[test]
-    fn a_nonce_that_vcs_did_not_issue_opens_no_session() {
+    fn a_changed_nonce_opens_no_session() {
         let authority = TestAuthority::new();
         let verifier = authority.verifier("acme");
         let ada = authority.person("ada", "sync:write:acme", "");
-        let nonce = vec![7; 56];
+        // A nonce vcs issued, changed after, so its tag no longer covers it.
+        let mut nonce = verifier.challenge().unwrap();
+        nonce[0] ^= 1;
 
         let signature = ada.sign(&signed(ORIGIN, &nonce), NAMESPACE);
 
         assert!(matches!(
-            verifier.session(&ada.certificate(), ORIGIN, &nonce, &signature),
+            verifier.session(
+                &ada.certificate(),
+                Audience::Origin(ORIGIN),
+                &nonce,
+                &signature
+            ),
             Err(AuthError::Invalid(_))
         ));
     }
@@ -532,7 +573,12 @@ mod tests {
         for origin in [evil, "https://jjforge.example.com"] {
             assert!(
                 matches!(
-                    verifier.session(&ada.certificate(), origin, &nonce, &signature),
+                    verifier.session(
+                        &ada.certificate(),
+                        Audience::Origin(origin),
+                        &nonce,
+                        &signature
+                    ),
                     Err(AuthError::Invalid(_))
                 ),
                 "{origin}"
@@ -544,10 +590,11 @@ mod tests {
     fn a_verifier_without_origins_allows_loopback_only() {
         let verifier = TestAuthority::new().verifier("acme");
 
-        assert!(verifier.allows("http://localhost:8081"));
-        assert!(verifier.allows("http://127.0.0.1:28081"));
-        assert!(verifier.allows(GRPC_AUDIENCE));
-        assert!(!verifier.allows("https://jjforge.example.com"));
+        assert!(verifier.allows(Audience::Origin("http://localhost:8081")));
+        assert!(verifier.allows(Audience::Origin("http://127.0.0.1:28081")));
+        assert!(verifier.allows(Audience::Server));
+        assert!(!verifier.allows(Audience::Origin(GRPC_AUDIENCE)));
+        assert!(!verifier.allows(Audience::Origin("https://jjforge.example.com")));
     }
 
     #[test]

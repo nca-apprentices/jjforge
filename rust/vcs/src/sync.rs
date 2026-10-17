@@ -172,7 +172,7 @@ async fn session(State(gate): State<Gate>, body: Bytes) -> Result<Response, Prob
         .verifier()
         .session(
             &request.certificate,
-            &request.origin,
+            crate::auth::Audience::Origin(&request.origin),
             &request.nonce,
             &request.signature,
         )
@@ -724,6 +724,29 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(code(response).await, "unauthenticated");
+    }
+
+    // The server's audience opens sessions over gRPC only, so a signature for
+    // it opens nothing at `POST /sync/v1/session`.
+    #[tokio::test]
+    async fn a_signature_for_the_server_audience_opens_no_http_session() {
+        let fixture = fixture().await;
+        let ada = fixture.authority.person("ada", "sync:read:acme", "");
+        let nonce = nonce(&fixture).await;
+        let audience = crate::auth::GRPC_AUDIENCE;
+        let request = SessionRequest {
+            certificate: ada.certificate(),
+            signature: ada.sign(
+                &crate::auth::signed(audience, &nonce),
+                crate::auth::NAMESPACE,
+            ),
+            nonce,
+            origin: audience.to_owned(),
+        };
+
+        let response = open_session(&fixture, &request).await;
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]

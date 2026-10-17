@@ -78,13 +78,30 @@ impl HistoryService for Service {
                     .map_err(|err| Status::invalid_argument(format!("since: {err}")))?,
             ),
         };
-        let operations = repo.watch(since, POLL).map(|operation| {
-            operation
-                .map(|operation| WatchOperationsResponse {
-                    operation: Some(operation),
-                })
-                .map_err(status)
-        });
+        // A watch outlives the check at its start, so it ends with its
+        // session, and the caller opens a new one.
+        let authorization = request
+            .metadata()
+            .get("authorization")
+            .and_then(|value| value.to_str().ok());
+        let left = self
+            .0
+            .session_end(authorization)?
+            .saturating_sub(crate::auth::now());
+        let ended = tokio::time::sleep(std::time::Duration::from_secs(left));
+        let operations = repo
+            .watch(since, POLL)
+            .map(|operation| {
+                operation
+                    .map(|operation| WatchOperationsResponse {
+                        operation: Some(operation),
+                    })
+                    .map_err(status)
+            })
+            .take_until(ended)
+            .chain(futures::stream::once(async {
+                Err(Status::unauthenticated("the session ended"))
+            }));
         Ok(Response::new(operations.boxed()))
     }
 
@@ -240,33 +257,37 @@ impl FileService for Service {
             Access::Read,
         )?;
         let request = request.get_ref();
-        let range = |value: i64| u64::try_from(value).unwrap_or(0);
+        let range = |name: &str, value: i64| {
+            u64::try_from(value)
+                .map_err(|_| Status::invalid_argument(format!("{name} is negative")))
+        };
         let file = repo
             .file(
                 &request.rev,
                 &request.path,
-                range(request.offset),
-                range(request.length),
+                range("offset", request.offset)?,
+                range("length", request.length)?,
             )
             .await
             .map_err(status)?;
         let size = i64::try_from(file.size).unwrap_or(i64::MAX);
         // The first chunk carries the size and whether the file is binary,
-        // even when the range is empty.
-        let mut chunks: Vec<ReadFileResponse> = file
-            .bytes
-            .chunks(CHUNK)
-            .map(|chunk| ReadFileResponse {
-                chunk: chunk.to_vec(),
-                ..ReadFileResponse::default()
-            })
-            .collect();
-        if chunks.is_empty() {
-            chunks.push(ReadFileResponse::default());
-        }
-        chunks[0].size = size;
-        chunks[0].binary = file.binary;
-        Ok(Response::new(answers(chunks)))
+        // even when the range is empty. Each chunk is copied as it is sent,
+        // so the range sits in memory once.
+        let chunks = futures::stream::unfold(Some(0), move |at| {
+            let response = at.map(|at| {
+                let end = (at + CHUNK).min(file.bytes.len());
+                let first = at == 0;
+                let response = ReadFileResponse {
+                    size: if first { size } else { 0 },
+                    binary: first && file.binary,
+                    chunk: file.bytes[at..end].to_vec(),
+                };
+                (Ok(response), (end < file.bytes.len()).then_some(end))
+            });
+            async move { response }
+        });
+        Ok(Response::new(chunks.boxed()))
     }
 }
 
@@ -373,5 +394,37 @@ mod tests {
         let refused = service.log(request(log, Some(&token))).await;
 
         assert_eq!(refused.err().unwrap().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn a_watch_ends_with_its_session() {
+        use crate::auth::Claims;
+
+        let (_cache, key, service) = service().await;
+        let token = key.seal(&Claims {
+            sub: "server".to_owned(),
+            delegation: vec![],
+            scopes: vec!["sync:read:acme".to_owned()],
+            orgs: vec!["acme".to_owned()],
+            exp: crate::auth::now() + 1,
+        });
+        let watch = WatchOperationsRequest {
+            repo: bookmarks().repo,
+            since: String::new(),
+        };
+
+        let mut stream = service
+            .watch_operations(request(watch, Some(&token)))
+            .await
+            .unwrap()
+            .into_inner();
+        let ended = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            ended.unwrap().unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
     }
 }

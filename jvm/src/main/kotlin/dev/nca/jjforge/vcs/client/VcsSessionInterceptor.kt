@@ -8,8 +8,10 @@ import io.grpc.Channel
 import io.grpc.ClientCall
 import io.grpc.ClientInterceptor
 import io.grpc.ForwardingClientCall
+import io.grpc.ForwardingClientCallListener
 import io.grpc.Metadata
 import io.grpc.MethodDescriptor
+import io.grpc.Status
 import org.springframework.grpc.client.GlobalClientInterceptor
 import org.springframework.stereotype.Component
 import java.nio.file.Files
@@ -52,10 +54,28 @@ class VcsSessionInterceptor(
                 headers: Metadata,
             ) {
                 headers.put(AUTHORIZATION, "Bearer $token")
-                super.start(listener, headers)
+                super.start(forgetOnRefusal(listener, token), headers)
             }
         }
     }
+
+    // vcs refuses a session it can no longer open, such as after a restart
+    // that drew a new session key, so the next call opens a new one.
+    private fun <Res> forgetOnRefusal(
+        listener: ClientCall.Listener<Res>,
+        token: String,
+    ): ClientCall.Listener<Res> =
+        object : ForwardingClientCallListener.SimpleForwardingClientCallListener<Res>(listener) {
+            override fun onClose(
+                status: Status,
+                trailers: Metadata,
+            ) {
+                if (status.code == Status.Code.UNAUTHENTICATED) {
+                    session.updateAndGet { it?.takeUnless { cached -> cached.token == token } }
+                }
+                super.onClose(status, trailers)
+            }
+        }
 
     private fun current(channel: Channel): String {
         val now = Instant.now()
