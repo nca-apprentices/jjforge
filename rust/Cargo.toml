@@ -27,11 +27,6 @@ blake3 = "1.8.7"
 clap = { version = "4.6.7", features = ["derive", "env"] }
 futures = "0.3.34"
 hex = "0.4.3"
-# Verifies the tokens of sync/v1 offline, as ADR 0002 decides. Version 9 runs
-# on ring, as the TLS stack does. Version 10 and later need aws-lc or the rsa
-# crate, which carries an open advisory. vcs types the time claims itself,
-# since version 9 skips one it can't parse.
-jsonwebtoken = "9.3.1"
 http = "1.5.0"
 metrics = "0.24.6"
 # The S3 client of the store crate, as ADR 0002 decides, on the TLS stack of
@@ -52,13 +47,16 @@ prost = "0.14.4"
 # The protoc that tonic-prost-build runs, so no system protoc is needed.
 protoc-bin-vendored = "3.3.0"
 # The TLS stack jf uses: rustls on ring, with the roots of the platform.
-# Generates the keys of the token tests at run time, so no private key lives
-# in the repository.
+# vcs seals its sessions and challenges with its HMAC.
 ring = "0.17.14"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
 rustls = { version = "0.23.45", default-features = false, features = ["ring"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.152"
+# Checks the OpenSSH certificates and SSHSIG signatures of ADR 0002, and makes
+# them in tests. Ed25519 and ECDSA P-256 only: the rsa crate carries an open
+# advisory.
+ssh-key = { version = "0.6.7", default-features = false, features = ["std", "ed25519", "p256"] }
 tempfile = "3.27.0"
 thiserror = "2.0.21"
 tokio = { version = "1.53.2", features = ["macros", "rt-multi-thread"] }

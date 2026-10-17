@@ -58,6 +58,26 @@ mise run compose logs   # or any other docker-compose command, such as ps or dow
 
 Set `JJFORGE_PORT` for both when something else holds port 8080.
 
+## Signing in
+
+`jf` signs in with an SSH certificate, as
+[ADR 0002](adr/0002-state-boundaries-and-tokens.md) decides. `mise run up`
+and `mise run rust:serve` make a development certificate authority in
+`shared/deploy/.dev/`, which vcs trusts for both organizations of the seed.
+`mise run cert` signs a certificate for 12 hours and prints the key for
+`JJFORGE_KEY`:
+
+```text
+set -x JJFORGE_KEY (mise run cert acme_member)
+jf clone http://localhost:8081/sync/v1/0199c9a0-0000-7000-8000-00000000ac3e/<repo>
+jf auth token http://localhost:8081/sync/v1/0199c9a0-0000-7000-8000-00000000ac3e/<repo>
+```
+
+The people of the seed are `acme_owner`, `acme_member`, and `other_owner`.
+`server` is the server's own certificate, which opens its session with vcs.
+`jf auth token` prints a session for a script, such as a `grpcurl` call to
+`RepoService`.
+
 `jf echo hi` prints the trace ID of its request on stderr, and so does the
 echo page. The twin of the trace store shows that trace at
 `http://localhost:10428/select/vmui`, from the server through vcs.
@@ -67,7 +87,7 @@ Without building the images, each in a terminal of its own:
 
 ```text
 mise run twins       # postgres on :5432, seaweedfs, oidc, and traces on :10428
-mise run rust:serve  # vcs on :50052
+mise run rust:serve  # vcs on :50052 and sync/v1 on :8081, repositories in shared/deploy/.dev/store
 mise run jvm:serve   # server on :8080, actuator on :8081
 mise run web:serve   # web app on :5173, /api proxied to :8080
 mise run site:serve  # docs site on :8000

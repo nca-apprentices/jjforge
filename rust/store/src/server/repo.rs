@@ -97,10 +97,10 @@ fn internal(err: impl Into<Source>) -> RepoError {
     RepoError::Internal(err.into())
 }
 
-/// Who made an operation, from the verified token, as #102 decides.
+/// Who made an operation, from the verified session, as #102 decides.
 #[derive(Clone, Debug)]
 pub struct Author {
-    /// The principal the token names.
+    /// The principal the session names.
     pub subject: String,
     /// The principals that delegated to `subject`, outermost first.
     pub delegation: Vec<String>,
@@ -899,7 +899,7 @@ fn commit_predecessors(
         .collect()
 }
 
-/// The operation's metadata. The author comes from the token and the time
+/// The operation's metadata. The author comes from the session and the time
 /// from vcs's clock, so a client can claim neither, as #102 decides.
 fn metadata(request: &PublishRequest, author: &Author) -> OperationMetadata {
     let millis = SystemTime::now()

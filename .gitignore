@@ -1,5 +1,7 @@
 # Local state, never committed
 .env
+# The dev certificate authority and keys of shared/deploy/twins/cert
+shared/deploy/.dev/
 .claude-notes/
 .claude/worktrees/
 .DS_Store

@@ -9,12 +9,16 @@ option java_package = "dev.nca.jjforge.sync.v1";
 // gRPC, so a cache can serve immutable reads. See
 // shared/docs/adr/0001-native-jj-without-git.md.
 //
-// Every request carries a JWT as `Authorization: Bearer`. Bodies are
-// these messages, encoded, as `application/x-protobuf`. Errors are
+// A client opens a session with its OpenSSH certificate, as ADR 0002
+// decides, and every other request carries the session as
+// `Authorization: Bearer`. Bodies are these messages, encoded, as
+// `application/x-protobuf`. Errors are
 // `application/problem+json` with the problem codes of the REST API. IDs in a
 // path are hexadecimal. `{base}` is a repository's clone address:
 // `https://{host}/sync/v1/{org_id}/{repo_id}`.
 //
+//   GET  /sync/v1/challenge           -> Challenge
+//   POST /sync/v1/session             SessionRequest -> Session
 //   GET  {base}/head                  -> Head, with the operation ID as ETag
 //   GET  {base}/operations?since={id} -> ObjectBundle of operations and views
 //   POST {base}/objects/missing       HashList -> HashList of absent IDs
@@ -31,6 +35,33 @@ option java_package = "dev.nca.jjforge.sync.v1";
 // `precondition_failed` and the current head. `jf` fetches, merges, and tries
 // again or reports the conflict. A repository that vcs hasn't created
 // answers 404 `not_found` on every route.
+
+// A nonce for the client to sign, valid for a minute.
+message Challenge {
+  bytes nonce = 1;
+}
+
+// A certificate and its key's signature over a challenge and an origin. A refusal answers
+// 401 `unauthenticated`.
+message SessionRequest {
+  // The certificate in OpenSSH form, as `ssh-keygen -s` writes it.
+  string certificate = 1;
+  bytes nonce = 2;
+  // The SSHSIG over `origin`, a newline, and `nonce`, in the namespace
+  // `jjforge-session`, as `ssh-keygen -Y sign` writes it.
+  string signature = 3;
+  // The scheme, host, and port that the client connected to, such as
+  // `https://jjforge.example.com`. vcs refuses an origin that isn't its own,
+  // so a challenge that another site relays to the client opens nothing.
+  string origin = 4;
+}
+
+// A session for `Authorization: Bearer`, which ends at `expires_at`, in
+// seconds since the epoch, and after 15 minutes at the latest.
+message Session {
+  string token = 1;
+  int64 expires_at = 2;
+}
 
 message Head {
   bytes operation_id = 1;

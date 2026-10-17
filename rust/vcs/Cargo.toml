@@ -15,17 +15,17 @@ axum.workspace = true
 clap.workspace = true
 hex.workspace = true
 http.workspace = true
-jsonwebtoken.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
 opentelemetry.workspace = true
 opentelemetry-otlp.workspace = true
 opentelemetry_sdk.workspace = true
 prost.workspace = true
-reqwest.workspace = true
+ring.workspace = true
 rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+ssh-key.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["net", "signal"] }
 tonic.workspace = true
@@ -37,7 +37,7 @@ url.workspace = true
 
 [dev-dependencies]
 opentelemetry_sdk = { workspace = true, features = ["testing"] }
-ring.workspace = true
+ssh-key = { workspace = true, features = ["getrandom"] }
 tempfile.workspace = true
 tower = { workspace = true, features = ["util"] }
 

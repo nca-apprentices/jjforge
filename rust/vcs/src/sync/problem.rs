@@ -47,6 +47,13 @@ impl Problem {
         Self::new(StatusCode::BAD_REQUEST, "invalid", detail)
     }
 
+    /// vcs can't answer now, such as when the system has no randomness.
+    pub(crate) fn unavailable(detail: impl Into<String>) -> Self {
+        let detail = detail.into();
+        tracing::error!(error = %detail, "unavailable");
+        Self::internal(StatusCode::SERVICE_UNAVAILABLE, detail)
+    }
+
     /// A publish whose head or bookmark moved, answered with 412 and the
     /// current head, as #89 decides.
     pub(crate) fn stale(head: OperationId) -> Self {
@@ -70,7 +77,7 @@ impl From<Refused> for Problem {
             Refused::Forbidden => Self::new(
                 StatusCode::FORBIDDEN,
                 "forbidden",
-                "the token doesn't allow writes to this repository",
+                "the session doesn't allow writes to this repository",
             ),
             Refused::Repo(err) => err.into(),
         }

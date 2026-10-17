@@ -1,93 +1,126 @@
-//! Keys, issuers, and tokens for the tests of vcs. Each test generates its
-//! key, so no private key lives in the repository.
+//! Authorities, certificates, and sessions for the tests of vcs. Each test
+//! generates its keys, so no private key lives in the repository.
 
 #![allow(clippy::unwrap_used, reason = "a panic in a test is the failure")]
 
-use axum::Router;
-use axum::routing::get;
-use jsonwebtoken::EncodingKey;
-use jsonwebtoken::Header;
-use url::Url;
+use ssh_key::Algorithm;
+use ssh_key::Certificate;
+use ssh_key::HashAlg;
+use ssh_key::LineEnding;
+use ssh_key::PrivateKey;
+use ssh_key::certificate::Builder;
+use ssh_key::certificate::CertType;
+use ssh_key::rand_core::OsRng;
 
-/// An Ed25519 key that each test generates, so no private key lives in
-/// the repository.
-pub(crate) struct TestKey {
-    pub(crate) pkcs8: Vec<u8>,
-    public: Vec<u8>,
+use super::AuthError;
+use super::Authority;
+use super::Claims;
+use super::DELEGATION;
+use super::NAMESPACE;
+use super::SCOPE;
+use super::SessionKey;
+use super::Verifier;
+use super::now;
+use super::signed;
+
+/// The origin that the tests reach vcs at, a loopback one, which a verifier
+/// without origins allows.
+pub(crate) const ORIGIN: &str = "http://localhost:8081";
+
+/// A certificate authority that signs for the tests.
+pub(crate) struct TestAuthority(PrivateKey);
+
+/// A person's key and the certificate an authority signed for it.
+pub(crate) struct TestPerson {
+    key: PrivateKey,
+    certificate: Certificate,
 }
 
-impl TestKey {
+impl TestAuthority {
     pub(crate) fn new() -> Self {
-        use ring::signature::KeyPair as _;
-        let rng = ring::rand::SystemRandom::new();
-        let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)
-            .unwrap()
-            .as_ref()
-            .to_vec();
-        let public = ring::signature::Ed25519KeyPair::from_pkcs8(&pkcs8)
-            .unwrap()
-            .public_key()
-            .as_ref()
-            .to_vec();
-        Self { pkcs8, public }
+        Self(PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap())
     }
 
-    pub(crate) fn jwk(&self) -> serde_json::Value {
-        serde_json::json!({
-            "kty": "OKP",
-            "crv": "Ed25519",
-            "kid": "test",
-            "alg": "EdDSA",
-            "x": base64url(&self.public),
-        })
+    /// A verifier that trusts this authority for `org`.
+    pub(crate) fn verifier(&self, org: &str) -> Verifier {
+        Verifier::new(vec![self.authority(org)], SessionKey::random().unwrap())
     }
-}
 
-/// Unpadded base64url, as a JWK writes a key.
-pub(crate) fn base64url(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    let mut out = String::new();
-    for chunk in bytes.chunks(3) {
-        let n = chunk
-            .iter()
-            .enumerate()
-            .fold(0u32, |n, (i, byte)| n | u32::from(*byte) << (16 - 8 * i));
-        for i in 0..=chunk.len() {
-            out.push(char::from(ALPHABET[(n >> (18 - 6 * i) & 63) as usize]));
+    /// This authority, trusted for `org`.
+    pub(crate) fn authority(&self, org: &str) -> Authority {
+        Authority::new(org, self.0.public_key())
+    }
+
+    /// A certificate for `name` that holds for an hour, with `scope` and
+    /// the delegation chain `delegation`.
+    pub(crate) fn person(&self, name: &str, scope: &str, delegation: &str) -> TestPerson {
+        let now = now();
+        self.sign(name, scope, delegation, now - 60, now + 3_600)
+    }
+
+    /// A certificate for `name` that expired a minute ago.
+    pub(crate) fn expired(&self, name: &str, scope: &str) -> TestPerson {
+        let now = now();
+        self.sign(name, scope, "", now - 3_600, now - 60)
+    }
+
+    fn sign(
+        &self,
+        name: &str,
+        scope: &str,
+        delegation: &str,
+        after: u64,
+        before: u64,
+    ) -> TestPerson {
+        let key = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
+        let mut builder =
+            Builder::new_with_random_nonce(&mut OsRng, key.public_key(), after, before).unwrap();
+        builder.cert_type(CertType::User).unwrap();
+        builder.key_id(name).unwrap();
+        builder.valid_principal(name).unwrap();
+        builder.extension(SCOPE, scope).unwrap();
+        if !delegation.is_empty() {
+            builder.extension(DELEGATION, delegation).unwrap();
         }
+        let certificate = builder.sign(&self.0).unwrap();
+        TestPerson { key, certificate }
     }
-    out
 }
 
-/// An issuer at `/{path}` that publishes `keys`.
-pub(crate) async fn issuer_serving(path: &str, keys: serde_json::Value) -> Url {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let base = format!("http://{}/{path}", listener.local_addr().unwrap());
-    let discovery = serde_json::json!({ "jwks_uri": format!("{base}/jwks") }).to_string();
-    let keys = serde_json::json!({ "keys": [keys] }).to_string();
-    let app = Router::new()
-        .route(
-            &format!("/{path}/.well-known/openid-configuration"),
-            get(move || async move { discovery }),
-        )
-        .route(&format!("/{path}/jwks"), get(move || async move { keys }));
-    tokio::spawn(async move { axum::serve(listener, app).await });
-    Url::parse(&base).unwrap()
+impl TestPerson {
+    pub(crate) fn certificate(&self) -> String {
+        self.certificate.to_openssh().unwrap()
+    }
+
+    pub(crate) fn valid_before(&self) -> u64 {
+        self.certificate.valid_before()
+    }
+
+    /// The SSHSIG over `message`, as `ssh-keygen -Y sign` writes it.
+    pub(crate) fn sign(&self, message: &[u8], namespace: &str) -> String {
+        self.key
+            .sign(namespace, HashAlg::Sha512, message)
+            .unwrap()
+            .to_pem(LineEnding::LF)
+            .unwrap()
+    }
+
+    /// Signs a challenge of `verifier` for [`ORIGIN`] and opens a session
+    /// with it.
+    pub(crate) fn session(&self, verifier: &Verifier) -> Result<(String, u64), AuthError> {
+        let nonce = verifier.challenge().unwrap();
+        let signature = self.sign(&signed(ORIGIN, &nonce), NAMESPACE);
+        verifier.session(&self.certificate(), ORIGIN, &nonce, &signature)
+    }
 }
 
-pub(crate) async fn issuer_with(path: &str, key: &TestKey) -> Url {
-    issuer_serving(path, key.jwk()).await
-}
-
-pub(crate) fn token_with(issuer: &Url, key: &TestKey, scope: &str) -> String {
-    let mut header = Header::new(jsonwebtoken::Algorithm::EdDSA);
-    header.kid = Some("test".to_owned());
-    let claims = serde_json::json!({
-        "iss": issuer.as_str(),
-        "sub": "ada",
-        "aud": "jjforge",
-        "exp": 4_102_444_800_u64,
-        "scope": scope,
-    });
-    jsonwebtoken::encode(&header, &claims, &EncodingKey::from_ed_der(&key.pkcs8)).unwrap()
+/// A session that `key` sealed for `ada` in `acme`, with `scope`.
+pub(crate) fn token_with(key: &SessionKey, scope: &str) -> String {
+    key.seal(&Claims {
+        sub: "ada".to_owned(),
+        delegation: vec![],
+        scopes: scope.split_whitespace().map(str::to_owned).collect(),
+        orgs: vec!["acme".to_owned()],
+        exp: now() + 3_600,
+    })
 }

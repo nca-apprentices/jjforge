@@ -54,3 +54,15 @@ URL never shows it.
   valueFrom:
     secretKeyRef: { name: {{ $secret }}, key: password }
 {{- end -}}
+
+{{/*
+VCS_AUTHORITIES: each authority's organization and the file of its public
+key, as the ConfigMap of vcs.yaml mounts it.
+*/}}
+{{- define "jjforge.vcsAuthorities" -}}
+{{- $entries := list }}
+{{- range $i, $authority := .Values.vcs.sync.authorities }}
+{{- $entries = append $entries (printf "%s=/etc/vcs/authorities/%d.pub" $authority.org $i) }}
+{{- end }}
+{{- join "," $entries }}
+{{- end }}

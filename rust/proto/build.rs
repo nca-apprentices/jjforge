@@ -7,6 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let files = [
         proto_root.join("echo/v1/echo.proto"),
         proto_root.join("source/v1/repo.proto"),
+        proto_root.join("source/v1/session.proto"),
         proto_root.join("store/v1/store.proto"),
         proto_root.join("sync/v1/sync.proto"),
     ];

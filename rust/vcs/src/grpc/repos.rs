@@ -1,7 +1,7 @@
 //! `RepoService` of `source/v1`, which the server calls to create and delete
 //! a repository's storage, as #25 and #28 decide. The call carries the
-//! caller's token, and vcs verifies it as `sync/v1` does. Creating and
-//! deleting need the admin scope, which a token for pushing lacks.
+//! caller's session, and vcs verifies it as `sync/v1` does. Creating and
+//! deleting need the admin scope, which a session for pushing lacks.
 
 use jjforge_proto::source::v1::CreateRepoRequest;
 use jjforge_proto::source::v1::CreateRepoResponse;
@@ -24,7 +24,7 @@ use crate::gate::Refused;
 pub(crate) struct Service(pub(crate) Gate);
 
 impl Service {
-    async fn open<T>(
+    fn open<T>(
         &self,
         request: &Request<T>,
         repo: Option<&RepoRef>,
@@ -38,8 +38,7 @@ impl Service {
             .and_then(|value| value.to_str().ok());
         let (repo, _) = self
             .0
-            .open(authorization, &repo.org_id, &repo.repo_id, access)
-            .await?;
+            .open(authorization, &repo.org_id, &repo.repo_id, access)?;
         Ok(repo)
     }
 }
@@ -75,9 +74,7 @@ impl RepoService for Service {
         &self,
         request: Request<CreateRepoRequest>,
     ) -> Result<Response<CreateRepoResponse>, Status> {
-        let repo = self
-            .open(&request, request.get_ref().repo.as_ref(), Access::Admin)
-            .await?;
+        let repo = self.open(&request, request.get_ref().repo.as_ref(), Access::Admin)?;
         repo.create().await.map_err(status)?;
         Ok(Response::new(CreateRepoResponse {}))
     }
@@ -86,9 +83,7 @@ impl RepoService for Service {
         &self,
         request: Request<DeleteRepoRequest>,
     ) -> Result<Response<DeleteRepoResponse>, Status> {
-        let repo = self
-            .open(&request, request.get_ref().repo.as_ref(), Access::Admin)
-            .await?;
+        let repo = self.open(&request, request.get_ref().repo.as_ref(), Access::Admin)?;
         repo.delete().await.map_err(status)?;
         Ok(Response::new(DeleteRepoResponse {}))
     }
@@ -97,9 +92,7 @@ impl RepoService for Service {
         &self,
         request: Request<GetHeadRequest>,
     ) -> Result<Response<GetHeadResponse>, Status> {
-        let repo = self
-            .open(&request, request.get_ref().repo.as_ref(), Access::Read)
-            .await?;
+        let repo = self.open(&request, request.get_ref().repo.as_ref(), Access::Read)?;
         let head = repo.head().await.map_err(status)?;
         Ok(Response::new(GetHeadResponse {
             operation_id: head.to_string(),
@@ -116,10 +109,8 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::auth::Issuer;
-    use crate::auth::TestKey;
+    use crate::auth::SessionKey;
     use crate::auth::Verifier;
-    use crate::auth::issuer_with;
     use crate::auth::token_with;
     use crate::telemetry::attribute;
     use crate::telemetry::finished_spans;
@@ -136,14 +127,13 @@ mod tests {
     #[tokio::test]
     async fn every_call_is_traceable_with_its_org_repo_and_principal() {
         const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
-        let key = TestKey::new();
-        let issuer = issuer_with("acme", &key).await;
+        let key = SessionKey::random().unwrap();
         let cache = tempfile::tempdir().unwrap();
         let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path()).unwrap();
-        let verifier = Verifier::new(vec![Issuer::new("acme", issuer.clone())]).unwrap();
+        let verifier = Verifier::new(vec![], key.clone());
         let mut service = crate::telemetry::TraceGrpc
             .layer(RepoServiceServer::new(Service(Gate::new(repos, verifier))));
-        let token = token_with(&issuer, &key, "sync:admin:acme sync:read:acme");
+        let token = token_with(&key, "sync:admin:acme sync:read:acme");
         let repo = || {
             Some(RepoRef {
                 org_id: "acme".to_owned(),

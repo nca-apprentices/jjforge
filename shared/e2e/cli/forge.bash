@@ -1,5 +1,6 @@
-# Helpers for the jf scenarios. The tokens come from the seed that
-# `mise run up` loads once #6 and #13 are built.
+# Helpers for the jf scenarios. Each person of the seed signs in with a
+# certificate from the dev authority of shared/deploy/twins/cert, which
+# `mise run up` makes and vcs trusts.
 
 # shellcheck source=../http/vars.env
 source "$BATS_TEST_DIRNAME/../http/vars.env"
@@ -8,6 +9,12 @@ source "$BATS_TEST_DIRNAME/../http/vars.env"
 # `ui.log-word-wrap`, which wraps the lines a scenario parses. `copy` sets
 # one per person.
 export JJ_CONFIG=/dev/null
+
+# Signs a certificate for a person of the seed and prints the key that
+# JJFORGE_KEY names, such as `key acme_member`.
+key() {
+  "$BATS_TEST_DIRNAME/../../deploy/twins/cert" "$1"
+}
 
 # Creates a repository in `acme` as its owner and prints its clone address.
 # The name is unique per run, so the suite runs twice on one server.
@@ -22,22 +29,16 @@ new_repo() {
 as() {
   local person=$1
   shift
-  JJFORGE_TOKEN=${!person} JJ_USER=$person JJ_EMAIL=$person@example.com "$@"
+  JJFORGE_KEY=$(key "$person") JJ_USER=$person JJ_EMAIL=$person@example.com "$@"
 }
 
-# The organizations of the seed, by ID, as the oidc twin's scopes name them.
+# The organizations of the seed, by ID, as their certificates' scopes name
+# them.
 acme_org=0199c9a0-0000-7000-8000-00000000ac3e
 
-# Prints a token for a person of the seed, such as `twin_token acme_owner`.
-# vcs trusts the oidc twin until the server issues jjforge's own tokens, as
-# #6 decides. The Host header makes the twin sign for the issuer that vcs
-# reaches inside compose.
-twin_token() {
-  local person=${1//_/-}
-  curl -fsS "http://localhost:${JJFORGE_OIDC_PORT:-8090}/${person%%-*}/token" \
-    -H 'Host: oidc:8080' \
-    -d grant_type=client_credentials -d client_id=jf -d client_secret=jf \
-    -d "subject=$person" | jq -r .access_token
+# The sync/v1 of the forge, where `jf auth token` opens a session.
+sync_base() {
+  echo "http://localhost:${JJFORGE_SYNC_PORT:-8081}/sync/v1/$acme_org/$1"
 }
 
 # Creates a repository in `acme` through vcs and prints its clone address,
@@ -47,19 +48,19 @@ vcs_repo() {
   repo=$(uuidgen | tr '[:upper:]' '[:lower:]')
   grpcurl -plaintext -import-path "$BATS_TEST_DIRNAME/../../proto" \
     -proto source/v1/repo.proto \
-    -H "authorization: Bearer $(twin_token acme_owner)" \
+    -H "authorization: Bearer $(JJFORGE_KEY=$(key acme_owner) jf auth token "$(sync_base "$repo")")" \
     -d "{\"repo\": {\"org_id\": \"$acme_org\", \"repo_id\": \"$repo\"}}" \
     "localhost:${JJFORGE_VCS_PORT:-50052}" source.v1.RepoService/CreateRepo >/dev/null ||
     return
-  echo "http://localhost:${JJFORGE_SYNC_PORT:-8081}/sync/v1/$acme_org/$repo"
+  sync_base "$repo"
 }
 
 # Runs a jf copy of its own, with its own configuration, as a person of the
-# seed signed in through the oidc twin, such as `copy acme_member jf push`.
+# seed signed in with their certificate, such as `copy acme_member jf push`.
 copy() {
   local person=$1
   shift
   printf '[user]\nname = "%s"\nemail = "%s@example.com"\n' "$person" "$person" \
     >"$BATS_TEST_TMPDIR/$person.toml"
-  JJ_CONFIG="$BATS_TEST_TMPDIR/$person.toml" JJFORGE_TOKEN=$(twin_token "$person") "$@"
+  JJ_CONFIG="$BATS_TEST_TMPDIR/$person.toml" JJFORGE_KEY=$(key "$person") "$@"
 }

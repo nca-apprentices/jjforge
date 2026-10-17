@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Sign a dev certificate for a person of the seed, such as `mise run cert acme_member`, and print the key for JJFORGE_KEY"
+set -euo pipefail
+
+exec shared/deploy/twins/cert "$@"

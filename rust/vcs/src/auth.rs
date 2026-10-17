@@ -1,34 +1,53 @@
-//! Verifies the token of a `sync/v1` request offline, as ADR 0002 decides,
-//! against the key sets of the issuers vcs trusts, and reads what it allows.
+//! Proves who sent a request with OpenSSH certificates, as ADR 0002
+//! decides, and reads what the certificate allows.
 //!
-//! A token names its principal in `sub`, carries `jjforge` in `aud`, and
-//! grants scopes such as `sync:read:{org}`, `sync:write:{org}`, and
-//! `sync:admin:{org}` in `scope`. An agent's token names the principals that delegated to it in
-//! nested `act` claims, as RFC 8693 defines them.
+//! ```text
+//! jf ── GET  /sync/v1/challenge ─────────────────────────▶ vcs
+//!    ◀─ a nonce that vcs MACs, so it remembers nothing ───
+//! jf ── POST /sync/v1/session: certificate, nonce, SSHSIG ▶ vcs
+//!    ◀─ a session, at most 15 minutes ────────────────────
+//! jf ── any other route, Authorization: Bearer {session} ▶ vcs
+//! ```
+//!
+//! A certificate names its principal in its key ID. Its extension
+//! `jjforge-scope@nca-apprentices.dev` grants scopes such as
+//! `sync:read:{org}`, `sync:write:{org}`, and `sync:admin:{org}`, separated
+//! by spaces, and `jjforge-delegation@nca-apprentices.dev` names the
+//! principals that delegated to it, outermost first, separated by commas.
 
-use std::collections::HashMap;
+mod session;
+
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
-use std::time::Instant;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 use jjforge_store::server::Author;
-use jsonwebtoken::Algorithm;
-use jsonwebtoken::DecodingKey;
-use jsonwebtoken::Validation;
-use jsonwebtoken::jwk::AlgorithmParameters;
-use jsonwebtoken::jwk::JwkSet;
-use serde::Deserialize;
-use tokio::sync::Mutex;
-use tokio::sync::RwLock;
-use url::Url;
+use ssh_key::Certificate;
+use ssh_key::Fingerprint;
+use ssh_key::HashAlg;
+use ssh_key::PublicKey;
+use ssh_key::SshSig;
+use ssh_key::certificate::CertType;
 
-/// The audience every token for vcs names.
-const AUDIENCE: &str = "jjforge";
+pub(crate) use self::session::Claims;
+pub(crate) use self::session::SessionKey;
 
-/// The shortest time between two reloads of the key sets, so a stream of
-/// tokens with unknown keys can't make vcs hammer the issuers.
-const RELOAD_EVERY: Duration = Duration::from_secs(10);
+/// The namespace of the signature over a challenge, so no signature made
+/// for anything else, such as a commit, opens a session.
+pub(crate) const NAMESPACE: &str = "jjforge-session";
+
+const SCOPE: &str = "jjforge-scope@nca-apprentices.dev";
+const DELEGATION: &str = "jjforge-delegation@nca-apprentices.dev";
+
+/// How long a session lasts at most. Revoking a certificate takes effect
+/// when its sessions end.
+const SESSION_LIFETIME: Duration = Duration::from_mins(15);
+
+/// How long a challenge stays valid.
+const CHALLENGE_LIFETIME: Duration = Duration::from_secs(60);
 
 /// What a request asks of a repository.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,23 +59,23 @@ pub(crate) enum Access {
     Admin,
 }
 
-/// The principal of a verified token and what it may do.
+/// The principal of a verified session and what it may do.
 #[derive(Debug)]
 pub(crate) struct Principal {
     pub(crate) subject: String,
     /// The principals that delegated to this one, outermost first.
     pub(crate) delegation: Vec<String>,
     scopes: HashSet<String>,
-    /// The organization of the token's issuer, the only one its scopes
-    /// reach.
-    org: String,
+    /// The organizations whose authorities signed the certificate, the
+    /// only ones its scopes reach.
+    orgs: HashSet<String>,
 }
 
 impl Principal {
-    /// Whether the token grants `access` to the repositories of `org`. Write
-    /// implies read, and admin implies neither.
+    /// Whether the session grants `access` to the repositories of `org`.
+    /// Write implies read, and admin implies neither.
     pub(crate) fn may(&self, access: Access, org: &str) -> bool {
-        if org != self.org {
+        if !self.orgs.contains(org) {
             return false;
         }
         let write = self.scopes.contains(&format!("sync:write:{org}"));
@@ -68,14 +87,15 @@ impl Principal {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum AuthError {
-    #[error("the request has no bearer token")]
-    Missing,
-    /// The reason goes to the log only, so a client learns nothing about
-    /// how vcs parses a token.
-    #[error("the token is invalid")]
-    Invalid(String),
+impl From<Claims> for Principal {
+    fn from(claims: Claims) -> Self {
+        Self {
+            subject: claims.sub,
+            delegation: claims.delegation,
+            scopes: claims.scopes.into_iter().collect(),
+            orgs: claims.orgs.into_iter().collect(),
+        }
+    }
 }
 
 impl From<Principal> for Author {
@@ -87,297 +107,246 @@ impl From<Principal> for Author {
     }
 }
 
-#[derive(Deserialize)]
-struct Claims {
-    sub: String,
-    #[serde(default)]
-    scope: String,
-    act: Option<Actor>,
-    // jsonwebtoken 9 skips a time claim it can't parse (GHSA-h395-gr6q-cpjc).
-    // Typing both here makes such a token fail to decode.
-    #[allow(dead_code, reason = "checked by jsonwebtoken, typed here")]
-    exp: u64,
-    #[allow(dead_code, reason = "checked by jsonwebtoken, typed here")]
-    nbf: Option<u64>,
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum AuthError {
+    #[error("the request has no session")]
+    Missing,
+    /// The reason goes to the log only, so a client learns nothing about
+    /// how vcs checks a credential.
+    #[error("the credential is invalid")]
+    Invalid(String),
 }
 
-#[derive(Deserialize)]
-struct Actor {
-    sub: String,
-    act: Option<Box<Actor>>,
-}
-
-#[derive(Deserialize)]
-struct Discovery {
-    jwks_uri: String,
-}
-
-/// An issuer that vcs trusts, bound to the one organization whose scopes
-/// its tokens grant, written `{org}={url}`. Each organization has an
-/// identity provider of its own until #6, so a provider can't sign for
-/// another organization.
+/// A certificate authority that vcs trusts, bound to the one organization
+/// whose scopes its certificates grant, written `{org}={path}`, where the
+/// file holds the authority's public key in OpenSSH form. One authority can
+/// sign for several organizations by appearing once for each.
 #[derive(Clone, Debug)]
-pub(crate) struct Issuer {
+pub(crate) struct Authority {
     org: String,
-    url: Url,
+    fingerprint: Fingerprint,
 }
 
-impl Issuer {
-    pub(crate) fn new(org: &str, url: Url) -> Self {
+impl Authority {
+    pub(crate) fn new(org: &str, key: &PublicKey) -> Self {
         Self {
             org: org.to_owned(),
-            url,
+            fingerprint: key.fingerprint(HashAlg::Sha256),
         }
     }
 }
 
-impl FromStr for Issuer {
+impl FromStr for Authority {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let (org, url) = value
+        let (org, path) = value
             .split_once('=')
-            .filter(|(org, _)| !org.is_empty())
-            .ok_or_else(|| format!("{value:?} is not {{org}}={{url}}"))?;
-        let url = Url::parse(url).map_err(|err| err.to_string())?;
-        Ok(Self::new(org, url))
+            .filter(|(org, path)| !org.is_empty() && !path.is_empty())
+            .ok_or_else(|| format!("{value:?} is not {{org}}={{path}}"))?;
+        let path = PathBuf::from(path);
+        let key = PublicKey::read_openssh_file(&path)
+            .map_err(|err| format!("{}: {err}", path.display()))?;
+        Ok(Self::new(org, &key))
     }
 }
 
-/// A key and the issuer that published it.
-struct Key {
-    issuer: String,
-    org: String,
-    decoding: DecodingKey,
-    family: Family,
-    /// The algorithm the key set names, which RFC 7517 leaves optional.
-    algorithm: Option<Algorithm>,
-}
+/// The audience that the server signs for over `SessionService`. The server
+/// only ever calls the vcs of its configuration, so no other site can relay
+/// its challenge.
+pub(crate) const GRPC_AUDIENCE: &str = "grpc:source/v1";
 
-/// The kind of a public key, which bounds the algorithms it verifies. A
-/// symmetric key in a public key set would let anyone sign, so it has none.
-#[derive(Clone, Copy)]
-enum Family {
-    Rsa,
-    EllipticCurve,
-    Edwards,
-}
-
-impl Family {
-    fn of(parameters: &AlgorithmParameters) -> Option<Self> {
-        match parameters {
-            AlgorithmParameters::RSA(_) => Some(Self::Rsa),
-            AlgorithmParameters::EllipticCurve(_) => Some(Self::EllipticCurve),
-            AlgorithmParameters::OctetKeyPair(_) => Some(Self::Edwards),
-            AlgorithmParameters::OctetKey(_) => None,
-        }
-    }
-
-    fn verifies(self, algorithm: Algorithm) -> bool {
-        use Algorithm::{ES256, ES384, EdDSA, PS256, PS384, PS512, RS256, RS384, RS512};
-        match self {
-            Self::Rsa => matches!(algorithm, RS256 | RS384 | RS512 | PS256 | PS384 | PS512),
-            Self::EllipticCurve => matches!(algorithm, ES256 | ES384),
-            Self::Edwards => algorithm == EdDSA,
-        }
-    }
+/// What a client signs: the origin it connected to and the nonce, so a
+/// challenge that another site relays to it opens nothing here.
+pub(crate) fn signed(origin: &str, nonce: &[u8]) -> Vec<u8> {
+    [origin.as_bytes(), b"\n", nonce].concat()
 }
 
 pub(crate) struct Verifier {
-    issuers: Vec<Issuer>,
-    http: reqwest::Client,
-    /// Each issuer's keys by ID. Two issuers may name keys alike.
-    keys: RwLock<HashMap<Url, HashMap<String, Key>>>,
-    reloaded: Mutex<Option<Instant>>,
+    authorities: Vec<Authority>,
+    key: SessionKey,
+    /// The origins that clients reach vcs at, such as
+    /// `https://jjforge.example.com`. Empty allows loopback origins only.
+    origins: Vec<String>,
 }
 
 impl Verifier {
-    /// Trusts the tokens that `issuers` sign, with keys found through the
-    /// discovery of `OpenID` Connect.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the HTTP client can't be built.
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "vcs fetches key sets, and only jf must carry a command's trace"
-    )]
-    pub(crate) fn new(issuers: Vec<Issuer>) -> anyhow::Result<Self> {
-        // reqwest needs one TLS provider per process. A second install, from
-        // main or a test, fails and changes nothing.
-        rustls::crypto::ring::default_provider()
-            .install_default()
-            .ok();
-        Ok(Self {
-            issuers,
-            http: reqwest::Client::builder()
-                .timeout(Duration::from_secs(10))
-                .build()?,
-            keys: RwLock::default(),
-            reloaded: Mutex::default(),
-        })
+    /// Trusts the certificates that `authorities` sign, and seals sessions
+    /// with `key`, which every replica shares.
+    pub(crate) fn new(authorities: Vec<Authority>, key: SessionKey) -> Self {
+        Self {
+            authorities,
+            key,
+            origins: vec![],
+        }
     }
 
-    /// Verifies a bearer token and returns its principal.
+    /// Accepts signatures for `origins` only, instead of loopback origins.
+    pub(crate) fn with_origins(mut self, origins: Vec<String>) -> Self {
+        self.origins = origins;
+        self
+    }
+
+    fn allows(&self, origin: &str) -> bool {
+        if origin == GRPC_AUDIENCE {
+            return true;
+        }
+        if !self.origins.is_empty() {
+            return self.origins.iter().any(|allowed| allowed == origin);
+        }
+        url::Url::parse(origin)
+            .is_ok_and(|url| matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")))
+    }
+
+    /// A nonce for a client to sign, valid for `CHALLENGE_LIFETIME`.
     ///
     /// # Errors
     ///
-    /// Fails on a missing, malformed, expired, or foreign token, or one
-    /// signed by a key that no trusted issuer publishes.
-    pub(crate) async fn verify(&self, authorization: Option<&str>) -> Result<Principal, AuthError> {
-        let result = self.principal(authorization).await;
+    /// Fails when the system has no randomness to give.
+    pub(crate) fn challenge(&self) -> anyhow::Result<Vec<u8>> {
+        self.key.challenge(now())
+    }
+
+    /// Opens a session for the principal of `certificate`, which signed
+    /// `origin` and `nonce` with `signature`, as [`signed`] joins them.
+    ///
+    /// # Errors
+    ///
+    /// Fails on an origin that isn't vcs's, on a stale or forged nonce, on a certificate that no trusted
+    /// authority signed or that isn't valid now, and on a signature by
+    /// another key or for another namespace.
+    pub(crate) fn session(
+        &self,
+        certificate: &str,
+        origin: &str,
+        nonce: &[u8],
+        signature: &str,
+    ) -> Result<(String, u64), AuthError> {
+        let result = self.open_session(certificate, origin, nonce, signature);
         if let Err(AuthError::Invalid(reason)) = &result {
-            tracing::info!(%reason, "token refused");
+            tracing::info!(%reason, "session refused");
         }
         result
     }
 
-    async fn principal(&self, authorization: Option<&str>) -> Result<Principal, AuthError> {
+    fn open_session(
+        &self,
+        certificate: &str,
+        origin: &str,
+        nonce: &[u8],
+        signature: &str,
+    ) -> Result<(String, u64), AuthError> {
+        let now = now();
+        let invalid = |reason: &str| AuthError::Invalid(reason.to_owned());
+        if !self.allows(origin) {
+            return Err(AuthError::Invalid(format!(
+                "{origin} is not an origin of vcs"
+            )));
+        }
+        if !self.key.check_challenge(nonce, now, CHALLENGE_LIFETIME) {
+            return Err(invalid("the challenge is stale or forged"));
+        }
+
+        let certificate = Certificate::from_openssh(certificate.trim())
+            .map_err(|err| AuthError::Invalid(err.to_string()))?;
+        if certificate.cert_type() != CertType::User {
+            return Err(invalid("the certificate is not a user certificate"));
+        }
+        // vcs understands no critical option, so it can honor none.
+        if !certificate.critical_options().is_empty() {
+            return Err(invalid("the certificate has a critical option"));
+        }
+        if certificate.key_id().is_empty() {
+            return Err(invalid("the certificate names no principal"));
+        }
+        let orgs: Vec<String> = self
+            .authorities
+            .iter()
+            .filter(|authority| {
+                certificate
+                    .validate_at(now, [&authority.fingerprint])
+                    .is_ok()
+            })
+            .map(|authority| authority.org.clone())
+            .collect();
+        if orgs.is_empty() {
+            return Err(invalid(
+                "no trusted authority signed the certificate, or it isn't valid now",
+            ));
+        }
+
+        let signature: SshSig = signature
+            .parse()
+            .map_err(|err: ssh_key::Error| AuthError::Invalid(err.to_string()))?;
+        PublicKey::from(certificate.public_key().clone())
+            .verify(NAMESPACE, &signed(origin, nonce), &signature)
+            .map_err(|err| AuthError::Invalid(err.to_string()))?;
+
+        let extension = |name: &str| certificate.extensions().get(name).cloned();
+        let expires = certificate
+            .valid_before()
+            .min(now + SESSION_LIFETIME.as_secs());
+        let claims = Claims {
+            sub: certificate.key_id().to_owned(),
+            delegation: extension(DELEGATION)
+                .map(|chain| {
+                    chain
+                        .split(',')
+                        .filter(|principal| !principal.is_empty())
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default(),
+            scopes: extension(SCOPE)
+                .map(|scopes| scopes.split_whitespace().map(str::to_owned).collect())
+                .unwrap_or_default(),
+            orgs,
+            exp: expires,
+        };
+        Ok((self.key.seal(&claims), expires))
+    }
+
+    /// Verifies the session in an `Authorization: Bearer` header and returns
+    /// its principal.
+    ///
+    /// # Errors
+    ///
+    /// Fails on a missing, forged, or expired session.
+    pub(crate) fn verify(&self, authorization: Option<&str>) -> Result<Principal, AuthError> {
         // The scheme's name is case-insensitive, as RFC 9110 decides.
         let token = authorization
             .and_then(|value| value.split_once(' '))
             .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("bearer"))
             .map(|(_, token)| token.trim())
             .ok_or(AuthError::Missing)?;
-        let header = jsonwebtoken::decode_header(token)
-            .map_err(|err| AuthError::Invalid(err.to_string()))?;
-        let kid = header
-            .kid
-            .ok_or_else(|| AuthError::Invalid("the token names no key".to_owned()))?;
-
-        let has_key = |keys: &HashMap<Url, HashMap<String, Key>>| {
-            keys.values().any(|issuer| issuer.contains_key(&kid))
-        };
-        if !has_key(&*self.keys.read().await) {
-            self.reload().await;
+        let result = self.key.open(token, now()).map(Principal::from);
+        if let Err(AuthError::Invalid(reason)) = &result {
+            tracing::info!(%reason, "session refused");
         }
-
-        // The first key named `kid` whose issuer signed the token wins.
-        let keys = self.keys.read().await;
-        let mut verified = None;
-        let mut last = "no trusted issuer publishes its key".to_owned();
-        for key in keys.values().filter_map(|issuer| issuer.get(&kid)) {
-            let algorithm = key.algorithm.unwrap_or(header.alg);
-            if !key.family.verifies(algorithm) {
-                continue;
-            }
-            let mut validation = Validation::new(algorithm);
-            validation.set_audience(&[AUDIENCE]);
-            validation.set_issuer(&[&key.issuer]);
-            validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
-            match jsonwebtoken::decode::<Claims>(token, &key.decoding, &validation) {
-                Ok(data) => {
-                    verified = Some((data.claims, key.org.clone()));
-                    break;
-                }
-                Err(err) => last = err.to_string(),
-            }
-        }
-        let (claims, org) = verified.ok_or(AuthError::Invalid(last))?;
-
-        let mut delegation = vec![];
-        let mut actor = claims.act;
-        while let Some(next) = actor {
-            delegation.push(next.sub);
-            actor = next.act.map(|boxed| *boxed);
-        }
-        Ok(Principal {
-            subject: claims.sub,
-            delegation,
-            scopes: claims.scope.split_whitespace().map(str::to_owned).collect(),
-            org,
-        })
+        result
     }
+}
 
-    /// Loads every issuer's key set again, at most once per `RELOAD_EVERY`.
-    /// An issuer that can't answer keeps its old keys, and vcs logs why.
-    async fn reload(&self) {
-        let mut reloaded = self.reloaded.lock().await;
-        if reloaded.is_some_and(|at| at.elapsed() < RELOAD_EVERY) {
-            return;
-        }
-        *reloaded = Some(Instant::now());
-        tracing::info!(issuers = self.issuers.len(), "key sets reload");
-
-        for Issuer { org, url: issuer } in &self.issuers {
-            match self.key_set(issuer).await {
-                Ok(set) => {
-                    let mut keys = HashMap::new();
-                    for jwk in set.keys {
-                        let (Some(kid), Some(family)) =
-                            (jwk.common.key_id.clone(), Family::of(&jwk.algorithm))
-                        else {
-                            continue;
-                        };
-                        let algorithm = jwk
-                            .common
-                            .key_algorithm
-                            .and_then(|algorithm| algorithm.to_string().parse().ok());
-                        if let Ok(decoding) = DecodingKey::from_jwk(&jwk) {
-                            keys.insert(
-                                kid,
-                                Key {
-                                    issuer: issuer.as_str().trim_end_matches('/').to_owned(),
-                                    org: org.clone(),
-                                    decoding,
-                                    family,
-                                    algorithm,
-                                },
-                            );
-                        }
-                    }
-                    self.keys.write().await.insert(issuer.clone(), keys);
-                }
-                // The issuer keeps the keys it published last.
-                Err(err) => tracing::warn!(%issuer, error = %err, "key set unavailable"),
-            }
-        }
-    }
-
-    async fn key_set(&self, issuer: &Url) -> anyhow::Result<JwkSet> {
-        let discovery = format!(
-            "{}/.well-known/openid-configuration",
-            issuer.as_str().trim_end_matches('/')
-        );
-        let discovery: Discovery = self
-            .http
-            .get(discovery)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-        Ok(self
-            .http
-            .get(discovery.jwks_uri)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?)
-    }
+fn now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs())
 }
 
 #[cfg(test)]
 mod testing;
 
 #[cfg(test)]
-pub(crate) use testing::TestKey;
+pub(crate) use testing::ORIGIN;
 #[cfg(test)]
-pub(crate) use testing::issuer_with;
+pub(crate) use testing::TestAuthority;
 #[cfg(test)]
 pub(crate) use testing::token_with;
 
 #[cfg(test)]
 mod tests {
-    use jsonwebtoken::EncodingKey;
-    use jsonwebtoken::Header;
-
-    use super::testing::TestKey;
-    use super::testing::base64url;
-    use super::testing::issuer_serving;
-    use super::testing::issuer_with;
-    use super::testing::token_with;
+    use super::testing::ORIGIN;
+    use super::testing::TestAuthority;
     use super::*;
 
     fn principal(scope: &str) -> Principal {
@@ -385,7 +354,7 @@ mod tests {
             subject: "ada".to_owned(),
             delegation: vec![],
             scopes: scope.split_whitespace().map(str::to_owned).collect(),
-            org: "acme".to_owned(),
+            orgs: HashSet::from(["acme".to_owned()]),
         }
     }
 
@@ -411,139 +380,169 @@ mod tests {
         assert!(!reader.may(Access::Write, "acme"));
     }
 
-    #[tokio::test]
-    async fn a_request_without_a_bearer_token_is_refused() {
-        let verifier = Verifier::new(vec![]).unwrap();
+    #[test]
+    fn a_request_without_a_bearer_session_is_refused() {
+        let verifier = Verifier::new(vec![], SessionKey::random().unwrap());
 
+        assert!(matches!(verifier.verify(None), Err(AuthError::Missing)));
         assert!(matches!(
-            verifier.verify(None).await,
-            Err(AuthError::Missing)
-        ));
-        assert!(matches!(
-            verifier.verify(Some("Basic abc")).await,
+            verifier.verify(Some("Basic abc")),
             Err(AuthError::Missing)
         ));
     }
 
-    #[tokio::test]
-    async fn a_malformed_token_is_invalid() {
-        let verifier = Verifier::new(vec![]).unwrap();
+    #[test]
+    fn a_signed_challenge_opens_a_session_with_the_certificate_scopes() {
+        let authority = TestAuthority::new();
+        let verifier = authority.verifier("acme");
+        let person = authority.person("ada", "sync:write:acme", "");
 
-        assert!(matches!(
-            verifier.verify(Some("Bearer not.a.token")).await,
-            Err(AuthError::Invalid(_))
-        ));
+        let (token, _) = person.session(&verifier).unwrap();
+        let principal = verifier.verify(Some(&format!("Bearer {token}"))).unwrap();
+
+        assert_eq!(principal.subject, "ada");
+        assert!(principal.may(Access::Write, "acme"));
+        assert!(!principal.may(Access::Admin, "acme"));
     }
 
-    #[tokio::test]
-    async fn an_issuer_grants_nothing_outside_its_organization() {
-        let key = TestKey::new();
-        let other = issuer_with("other", &key).await;
-        let verifier = Verifier::new(vec![Issuer::new("other", other.clone())]).unwrap();
-        let token = token_with(&other, &key, "sync:write:acme");
+    #[test]
+    fn a_session_names_the_delegation_chain_outermost_first() {
+        let authority = TestAuthority::new();
+        let verifier = authority.verifier("acme");
+        let agent = authority.person("bot", "sync:read:acme", "ada,job");
 
-        let principal = verifier
-            .verify(Some(&format!("Bearer {token}")))
-            .await
-            .unwrap();
+        let (token, _) = agent.session(&verifier).unwrap();
+        let principal = verifier.verify(Some(&format!("Bearer {token}"))).unwrap();
+
+        assert_eq!(principal.delegation, ["ada", "job"]);
+    }
+
+    #[test]
+    fn an_authority_grants_nothing_outside_its_organization() {
+        let authority = TestAuthority::new();
+        let verifier = authority.verifier("other");
+        let person = authority.person("ada", "sync:write:acme", "");
+
+        let (token, _) = person.session(&verifier).unwrap();
+        let principal = verifier.verify(Some(&format!("Bearer {token}"))).unwrap();
 
         assert!(!principal.may(Access::Read, "acme"));
     }
 
-    #[tokio::test]
-    async fn two_issuers_may_name_their_keys_alike() {
-        let (one, two) = (TestKey::new(), TestKey::new());
-        let first = issuer_with("acme", &one).await;
-        let second = issuer_with("other", &two).await;
-        let verifier = Verifier::new(vec![
-            Issuer::new("acme", first.clone()),
-            Issuer::new("acme", second.clone()),
-        ])
-        .unwrap();
+    #[test]
+    fn a_certificate_from_an_untrusted_authority_opens_no_session() {
+        let trusted = TestAuthority::new();
+        let stranger = TestAuthority::new();
+        let verifier = trusted.verifier("acme");
 
-        for (issuer, key) in [(&first, &one), (&second, &two)] {
-            let token = token_with(issuer, key, "sync:read:acme");
-            assert!(
-                verifier
-                    .verify(Some(&format!("Bearer {token}")))
-                    .await
-                    .is_ok(),
-                "{issuer}"
-            );
-        }
+        let person = stranger.person("mallory", "sync:write:acme", "");
+
+        assert!(matches!(
+            person.session(&verifier),
+            Err(AuthError::Invalid(_))
+        ));
     }
 
-    #[tokio::test]
-    async fn a_key_set_without_algorithms_still_verifies() {
-        let key = TestKey::new();
-        let mut jwk = key.jwk();
-        jwk.as_object_mut().unwrap().remove("alg");
-        let issuer = issuer_serving("acme", jwk).await;
-        let verifier = Verifier::new(vec![Issuer::new("acme", issuer.clone())]).unwrap();
+    #[test]
+    fn a_signature_by_another_key_opens_no_session() {
+        let authority = TestAuthority::new();
+        let verifier = authority.verifier("acme");
+        let ada = authority.person("ada", "sync:write:acme", "");
+        let mallory = authority.person("mallory", "sync:read:acme", "");
+        let nonce = verifier.challenge().unwrap();
 
-        let token = token_with(&issuer, &key, "sync:read:acme");
+        let signature = mallory.sign(&signed(ORIGIN, &nonce), NAMESPACE);
 
-        assert!(
-            verifier
-                .verify(Some(&format!("Bearer {token}")))
-                .await
-                .is_ok()
-        );
+        assert!(matches!(
+            verifier.session(&ada.certificate(), ORIGIN, &nonce, &signature),
+            Err(AuthError::Invalid(_))
+        ));
     }
 
-    #[tokio::test]
-    async fn a_symmetric_key_in_a_key_set_is_refused() {
-        let secret = b"published, so anyone could sign with it";
-        let issuer = issuer_serving(
-            "acme",
-            serde_json::json!({ "kty": "oct", "kid": "test", "alg": "HS256", "k": base64url(secret) }),
-        )
-        .await;
-        let verifier = Verifier::new(vec![Issuer::new("acme", issuer.clone())]).unwrap();
-        let mut header = Header::new(jsonwebtoken::Algorithm::HS256);
-        header.kid = Some("test".to_owned());
-        let claims = serde_json::json!({
-            "iss": issuer.as_str(), "sub": "mallory", "aud": "jjforge",
-            "exp": 4_102_444_800_u64, "scope": "sync:write:acme",
-        });
-        let token =
-            jsonwebtoken::encode(&header, &claims, &EncodingKey::from_secret(secret)).unwrap();
+    #[test]
+    fn a_signature_for_another_namespace_opens_no_session() {
+        let authority = TestAuthority::new();
+        let verifier = authority.verifier("acme");
+        let ada = authority.person("ada", "sync:write:acme", "");
+        let nonce = verifier.challenge().unwrap();
 
-        assert!(
-            verifier
-                .verify(Some(&format!("Bearer {token}")))
-                .await
-                .is_err()
-        );
+        let signature = ada.sign(&signed(ORIGIN, &nonce), "git");
+
+        assert!(matches!(
+            verifier.session(&ada.certificate(), ORIGIN, &nonce, &signature),
+            Err(AuthError::Invalid(_))
+        ));
     }
 
-    // jsonwebtoken 9 skips a time claim of the wrong type instead of refusing
-    // it (GHSA-h395-gr6q-cpjc), so a string `exp` would never expire.
-    #[tokio::test]
-    async fn a_time_claim_that_is_not_a_number_is_refused() {
-        let key = TestKey::new();
-        let issuer = issuer_with("acme", &key).await;
-        let verifier = Verifier::new(vec![Issuer::new("acme", issuer.clone())]).unwrap();
-        let mut header = Header::new(jsonwebtoken::Algorithm::EdDSA);
-        header.kid = Some("test".to_owned());
+    #[test]
+    fn a_nonce_that_vcs_did_not_issue_opens_no_session() {
+        let authority = TestAuthority::new();
+        let verifier = authority.verifier("acme");
+        let ada = authority.person("ada", "sync:write:acme", "");
+        let nonce = vec![7; 56];
 
-        for (claim, value) in [("exp", "1"), ("nbf", "4102444800")] {
-            let mut claims = serde_json::json!({
-                "iss": issuer.as_str(), "sub": "ada", "aud": "jjforge",
-                "exp": 4_102_444_800_u64, "scope": "sync:read:acme",
-            });
-            claims[claim] = value.into();
-            let token =
-                jsonwebtoken::encode(&header, &claims, &EncodingKey::from_ed_der(&key.pkcs8))
-                    .unwrap();
+        let signature = ada.sign(&signed(ORIGIN, &nonce), NAMESPACE);
 
+        assert!(matches!(
+            verifier.session(&ada.certificate(), ORIGIN, &nonce, &signature),
+            Err(AuthError::Invalid(_))
+        ));
+    }
+
+    // Another forge that trusts the same authority hands ada a challenge of
+    // this vcs. Ada signs the origin she connected to, so it opens nothing
+    // here.
+    #[test]
+    fn a_challenge_relayed_by_another_site_opens_no_session() {
+        let authority = TestAuthority::new();
+        let verifier = authority
+            .verifier("acme")
+            .with_origins(vec!["https://jjforge.example.com".to_owned()]);
+        let ada = authority.person("ada", "sync:write:acme", "");
+        let nonce = verifier.challenge().unwrap();
+        let evil = "https://evil.example";
+
+        let signature = ada.sign(&signed(evil, &nonce), NAMESPACE);
+
+        for origin in [evil, "https://jjforge.example.com"] {
             assert!(
                 matches!(
-                    verifier.verify(Some(&format!("Bearer {token}"))).await,
+                    verifier.session(&ada.certificate(), origin, &nonce, &signature),
                     Err(AuthError::Invalid(_))
                 ),
-                "{claim}"
+                "{origin}"
             );
         }
+    }
+
+    #[test]
+    fn a_verifier_without_origins_allows_loopback_only() {
+        let verifier = TestAuthority::new().verifier("acme");
+
+        assert!(verifier.allows("http://localhost:8081"));
+        assert!(verifier.allows("http://127.0.0.1:28081"));
+        assert!(verifier.allows(GRPC_AUDIENCE));
+        assert!(!verifier.allows("https://jjforge.example.com"));
+    }
+
+    #[test]
+    fn an_expired_certificate_opens_no_session() {
+        let authority = TestAuthority::new();
+        let verifier = authority.verifier("acme");
+        let ada = authority.expired("ada", "sync:write:acme");
+
+        assert!(matches!(ada.session(&verifier), Err(AuthError::Invalid(_))));
+    }
+
+    #[test]
+    fn a_session_lasts_no_longer_than_its_certificate() {
+        let authority = TestAuthority::new();
+        let verifier = authority.verifier("acme");
+        let ada = authority.person("ada", "sync:write:acme", "");
+
+        let (_, expires) = ada.session(&verifier).unwrap();
+
+        assert!(expires <= ada.valid_before());
+        assert!(expires <= now() + SESSION_LIFETIME.as_secs());
     }
 }

@@ -2,6 +2,10 @@
 #MISE description="Build the images and run server and vcs with podman"
 set -euo pipefail
 
+# The dev certificate authority that vcs trusts, made once, and the
+# server's certificate, signed again for each start.
+shared/deploy/twins/cert server >/dev/null
+
 # podman builds the images itself. Compose's own builder goes through the
 # Docker API, which needs BuildKit and Docker's credential helpers. Compose then
 # finds the images locally under the names in shared/deploy/compose.yaml and

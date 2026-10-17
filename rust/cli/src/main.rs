@@ -5,6 +5,7 @@
 //! vcs.
 
 mod commands;
+mod credential;
 mod forge;
 
 use std::path::Path;
@@ -35,6 +36,9 @@ fn find_forge(repo_path: &Path) -> Result<Option<Arc<dyn Fetch>>, TransportError
     let Some(url) = client::forge_url(repo_path)? else {
         return Ok(None);
     };
-    let token = std::env::var("JJFORGE_TOKEN").ok();
-    Ok(Some(Arc::new(forge::SyncClient::new(url.parse()?, token)?)))
+    let credential = credential::Credential::from_env();
+    Ok(Some(Arc::new(forge::SyncClient::new(
+        url.parse()?,
+        credential,
+    )?)))
 }

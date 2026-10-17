@@ -192,7 +192,7 @@ vcs writes these events:
 
 | Event                 | Span                | When                                                       |
 | --------------------- | ------------------- | ---------------------------------------------------------- |
-| `key sets reload`     | the request's       | A token names an unknown key, so vcs fetches the key sets  |
+| `session refused`     | the request's       | A certificate or a session fails its check, with the reason |
 | `catalog starts over` | `advance`           | A repository was created again under the same IDs, at WARN |
 | `swap lost`           | `object_store swap` | Another writer moved `HEAD` first                          |
 
@@ -210,7 +210,7 @@ vcs writes these events:
 | A binary records a request whatever its sampled flag                         | `a_caller_can_not_turn_off_its_trace`, and for the server `TraceResponseTest`, which sends flag `00` and expects `01`      |
 | A request writes one `request` line                                          | `a_request_writes_one_line_when_it_ends`, `a_grpc_call_writes_one_line_when_it_ends`, and `RequestLineTest` for the server |
 | A line inside a request carries its context                                  | `a_line_inside_a_request_carries_its_context`                                                                              |
-| A refusal names its reason, and its principal when known                     | `a_refused_request_names_who_asked` and `a_request_without_a_token_names_why_it_was_refused`                               |
+| A refusal names its reason, and its principal when known                     | `a_refused_request_names_who_asked` and `a_request_without_a_session_names_why_it_was_refused`                               |
 | No attribute of a span and no field of a line holds a caller's path          | `no_span_or_line_names_a_path_no_route_matched`, and `SpanNamesTest` for the server                                        |
 | An event of vcs falls inside a span                                          | `finished_spans` fails a test on an event outside one, and a vcs or store test per event                                   |
 | A failure of vcs writes an ERROR line                                        | `a_server_error_that_axum_answers_writes_a_line`                                                                           |

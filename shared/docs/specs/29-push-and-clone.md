@@ -201,13 +201,13 @@ requirement.
 
 | ID    | Functional requirement                                                                                                            |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 102.1 | vcs sets `Operation.username` to the token's subject and `Operation.hostname` to `jjforge`.                                       |
+| 102.1 | vcs sets `Operation.username` to the certificate's key ID and `Operation.hostname` to `jjforge`.                                 |
 | 102.2 | vcs records the delegation chain in `Operation.attributes` under `jjforge.delegation`, as subjects from the outermost actor in.   |
 | 102.3 | vcs sets the start and end time from its own clock. `PublishRequest` carries no name and no time, so a client can't claim either. |
 
 - Operations: `POST {base}/publish`.
 - Types: `store.v1.Operation`, and the store crate's `Author`, which vcs
-  builds from the verified token.
+  builds from the verified session.
 - Flow: [push](#push), step 4.
 
 Scenario: [102-operation-author.bats](../../e2e/cli/102-operation-author.bats).
@@ -237,8 +237,8 @@ Scenario: [103-change-history.bats](../../e2e/cli/103-change-history.bats).
   reads only a repository on jj's own backend until
   [#120](https://github.com/nca-apprentices/jjforge/issues/120) answers how
   to import one that git backs.
-- Protected bookmarks and the landing token, which the review epic
-  specifies.
+- Protected bookmarks and the landing queue, which the
+  [review model](143-review-model.md) specifies.
 - Collecting unreachable objects. Nothing is collected, as
   [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
 
@@ -264,8 +264,9 @@ sequenceDiagram
     vcs-->>jf: 200 with the new operation, or 412 with the current head
 ```
 
-1. Token: vcs verifies the JWT offline against the issuers it trusts.
-   Refused: 401 `unauthenticated`. A principal without a scope for the
+1. Session: `jf` signs a challenge with the key of its certificate and opens
+   a session, and vcs checks the session on every route. Refused: 401
+   `unauthenticated`. A principal without a scope for the
    organization gets 404 `not_found`, and one with read scope only 403
    `forbidden`.
 2. Objects: `jf` walks the commits that the pushed bookmarks reach and the
@@ -392,17 +393,18 @@ depends on jj-lib and on `object_store`, which cargo-deny checks.
 | store | `Repo::operations_since`               | method      | Reads the operations and views after an operation.                                                                                                                                         |
 | store | `Repo::publish`                        | method      | Builds the view with jj-lib, writes it and the operation, and moves `HEAD` by compare-and-swap.                                                                                            |
 | store | `server::Author`                       | struct      | The subject and the delegation chain that go into the operation's metadata.                                                                                                                |
-| vcs   | `gate`                                 | module      | `Gate`, the one way a request reaches a `Repo`: it verifies the token, checks the access, and records whom the span is for.                                                                |
+| vcs   | `gate`                                 | module      | `Gate`, the one way a request reaches a `Repo`: it verifies the session, checks the access, and records whom the span is for.                                                              |
 | vcs   | `sync`                                 | module      | The `sync/v1` routes over HTTP, with a server span per request. Each handler takes a `Reader` or a `Writer` that the gate opened.                                                          |
-| vcs   | `grpc`                                 | module      | `echo/v1`, and `RepoService` of `source/v1` for the server, through the gate.                                                                                                              |
-| vcs   | `auth`                                 | module      | Verifies the JWT against the trusted issuers' key sets and reads its scopes and delegation chain.                                                                                          |
+| vcs   | `grpc`                                 | module      | `echo/v1`, and `SessionService` and `RepoService` of `source/v1` for the server, through the gate.                                                                                         |
+| vcs   | `auth`                                 | module      | Opens a session from a signed challenge and a certificate of a trusted authority, and reads its scopes and delegation chain.                                                               |
 | `jf`  | `commands`                             | module      | `clone`, `fetch`, `push`, and `import`, added to jj-cli, and a hook that lets `undo` undo a fetch.                                                                                         |
-| `jf`  | `forge`                                | module      | `SyncClient`, the `sync/v1` client, which implements `Fetch` and `Transport`.                                                                                                              |
+| `jf`  | `forge`                                | module      | `SyncClient`, the `sync/v1` client, which implements `Fetch` and `Transport` and opens the session.                                                                                       |
+| `jf`  | `credential`                           | module      | The key that `JJFORGE_KEY` names and its certificate, and signing with `ssh-keygen -Y sign`.                                                                                               |
 
 External systems and their twins in `shared/deploy/compose.yaml`: the object
-store as `seaweedfs`, and the identity provider as `oidc`. Until the server
-issues jjforge's own tokens, vcs trusts the `oidc` twin's issuers, and the
-scenarios create repositories through `RepoService` on vcs.
+store as `seaweedfs`. vcs trusts the development certificate authority of
+`shared/deploy/twins/cert`, which signs a certificate for each person of
+the seed, and the scenarios create repositories through `RepoService` on vcs.
 
 ## Libraries
 
@@ -472,33 +474,37 @@ entity tag for `HEAD`, `list`, and `delete_stream`. A local disk has no
 conditional replace, so vcs on `file://` moves `HEAD` under a lock of its
 own process, and one process serves it.
 
-### `jsonwebtoken` 9.3.1
+### `ssh-key` 0.6.7
 
-vcs verifies tokens with `decode_header`, `decode`, and
-`DecodingKey::from_jwk`. Version 9 runs on ring. Versions 10 and later need
-aws-lc or the `rsa` crate, which carries an open advisory.
+vcs parses certificates with `Certificate::from_openssh`, checks them with
+`validate_at` against the fingerprints of its authorities, and verifies a
+challenge's signature with `PublicKey::verify` over an `SshSig`. It enables
+Ed25519 and ECDSA P-256 only, because the `rsa` crate carries an open
+advisory. `validate_at` checks neither the principals nor the critical
+options, so vcs refuses every certificate with a critical option and takes
+the principal from the key ID. vcs seals sessions and challenges with
+ring's HMAC-SHA256.
 
 ## Security
 
-- vcs trusts only the signature of a token from an issuer in
-  `VCS_TOKEN_ISSUERS`, whose key set it finds through the discovery of
-  `OpenID` Connect. Each entry, `{org}={url}`, binds an issuer to one
-  organization, and a token's scopes reach only that organization. Until
-  [#6](https://github.com/nca-apprentices/jjforge/issues/6) has the server
-  sign every token, as
-  [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides, each
-  organization's identity provider signs for that organization alone. vcs
-  verifies only with a public key, RSA, an elliptic curve, or Ed25519, and
-  refuses a symmetric key that a key set publishes.
-  When a key set leaves out `alg`, the token's header names an algorithm
-  that the key's type allows. A token names `jjforge` in `aud`, and grants
-  `sync:read:{org}` or `sync:write:{org}` in `scope`. Creating or deleting a
-  repository through `RepoService` needs `sync:admin:{org}`, which a token
-  for pushing lacks. Two issuers may name keys alike, and an issuer that
-  can't answer keeps the keys it published last. Nested `act` claims,
-  as RFC 8693 defines them, name the principals that delegated to it. vcs
-  ignores every name the client sends, so an operation names the principal
-  from the token.
+- vcs opens a session only for a user certificate that an authority in
+  `VCS_AUTHORITIES` signed and that holds now, and only from a signature
+  by the certificate's key over the origin that `jf` connected to and a
+  challenge that vcs issued less than a minute before, in the namespace
+  `jjforge-session`. vcs refuses an origin outside `VCS_ORIGINS`, or any
+  but a loopback one when that is empty, so a forge that relays another
+  forge's challenge gains nothing. A challenge can be used again within its
+  minute, because vcs keeps no state. Each entry,
+  `{org}={path}`, trusts an authority for one organization, and a
+  certificate's scopes reach only the organizations whose authorities
+  signed it. The extension `jjforge-scope@nca-apprentices.dev` grants
+  `sync:read:{org}` or `sync:write:{org}`. Creating or deleting a
+  repository through `RepoService` needs `sync:admin:{org}`, which a
+  certificate for pushing lacks. The extension
+  `jjforge-delegation@nca-apprentices.dev` names the principals that
+  delegated to it. A session lasts 15 minutes at most and never outlives
+  its certificate. vcs ignores every name the client sends, so an operation
+  names the principal from the certificate's key ID.
 - vcs verifies the hash of every object it reads back, decodes every
   uploaded object, and computes each object's name itself, so a client
   can't store bytes under another object's name.
