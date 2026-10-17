@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Signs an SSH certificate for a person of the seed, as ADR 0002 decides,
 # and prints the key to set as JJFORGE_KEY, such as
-# `cert acme_member`. Without a person, it only makes the authority.
+# `cert acme_member`. Without a person, it only makes the authority and the
+# key vcs signs its operations with.
 #
 # One certificate authority signs for every organization of the seed, as the
 # server will once it signs people in (#6). Its key lives in
@@ -17,6 +18,12 @@ acme=0199c9a0-0000-7000-8000-00000000ac3e
 other=0199c9a0-0000-7000-8000-0000000007e2
 
 [[ -f $dev/authority ]] || ssh-keygen -q -t ed25519 -N '' -C "jjforge dev authority" -f "$dev/authority"
+# The key vcs signs its operations with. vcs reads it as the container's
+# own user, and a dev key guards nothing real.
+if [[ ! -f $dev/vcs ]]; then
+  ssh-keygen -q -t ed25519 -N '' -C "jjforge dev vcs" -f "$dev/vcs"
+  chmod 644 "$dev/vcs"
+fi
 
 person=${1:-}
 [[ -n $person ]] || exit 0

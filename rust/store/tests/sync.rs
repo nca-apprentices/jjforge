@@ -30,6 +30,8 @@ use jj_lib::repo::RepoLoader;
 use jj_lib::repo_path::RepoPath;
 use jj_lib::repo_path::RepoPathBuf;
 use jj_lib::settings::UserSettings;
+use jjforge_proto::store::v1::StoredObject;
+use jjforge_proto::store::v1::stored_object::Kind;
 use jjforge_proto::sync::v1::PublishRequest;
 use jjforge_store::ObjectId;
 use jjforge_store::OperationId;
@@ -44,6 +46,8 @@ use jjforge_store::client::TransportError;
 use jjforge_store::server::Author;
 use jjforge_store::server::Repo;
 use jjforge_store::server::Repos;
+use jjforge_store::server::Signer;
+use prost::Message as _;
 use tempfile::TempDir;
 use tracing_subscriber::layer::SubscriberExt as _;
 use url::Url;
@@ -116,6 +120,19 @@ impl World {
     fn new() -> Self {
         let cache = tempfile::tempdir().unwrap();
         let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path()).unwrap();
+        Self::with(cache, repos)
+    }
+
+    /// A forge that signs every operation it writes with `signer`.
+    fn signed(signer: Signer) -> Self {
+        let cache = tempfile::tempdir().unwrap();
+        let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path())
+            .unwrap()
+            .with_signer(signer);
+        Self::with(cache, repos)
+    }
+
+    fn with(cache: TempDir, repos: Repos) -> Self {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap();
@@ -864,4 +881,54 @@ fn a_retry_after_a_lost_race_uploads_nothing_again() {
     assert_eq!(*ada.forge.uploads.lock().unwrap(), 1);
     let bob = Clone::new(world.forge("bob"));
     assert_eq!(bob.read("main", "README"), "hello\n");
+}
+
+#[test]
+fn a_new_repository_has_no_review_yet() {
+    let world = World::new();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let (head, review) = block_on_tokio(repo.heads()).unwrap();
+
+    assert_eq!(head, OperationId::root());
+    assert_eq!(review, Vec::<u8>::new());
+}
+
+#[test]
+fn a_signer_signs_every_operation_that_vcs_writes() {
+    let signed = Arc::new(std::sync::Mutex::new(vec![]));
+    let seen = signed.clone();
+    let world = World::signed(Arc::new(move |bytes: &[u8]| {
+        seen.lock().unwrap().push(bytes.to_vec());
+        b"signature".to_vec()
+    }));
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.commit(None, "main", "README", "one\n");
+    ada.push("main").unwrap();
+
+    let repo = world.repos.get("acme", "forge").unwrap();
+    let operations = block_on_tokio(repo.operations_since(None)).unwrap();
+    let signatures: Vec<_> = operations
+        .iter()
+        .filter_map(
+            |bytes| match StoredObject::decode(bytes.as_slice()).unwrap().kind {
+                Some(Kind::Operation(operation)) => Some(operation.signature),
+                _ => None,
+            },
+        )
+        .collect();
+
+    assert_eq!(signatures, [b"signature".to_vec()]);
+    // The signature covers the operation without it, as a commit's does.
+    let unsigned = StoredObject::decode(signed.lock().unwrap()[0].as_slice()).unwrap();
+    assert!(matches!(unsigned.kind, Some(Kind::Operation(op)) if op.signature.is_empty()));
+}
+
+/// Runs a future of the store on a runtime of its own, as vcs does.
+fn block_on_tokio<F: std::future::Future>(future: F) -> F::Output {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(future)
 }

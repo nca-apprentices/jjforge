@@ -20,14 +20,18 @@ mod session;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
 use jjforge_store::server::Author;
+use jjforge_store::server::Signer;
 use ssh_key::Certificate;
 use ssh_key::Fingerprint;
 use ssh_key::HashAlg;
+use ssh_key::LineEnding;
+use ssh_key::PrivateKey;
 use ssh_key::PublicKey;
 use ssh_key::SshSig;
 use ssh_key::certificate::CertType;
@@ -325,6 +329,27 @@ impl Verifier {
         }
         result
     }
+}
+
+/// The namespace of vcs's signature over an operation.
+const OPERATION_NAMESPACE: &str = "jjforge-operation";
+
+/// Signs each operation vcs writes with the unencrypted OpenSSH key at
+/// `path`, as ADR 0001 decides.
+///
+/// # Errors
+///
+/// Fails when the file holds no unencrypted private key.
+pub(crate) fn operation_signer(path: &std::path::Path) -> anyhow::Result<Signer> {
+    let key = PrivateKey::read_openssh_file(path)
+        .map_err(|err| anyhow::anyhow!("{}: {err}", path.display()))?;
+    anyhow::ensure!(!key.is_encrypted(), "{} is encrypted", path.display());
+    Ok(Arc::new(move |bytes: &[u8]| {
+        key.sign(OPERATION_NAMESPACE, HashAlg::Sha512, bytes)
+            .and_then(|signature| signature.to_pem(LineEnding::LF))
+            .map(String::into_bytes)
+            .unwrap_or_default()
+    }))
 }
 
 fn now() -> u64 {

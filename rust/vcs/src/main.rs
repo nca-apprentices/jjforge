@@ -48,7 +48,10 @@ async fn main() -> anyhow::Result<()> {
                 .cache
                 .clone()
                 .unwrap_or_else(|| std::env::temp_dir().join("vcs"));
-            let repos = Repos::open(url, &cache)?;
+            let mut repos = Repos::open(url, &cache)?;
+            if let Some(path) = &config.signing_key {
+                repos = repos.with_signer(auth::operation_signer(path)?);
+            }
             let key = if let Some(key) = config.session_key.clone() {
                 key
             } else {

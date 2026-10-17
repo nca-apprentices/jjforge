@@ -343,7 +343,9 @@ The object store holds each repository at `t/{org}/r/{repo}/`, as
 pool/seg/{segment}   the encoded objects of one upload, one after another
 pool/idx/{segment}   where each object of the segment starts and ends
 op/{hash}            operations and views
-HEAD                 the current operation's ID
+HEAD                 the current operation and review operation, as an
+                     encoded store.v1.Head
+SERVED               written once, when vcs creates the repository
 ```
 
 - A segment's ID is the hash of its bytes. Its index is `JJFIDX01`

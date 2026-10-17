@@ -10,6 +10,7 @@ dev=$(cd ../shared/deploy/.dev && pwd)
 mkdir -p "$dev/store"
 export VCS_STORE=file://$dev/store
 export VCS_AUTHORITIES=0199c9a0-0000-7000-8000-00000000ac3e=$dev/authority.pub,0199c9a0-0000-7000-8000-0000000007e2=$dev/authority.pub
+export VCS_SIGNING_KEY=$dev/vcs
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:${JJFORGE_TRACES_PORT:-10428}/insert/opentelemetry/v1/traces
 
 exec cargo run --bin vcs

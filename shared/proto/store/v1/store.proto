@@ -159,6 +159,20 @@ message Operation {
   int32 end_tz_offset_minutes = 14;
   // False when the operation was written before jj recorded predecessors.
   bool stores_commit_predecessors = 15;
+  // The SSHSIG of whoever wrote the operation over the operation encoded
+  // without this field, in the namespace `jjforge-operation`, as ADR 0001
+  // decides. vcs signs the operations it writes when it has a key. Empty
+  // when unsigned. jj-lib never sees it.
+  bytes signature = 16;
+}
+
+// What `HEAD` holds: the latest operation and the latest review operation,
+// so one compare-and-swap moves both, as ADR 0002 decides. Empty
+// `review_operation_id` means the repository has no review yet. A `HEAD` of
+// 32 bytes, as vcs wrote it before, is an operation ID alone.
+message Head {
+  bytes operation_id = 1;
+  bytes review_operation_id = 2;
 }
 
 message CommitIds {

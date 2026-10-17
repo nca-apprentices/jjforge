@@ -63,8 +63,11 @@ message Session {
   int64 expires_at = 2;
 }
 
+// The repository's head. The `ETag` names the operation only.
 message Head {
   bytes operation_id = 1;
+  // The latest review operation, empty while the repository has no review.
+  bytes review_operation_id = 2;
 }
 
 message HashList {

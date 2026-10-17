@@ -49,6 +49,10 @@ vcs:
     # every replica. Empty lets each replica draw its own, which holds for one
     # replica only.
     sessionSecretName: ""
+    # A secret with the file `signing-key`, the unencrypted OpenSSH key that
+    # vcs signs each operation with, as ADR 0001 decides. Empty leaves
+    # operations unsigned.
+    signingKeySecretName: ""
 
 # Where the server and vcs send traces over OTLP/HTTP, as ADR 0005 decides,
 # such as http://telemetry.observability.svc:4318/v1/traces. Empty sends none.

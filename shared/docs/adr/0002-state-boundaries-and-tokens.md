@@ -69,6 +69,7 @@ t/{org}/r/{repo}/pool/idx/{segment}   hash to segment and offset, range reads
 t/{org}/r/{repo}/op/{hash}            operations and views
 t/{org}/r/{repo}/text/{hash}          comment text, one object each
 t/{org}/r/{repo}/HEAD                 the current operation and review operation
+t/{org}/r/{repo}/SERVED               present when vcs serves the repository
 ```
 
 The review log sits next to the operation log under the same `HEAD`, so one

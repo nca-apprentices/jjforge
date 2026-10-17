@@ -73,6 +73,7 @@ services:
       VCS_AUTHORITIES: >-
         0199c9a0-0000-7000-8000-00000000ac3e=/etc/vcs/authority.pub,0199c9a0-0000-7000-8000-0000000007e2=/etc/vcs/authority.pub
       VCS_SESSION_KEY: 74776e2d6f6e6c792d6b65792d746861742d7365616c732d6e6f7468696e672d7265616c
+      VCS_SIGNING_KEY: /etc/vcs/signing-key
       # The twin checks no key, but the S3 client signs every request.
       AWS_ENDPOINT: http://seaweedfs:8333
       AWS_ALLOW_HTTP: "true"
@@ -85,6 +86,7 @@ services:
       - "${JJFORGE_VCS_PORT:-50052}:50052"
     volumes:
       - ./.dev/authority.pub:/etc/vcs/authority.pub:ro
+      - ./.dev/vcs:/etc/vcs/signing-key:ro
 
   # Creates the bucket of vcs once seaweedfs answers, and exits.
   bucket:

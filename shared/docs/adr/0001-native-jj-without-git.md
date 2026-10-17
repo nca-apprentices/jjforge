@@ -67,8 +67,10 @@ every byte through the server, and HTTP caches can't cache gRPC.
 - A direct repository has no vcs. `jf` reads and writes it in the object
   store through the same store crate, and runs review and landing with
   vcs's code. No rule holds there: write credentials for the bucket grant
-  everything. A repository is served or direct, never both, and `jf` signs
-  every operation and record it writes, so readers can verify them later.
+  everything. A repository is served or direct, never both: vcs writes
+  `SERVED` when it creates one, and `jf` never writes such a repository
+  directly. Whoever writes an operation signs it, vcs or `jf`, so readers
+  can verify them later.
 - A clone fetches the operations and views. The working copy fetches files
   and trees as it needs them, in bundles, before `jf` hands a checkout to
   jj-lib.

@@ -184,9 +184,10 @@ async fn session(State(gate): State<Gate>, body: Bytes) -> Result<Response, Prob
 }
 
 async fn head(Reader(repo): Reader) -> Result<Response, Problem> {
-    let head = repo.head().await?;
+    let (head, review) = repo.heads().await?;
     let mut response = protobuf(&Head {
         operation_id: head.to_vec(),
+        review_operation_id: review,
     });
     set_etag(&mut response, head);
     Ok(response)

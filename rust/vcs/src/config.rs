@@ -55,6 +55,11 @@ pub(crate) struct Config {
     #[arg(long, env = "VCS_ORIGINS", value_delimiter = ',')]
     pub(crate) origins: Vec<String>,
 
+    /// The unencrypted OpenSSH key that vcs signs each operation it writes
+    /// with, as ADR 0001 decides. Without it, operations go unsigned.
+    #[arg(long, env = "VCS_SIGNING_KEY")]
+    pub(crate) signing_key: Option<PathBuf>,
+
     /// The address to serve Prometheus metrics on, at `/metrics`.
     #[arg(long, env = "VCS_METRICS_ADDR", default_value = "0.0.0.0:9090")]
     pub(crate) metrics_addr: SocketAddr,

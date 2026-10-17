@@ -392,8 +392,9 @@ it never sees `segment_ids`.
 
 ## Compatibility
 
-- `HEAD` changes from one ID to two. Repositories created before are created
-  again, which costs nothing before 1.0.0.
+- `HEAD` holds an encoded `store.v1.Head` with two IDs. vcs reads a `HEAD`
+  of 32 bytes, as it wrote one before, as an operation ID alone, and writes
+  the new form on the next publish.
 - `store.v1`, `sync/v1`, and `review/v1` change by addition only.
 - An older `jf` pushes and fetches, ignores the review log, and has no
   `review` or `land`.

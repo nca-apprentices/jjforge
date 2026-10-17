@@ -56,6 +56,10 @@ spec:
             # signature names.
             - name: VCS_ORIGINS
               value: {{ printf "https://%s" $.Values.ingress.host | quote }}
+            {{- if $.Values.vcs.sync.signingKeySecretName }}
+            - name: VCS_SIGNING_KEY
+              value: /etc/vcs/signing/signing-key
+            {{- end }}
             {{- with $.Values.vcs.sync.endpoint }}
             - name: AWS_ENDPOINT
               value: {{ . | quote }}
@@ -99,6 +103,11 @@ spec:
             - name: authorities
               mountPath: /etc/vcs/authorities
               readOnly: true
+            {{- if .Values.vcs.sync.signingKeySecretName }}
+            - name: signing
+              mountPath: /etc/vcs/signing
+              readOnly: true
+            {{- end }}
       volumes:
         # jj's index, which vcs rebuilds from the log when the pod is new.
         - name: cache
@@ -106,6 +115,11 @@ spec:
         - name: authorities
           configMap:
             name: {{ include "jjforge.fullname" . }}-vcs-authorities
+        {{- with .Values.vcs.sync.signingKeySecretName }}
+        - name: signing
+          secret:
+            secretName: {{ . }}
+        {{- end }}
           {{- end }}
 ---
 apiVersion: v1
