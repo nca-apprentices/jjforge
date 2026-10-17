@@ -40,7 +40,7 @@ hurl = "8.0.1"
 bats = "1.14.0"
 # The CLI scenarios create repositories through vcs's gRPC until the server
 # does.
-grpcurl = "1.9.3"
+grpcurl = "1.9.4"
 
 # Tool configuration and the tasks live under shared/config. `mise tasks` lists
 # the tasks. CI runs each namespace, such as jvm:lint and jvm:test, as a job.
