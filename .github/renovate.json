@@ -22,6 +22,11 @@
       "matchDepTypes": ["pnpm.catalog.openapi-typescript"],
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<6"
+    },
+    {
+      "description": "jsonwebtoken 10 needs aws-lc or the rsa crate, and vcs stays on ring until ADR 0002 replaces the token format.",
+      "matchPackageNames": ["jsonwebtoken"],
+      "allowedVersions": "<10"
     }
   ],
   "customManagers": [

@@ -46,6 +46,8 @@ a push from the token alone.
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Pass the identity provider's tokens through | No jjforge scopes, so vcs asks the server on every push, and `jf` needs a client at every provider |
 | Biscuits instead of JWTs                    | Offline narrowing that no requirement needs yet, and no Spring library issues one                  |
+| Macaroons instead of JWTs                   | Offline narrowing too, but vcs needs the server's root key to verify one                           |
+| Mutual TLS with client certificates         | Every client manages a certificate, browsers handle them poorly, and a certificate holds no scopes |
 
 ## Decision
 
@@ -149,7 +151,9 @@ sequenceDiagram
 - jjforge is its own OAuth 2.0 authorization server, built on Spring
   Authorization Server.
 - A token that a sub-agent can narrow offline waits for a requirement that
-  needs one, and replaces the format without replacing the flows.
+  needs one, and replaces the format without replacing the flows. vcs
+  verifies JWTs with `jsonwebtoken` 9 on ring until then, so it leaves that
+  crate with the format instead of moving to another cryptography library.
 - Cedar holds the authorization policy, evaluated in the server. Every
   decision is recorded in Postgres with the policy that made it.
 - Revocation takes effect when the current token expires, so tokens are

@@ -29,7 +29,8 @@ futures = "0.3.31"
 hex = "0.4.3"
 # Verifies the tokens of sync/v1 offline, as ADR 0002 decides. Version 9 runs
 # on ring, as the TLS stack does. Version 10 and later need aws-lc or the rsa
-# crate, which carries an open advisory.
+# crate, which carries an open advisory. vcs types the time claims itself,
+# since version 9 skips one it can't parse.
 jsonwebtoken = "9.3.1"
 http = "1.5.0"
 metrics = "0.24.6"

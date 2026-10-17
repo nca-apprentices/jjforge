@@ -93,6 +93,12 @@ struct Claims {
     #[serde(default)]
     scope: String,
     act: Option<Actor>,
+    // jsonwebtoken 9 skips a time claim it can't parse (GHSA-h395-gr6q-cpjc).
+    // Typing both here makes such a token fail to decode.
+    #[allow(dead_code, reason = "checked by jsonwebtoken, typed here")]
+    exp: u64,
+    #[allow(dead_code, reason = "checked by jsonwebtoken, typed here")]
+    nbf: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -509,5 +515,35 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    // jsonwebtoken 9 skips a time claim of the wrong type instead of refusing
+    // it (GHSA-h395-gr6q-cpjc), so a string `exp` would never expire.
+    #[tokio::test]
+    async fn a_time_claim_that_is_not_a_number_is_refused() {
+        let key = TestKey::new();
+        let issuer = issuer_with("acme", &key).await;
+        let verifier = Verifier::new(vec![Issuer::new("acme", issuer.clone())]).unwrap();
+        let mut header = Header::new(jsonwebtoken::Algorithm::EdDSA);
+        header.kid = Some("test".to_owned());
+
+        for (claim, value) in [("exp", "1"), ("nbf", "4102444800")] {
+            let mut claims = serde_json::json!({
+                "iss": issuer.as_str(), "sub": "ada", "aud": "jjforge",
+                "exp": 4_102_444_800_u64, "scope": "sync:read:acme",
+            });
+            claims[claim] = value.into();
+            let token =
+                jsonwebtoken::encode(&header, &claims, &EncodingKey::from_ed_der(&key.pkcs8))
+                    .unwrap();
+
+            assert!(
+                matches!(
+                    verifier.verify(Some(&format!("Bearer {token}"))).await,
+                    Err(AuthError::Invalid(_))
+                ),
+                "{claim}"
+            );
+        }
     }
 }
