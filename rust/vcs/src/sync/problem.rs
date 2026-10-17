@@ -91,6 +91,9 @@ impl From<RepoError> for Problem {
                 Self::new(StatusCode::NOT_FOUND, "not_found", err.to_string())
             }
             RepoError::Invalid(_) => Self::invalid(err.to_string()),
+            RepoError::Ambiguous(..) => {
+                Self::new(StatusCode::CONFLICT, "rev_ambiguous", err.to_string())
+            }
             RepoError::Internal(_) => {
                 tracing::error!(error = %err, "store failed");
                 Self::internal(StatusCode::INTERNAL_SERVER_ERROR, "the store failed")

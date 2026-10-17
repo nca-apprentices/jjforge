@@ -55,6 +55,9 @@ use super::bucket::Bucket;
 use super::bucket::Swap;
 use super::bucket::Tagged;
 use super::segment;
+
+mod read;
+
 use crate::Published;
 use crate::codec;
 use crate::codec::Object;
@@ -66,6 +69,8 @@ use crate::jj::Backend;
 use crate::jj::OperationStore;
 use crate::jj::Shelf;
 use crate::jj::Source;
+pub use read::FileRead;
+pub use read::Page;
 
 /// How many objects vcs reads from the object store at once.
 const CONCURRENCY: usize = 16;
@@ -83,6 +88,9 @@ pub enum RepoError {
     /// The request breaks a rule of the store.
     #[error("{0}")]
     Invalid(String),
+    /// A revision names more than one commit, which it lists when it can.
+    #[error("revision {0} is ambiguous")]
+    Ambiguous(String, Vec<String>),
     /// The object store or the local cache failed.
     #[error(transparent)]
     Internal(Source),

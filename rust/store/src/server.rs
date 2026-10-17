@@ -19,6 +19,8 @@ mod repo;
 mod segment;
 
 pub use repo::Author;
+pub use repo::FileRead;
+pub use repo::Page;
 pub use repo::Repo;
 pub use repo::RepoError;
 pub use repo::Repos;

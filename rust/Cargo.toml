@@ -44,6 +44,8 @@ opentelemetry-otlp = { version = "0.33.1", default-features = false, features = 
 ] }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["trace"] }
 prost = "0.14.4"
+# google.protobuf.Timestamp, which source/v1 uses.
+prost-types = "0.14.4"
 # The protoc that tonic-prost-build runs, so no system protoc is needed.
 protoc-bin-vendored = "3.3.0"
 # The TLS stack jf uses: rustls on ring, with the roots of the platform.

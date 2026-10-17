@@ -2039,6 +2039,7 @@ name = "jjforge-proto"
 version = "0.1.0"
 dependencies = [
  "prost",
+ "prost-types",
  "protoc-bin-vendored",
  "tonic",
  "tonic-prost",
@@ -4953,6 +4954,7 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
+ "futures",
  "hex",
  "http",
  "jjforge-proto",

@@ -11,10 +11,12 @@ option java_package = "dev.nca.jjforge.source.v1";
 // Reads the history of a repository at a given operation.
 service HistoryService {
   // Resolves a change ID, a commit ID, a unique prefix of either, or a
-  // bookmark. FAILED_PRECONDITION with the candidates in the details means the
-  // revision is ambiguous.
+  // bookmark. An empty revision is the trunk bookmark: main, master, or
+  // trunk. FAILED_PRECONDITION, with the candidates in the message, means
+  // the revision is ambiguous.
   rpc Resolve(ResolveRequest) returns (ResolveResponse);
-  // Streams the changes reachable from a revision, newest first.
+  // Streams the changes reachable from a revision, newest first, at most
+  // 1,000 of them.
   rpc Log(LogRequest) returns (stream LogResponse);
   rpc GetChange(GetChangeRequest) returns (GetChangeResponse);
   // Lists the earlier versions of a change, newest first.

@@ -932,3 +932,68 @@ fn block_on_tokio<F: std::future::Future>(future: F) -> F::Output {
         .unwrap()
         .block_on(future)
 }
+
+/// The reads of `source/v1` on a repository with two pushes: README, then
+/// src/lib.rs on top.
+#[test]
+fn the_server_reads_history_files_and_diffs_of_a_pushed_repository() {
+    use jjforge_proto::source::v1::diff_response::Status;
+    use jjforge_proto::source::v1::tree_entry::Kind;
+
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let first = ada.commit(None, "main", "README", "one\n");
+    ada.push("main").unwrap();
+    let second = ada.commit(Some("main"), "main", "src/lib.rs", "fn main() {}\n");
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let log = block_on_tokio(repo.log("")).unwrap();
+    let ids: Vec<_> = log.iter().map(|change| change.commit_id.clone()).collect();
+    assert_eq!(ids[..2], [second.id().hex(), first.id().hex()]);
+    assert_eq!(log[0].bookmarks, ["main"]);
+
+    let change_id = jj_lib::hex_util::encode_reverse_hex(first.change_id().as_bytes());
+    let resolved = block_on_tokio(repo.resolve(&change_id[..8])).unwrap();
+    assert_eq!(resolved.commit_id, first.id().hex());
+    assert!(matches!(
+        block_on_tokio(repo.resolve("nothing")),
+        Err(jjforge_store::server::RepoError::NotFound(_))
+    ));
+
+    let root = block_on_tokio(repo.tree("main", "", "", 0)).unwrap();
+    let entries: Vec<_> = root
+        .items
+        .iter()
+        .map(|entry| (entry.name.as_str(), entry.kind(), entry.size))
+        .collect();
+    assert_eq!(
+        entries,
+        [("README", Kind::File, 4), ("src", Kind::Directory, 0)]
+    );
+
+    let file = block_on_tokio(repo.file("main", "src/lib.rs", 3, 4)).unwrap();
+    assert_eq!(
+        (file.size, file.binary, file.bytes.as_slice()),
+        (13, false, &b"main"[..])
+    );
+
+    let diff = block_on_tokio(repo.diff("main", "", "")).unwrap();
+    assert_eq!(diff.len(), 1);
+    assert_eq!(
+        (diff[0].path.as_str(), diff[0].status()),
+        ("src/lib.rs", Status::Added)
+    );
+    assert_eq!(diff[0].hunks[0].lines[0].text, "fn main() {}\n");
+
+    let operations = block_on_tokio(repo.operation_page("", 1)).unwrap();
+    assert_eq!(operations.items.len(), 1);
+    assert_eq!(operations.items[0].principal_id, "ada");
+    assert_eq!(operations.next, "1");
+
+    let bookmarks = block_on_tokio(repo.bookmarks("", 0)).unwrap();
+    assert_eq!(bookmarks.items[0].name, "main");
+
+    let evolution = block_on_tokio(repo.evolution("main", "", 0)).unwrap();
+    assert_eq!(evolution.items[0].commit_id, second.id().hex());
+}

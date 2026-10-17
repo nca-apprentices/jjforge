@@ -13,6 +13,7 @@ jjforge-store.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 clap.workspace = true
+futures.workspace = true
 hex.workspace = true
 http.workspace = true
 metrics.workspace = true
