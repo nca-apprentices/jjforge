@@ -11,17 +11,19 @@ exposes Prometheus metrics through Micrometer and vcs through the `metrics`
 crate. vcs logs with `println!`, and no binary records a trace.
 
 The infra repository runs VictoriaMetrics with 90 days of metrics,
-VictoriaLogs with 30 days of logs collected from container stdout, and
-Grafana. It runs no trace store.
+VictoriaLogs with 30 days of logs collected from container stdout,
+VictoriaTraces with 7 days of traces, and Grafana, which links a line's
+`trace_id` to its trace.
 
 - A `VMPodScrape` reads both binaries through the chart's ports named
   `management` and `metrics`. The alert `JjforgeServerErrors` reads
   Micrometer's `http_server_requests_seconds_count`, and `TargetDown` fires
   when a binary stops answering the scrape.
-- An app's namespace sends nothing outside itself except DNS queries and
-  calls to the API server. The observability namespace admits only itself,
-  Traefik, and the API server. A scrape reaches jjforge, and nothing jjforge
-  sends reaches a store.
+- An OpenTelemetry Collector takes OTLP on ports 4317 and 4318, writes
+  each signal to its store, and keeps every trace. An app's namespace sends
+  nothing outside itself except DNS queries, calls to the API server, and
+  OTLP to the Collector. The stores admit only the observability namespace,
+  Traefik, the log collector, and the API server.
 
 The measurement store in the
 [architecture](../architecture.md#building-blocks) measures the software that
@@ -50,7 +52,7 @@ people build on jjforge. This record covers telemetry about jjforge itself.
 
 | Option for metrics  | Cost                                                                       |
 | ------------------- | -------------------------------------------------------------------------- |
-| OTLP, pushed        | A network path out of each namespace, new alerts, and no `up` series       |
+| OTLP, pushed        | New alerts, and no `up` series                                             |
 | Prometheus, scraped | A second transport next to OTLP. Chosen, because the cluster scrapes today |
 
 | Option for the trace store | Cost                                                                          |
@@ -119,13 +121,13 @@ flowchart LR
   quote it.
 - Every binary records every span, whatever the sampled flag of an incoming
   `traceparent` says, and keeps the caller's trace ID, so the ID that `jf`
-  prints finds the request. Only the Collector reduces volume, behind a tier
-  that routes by trace ID, and it keeps every trace with an error, or with
-  a `forbidden` or `hidden` refusal, first. Any caller can cause as many
-  `unauthenticated` refusals as it likes, so only their `request` lines
-  record them for sure. A refusal is a 4xx, which leaves a server span's status unset,
-  so the Collector finds it by `jjforge.refusal`, a name the infra
-  repository depends on.
+  prints finds the request. Only the Collector may reduce volume. Once it
+  samples, it decides per trace and keeps every trace with an error, or
+  with a `forbidden` or `hidden` refusal, first. Any caller can cause as
+  many `unauthenticated` refusals as it likes, so only their `request`
+  lines record them for sure. A refusal is a 4xx, which leaves a server
+  span's status unset, so the Collector's sampling finds it by
+  `jjforge.refusal`, a name the infra repository then depends on.
 - Every request is traceable. Each gRPC method and HTTP route has a server
   span, one wide event of who, where, what, and how it ended:
   `jjforge.principal.id`, `jjforge.org.id`, `jjforge.repo.id`, and on
@@ -215,10 +217,8 @@ vcs writes these events:
 
 ## Consequences
 
-- Traces wait for the infra repository to run VictoriaTraces and the
-  Collector, open the path to it, and link `trace_id` in VictoriaLogs. The
-  `request` lines don't wait, so each request has a record from the first
-  deployment.
+- The Collector keeps every trace until volume calls for sampling, so the
+  trace store holds every request of the last 7 days.
 - An upgrade of VictoriaTraces before 1.0 may discard up to 7 days of
   traces. Logs live 30, so an older line's `trace_id` finds no trace.
 - A caller chooses its trace ID, so it can join any trace whose ID it

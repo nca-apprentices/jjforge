@@ -6,10 +6,11 @@ Status: accepted, 2026-10-05. Deciders: jjforge maintainers.
 
 A requirement said what must be true, but nothing checked how: acceptance
 criteria lived in issues, no test cited a requirement, and the write paths
-had no design. Apprentices learn the way a feature is specified, so it must
-be the same for every feature. jjforge also depends on systems it doesn't
-deploy, so a requirement can pass its tests and still fail against the
-running system, and `mise run up` can't sign anyone in without a provider.
+had no design. Several developers specify features in parallel, so every
+feature must be specified the same way. jjforge also depends on systems it
+doesn't deploy, so a requirement can pass its tests and still fail against
+the running system, and `mise run up` can't sign anyone in without a
+provider.
 
 | Option                                                  | Cost                                                       |
 | ------------------------------------------------------- | ---------------------------------------------------------- |
@@ -26,7 +27,7 @@ Every fact has one home, and nothing is restated:
 | Fact        | Home                                                            |
 | ----------- | --------------------------------------------------------------- |
 | Status      | The requirement issue, which holds a statement and nothing else |
-| Description | The design and the alternatives, in the epic's spec page      |
+| Description | The design and the alternatives, in the epic's spec page        |
 | Acceptance  | The scenarios, in Hurl for REST and in Bats for `jf`            |
 | Shape       | The contract in `shared/api/` and `shared/proto/`               |
 
