@@ -1078,3 +1078,28 @@ fn the_diff_of_a_merge_shows_only_what_the_merge_added() {
         .collect();
     assert_eq!(files, [("MERGED", Status::Added)]);
 }
+
+/// gRPC's default limit on a message, which the server's client keeps.
+const GRPC_MESSAGE_LIMIT: usize = 4 << 20;
+
+#[test]
+fn the_diff_of_a_large_file_fits_in_one_grpc_message() {
+    use prost::Message as _;
+
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let numbers = (1..=400_000)
+        .map(|n| n.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    ada.commit(None, "main", "numbers", &numbers);
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let diff = block_on_tokio(repo.diff("main", "", "")).unwrap();
+
+    assert_eq!(diff.len(), 1);
+    assert!(diff[0].encoded_len() < GRPC_MESSAGE_LIMIT);
+    assert!(diff[0].truncated);
+    assert_eq!(diff[0].hunks.len(), 0);
+}

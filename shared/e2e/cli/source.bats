@@ -56,6 +56,19 @@ call() {
   [ "$(jq -r '.path + " " + .status' <<<"$output")" = "README STATUS_ADDED" ]
 }
 
+# grpcurl keeps gRPC's default limit of 4 MiB per message, as the server's
+# client does, so the diff of a 2.7 MB file must arrive truncated.
+@test "the diff of a large text file reaches a client with the default limit" {
+  seq 1 400000 >owner/numbers
+  copy acme_owner jf -R owner --config snapshot.max-new-file-size=10000000 commit -m "numbers"
+  copy acme_owner jf -R owner bookmark set main -r @-
+  copy acme_owner jf -R owner push --bookmark main
+
+  run call DiffService/Diff '"rev": "main"'
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.path + " " + (.truncated | tostring)' <<<"$output")" = "numbers true" ]
+}
+
 @test "a watch yields the push that lands after the operation it names" {
   head=$(call RepoService/GetHead | jq -r .operationId)
   call HistoryService/WatchOperations "\"since\": \"$head\"" -max-time 5 >watch.json || true &

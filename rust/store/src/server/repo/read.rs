@@ -39,6 +39,7 @@ use jjforge_proto::source::v1 as source;
 use jjforge_proto::source::v1::diff_response::Status;
 use jjforge_proto::source::v1::hunk;
 use jjforge_proto::source::v1::tree_entry::Kind;
+use prost::Message as _;
 
 use super::Repo;
 use super::RepoError;
@@ -61,6 +62,10 @@ const CONTEXT: usize = 3;
 /// The bytes that a file is checked for NUL in, as git does, to call it
 /// binary.
 const BINARY_PROBE: usize = 8000;
+
+/// The most bytes one file's diff takes before vcs drops its hunks, well
+/// below gRPC's default limit of 4 MiB per message.
+const DIFF_LIMIT: usize = 1 << 20;
 
 /// One page of a list.
 pub struct Page<T> {
@@ -771,13 +776,19 @@ async fn diff(
             (Some(old), Some(new)) => (false, hunks(&old, &new)),
             _ => (false, vec![]),
         };
-        files.push(source::DiffResponse {
+        let mut file = source::DiffResponse {
             path: entry.path.as_internal_file_string().to_owned(),
             old_path: String::new(),
             status: status.into(),
             binary,
             hunks,
-        });
+            truncated: false,
+        };
+        if file.encoded_len() > DIFF_LIMIT {
+            file.hunks.clear();
+            file.truncated = true;
+        }
+        files.push(file);
     }
     Ok(files)
 }
