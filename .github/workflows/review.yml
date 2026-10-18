@@ -8,10 +8,11 @@ name: Review
 # claude-review environment that holds the token, so no PR changes what runs
 # with it. Only a PR that a member of the organization opens from a branch
 # of this repository gets a review. CI builds the PR's jf and images in the
-# PR's own cache scope and without secrets. The review job runs them only in
-# containers that main's compose file defines and in Claude's sandboxed
-# commands, never on the runner itself. The denied paths hold the tokens, so
-# a PR that tells Claude to read them gets nothing to post.
+# PR's own cache scope and without secrets. The review job starts them with
+# the PR's compose file and dev certificates, so a member's PR can change the
+# stack it is reviewed on. That trusts members with the runner, which holds
+# the tokens. Claude's commands stay sandboxed, and the denied paths hold the
+# tokens, so a PR that tells Claude to read them gets nothing to post.
 on:
   # Starts only the dispatch job, which checks out nothing.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
@@ -104,16 +105,16 @@ jobs:
       PR: ${{ inputs.pr || github.event.issue.number }}
       # The second file publishes Postgres, so Claude can query it without
       # Docker.
-      COMPOSE_FILE: shared/deploy/compose.yaml:review/compose.yaml
+      COMPOSE_FILE: pr/shared/deploy/compose.yaml:review/compose.yaml
       JF_BIN: ${{ github.workspace }}/review/build/jf
       # Only main's config, so a mise call in pr/ doesn't trust the PR's.
       MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
       # Hides the tokens from Claude's commands and their process IDs, so a
       # prompt injection in an issue or comment can't hand one to a command.
       CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-    # main is the workspace, so the tools, the compose file, and the skill
-    # come from main. The PR's branch is only data in pr/, and its code runs
-    # only in containers and in Claude's sandboxed commands.
+    # main is the workspace, so the tools and the skill come from main. The
+    # PR's branch is in pr/, and only its compose file and dev certificates
+    # run on the runner.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -188,9 +189,15 @@ jobs:
           for image in review/build/*.tar; do
             docker load --input "$image"
           done > review/up.log 2>&1
-          docker-compose up --no-build --detach >> review/up.log 2>&1
-          curl --fail --silent --show-error --retry 120 --retry-delay 1 --retry-all-errors \
-            --json '{"message":"up"}' http://localhost:8080/api/v1/echo >> review/up.log 2>&1
+          # A branch from before the dev certificates has no cert script.
+          {
+            if [[ -x pr/shared/deploy/twins/cert ]]; then
+              pr/shared/deploy/twins/cert server
+            fi
+            docker-compose up --no-build --detach
+            curl --fail --silent --show-error --retry 120 --retry-delay 1 --retry-all-errors \
+              --json '{"message":"up"}' http://localhost:8080/api/v1/echo
+          } >> review/up.log 2>&1
           nohup docker-compose logs --follow --no-color > review/stack.log 2>&1 &
       # The scrub needs bubblewrap, which the action installs only for
       # users without write access. Ubuntu 24.04 blocks the user namespaces
@@ -211,8 +218,7 @@ jobs:
             review/ holds what steps 1 and 2 read: the PR with its reviews, comments, and checks in pr.json,
             its diff in pr.diff, its review threads in threads.json, and the issues it closes in issues/.
             Its branch is checked out in pr/, the job has started the stack from it, which step 3 says
-            how to use, and steps 3 and 5 are required. The stack runs with main's compose file, so say
-            so when the PR changes shared/deploy/compose.yaml.
+            how to use, and steps 3 and 5 are required.
             Post the report as one review: create a pending review, add each finding as a comment on its
             line, add the answer to each unresolved thread as a comment on that thread's line that starts
             with @ and the thread author's login, and submit it with event COMMENT and the Blocking part as its body.
