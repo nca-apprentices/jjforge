@@ -1,4 +1,4 @@
-# 0002. Repositories in the object store, the product in Postgres
+# 0002. Repositories and reviews in the object store, the rest in Postgres
 
 Status: accepted, 2026-10-05. Deciders: jjforge maintainers.
 
@@ -36,18 +36,25 @@ jjforge must run on one machine and in a cluster without two code paths.
 | Microservices from the start                              | Deployment and network failure modes before any module needs them              |
 | One binary per role, as Loki, Mimir, and Tempo run        | A flag, a profile, and a chart mode per binary before any role needs to scale  |
 
-People have accounts at their organization's identity provider. Agents and
-jobs later act on their behalf with narrower, short-lived access. vcs must
-keep serving reads when sign-in is down
-([#12](https://github.com/nca-apprentices/jjforge/issues/12)) and authorizes
-a push from the token alone.
+vcs must work without the server, as a forge with review and landing, the
+way Gerrit works without Zuul. Review and landing read what only vcs holds:
+the operation log, the predecessors of each commit, and the head.
 
-| Option                                      | Cost                                                                                               |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Pass the identity provider's tokens through | No jjforge scopes, so vcs asks the server on every push, and `jf` needs a client at every provider |
-| Biscuits instead of JWTs                    | Offline narrowing that no requirement needs yet, and no Spring library issues one                  |
-| Macaroons instead of JWTs                   | Offline narrowing too, but vcs needs the server's root key to verify one                           |
-| Mutual TLS with client certificates         | Every client manages a certificate, browsers handle them poorly, and a certificate holds no scopes |
+| Option                                                    | Cost                                                                   |
+| --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Review and landing in the server, over calls to vcs       | vcs can't land on its own, and each decision crosses the network twice |
+| Review and landing in vcs, with records in the repository | The Rust code owns features, and a clone carries the reviews. Chosen   |
+
+People have accounts at their organization's identity provider. Agents and
+jobs act on their behalf with narrower, short-lived access. A standalone vcs
+has no server to issue tokens.
+
+| Option                                    | Cost                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------- |
+| JWTs signed by the server                 | A standalone vcs needs an OAuth 2.0 server                                                  |
+| SSH public keys listed per principal      | vcs keeps the list, and an agent can't get narrower, short-lived access                     |
+| SSH certificates from a trusted authority | A browser can't hold one, and narrowing goes back to the authority. Chosen                  |
+| Mutual TLS with client certificates       | Every client manages an X.509 certificate, and browsers handle them poorly                  |
 
 ## Decision
 
@@ -60,8 +67,14 @@ serves any repository. Each repository has its own pool:
 t/{org}/r/{repo}/pool/seg/{segment}   packed objects
 t/{org}/r/{repo}/pool/idx/{segment}   hash to segment and offset, range reads
 t/{org}/r/{repo}/op/{hash}            operations and views
-t/{org}/r/{repo}/HEAD                 the current operation
+t/{org}/r/{repo}/text/{hash}          comment text, one object each
+t/{org}/r/{repo}/HEAD                 the current operation and review operation
+t/{org}/r/{repo}/SERVED               present when vcs serves the repository
 ```
+
+The review log sits next to the operation log under the same `HEAD`, so one
+compare-and-swap moves both. The
+[review model](../specs/143-review-model.md) specifies its records.
 
 ```mermaid
 flowchart LR
@@ -79,7 +92,8 @@ flowchart LR
   from the log alone.
 - A new repository creates `HEAD` with `If-None-Match: *`. No write uses any
   other condition, and the bucket has no versioning.
-- Nothing is collected. jj keeps every operation, and a deleted repository is
+- Nothing is collected, except that a redaction deletes one comment's text.
+  jj keeps every operation, and a deleted repository is
   removed by its prefix. A repository exists in the store before the server
   records it, so an unrecorded `HEAD` is unreachable and costs storage only.
 
@@ -103,11 +117,18 @@ modules add.
 
 ### Boundaries
 
-| Binary | Owns                                                                                                                         | Never                                  |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| vcs    | The jj backend and `sync/v1` of [ADR 0001](0001-native-jj-without-git.md), and `source/v1` for reads from inside the cluster | Anything a person would call a feature |
-| server | Organizations, identity, policy, review, landing, hooks, workflows, and notifications, in Postgres                           | Repository storage                     |
+| Binary | Owns                                                                                                                   | Never                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| vcs    | The jj backend, `sync/v1`, review, the landing queue, and its rules, in the object store                               | Organizations, sign-in, CI, issues, agents, and indexes across repositories |
+| server | Organizations, sign-in, certificates, CI and other gates, issues, agents, and indexes across repositories, in Postgres | Repository storage and review records                                       |
 
+- vcs works without the server, from the repository and the request's
+  certificate alone. The server calls vcs through gRPC, and the web app's
+  review calls go through the server.
+- The server takes part in landing as a gate. vcs runs the queue and waits
+  for the verdicts that the repository's landing policy requires.
+- The server builds inboxes and searches across repositories from vcs's
+  stream. They are derived, so losing them costs a rebuild.
 - The server is one Spring Boot app, structured with Spring Modulith. Each
   module is a top-level package, owns one Postgres schema, and reads only its
   own tables. `ModulesTest` fails the build on a dependency that crosses a
@@ -116,9 +137,10 @@ modules add.
   the transaction that changes its rows, and the event publication registry
   delivers it after the commit and retries it after a crash. No separate
   event bus runs.
-- The server learns about pushes through a server-streaming call in
-  `source/v1`. It keeps the head it last saw per repository in Postgres and
-  reads the operation log from there, so a dropped stream loses nothing.
+- The server learns about pushes and review records through
+  server-streaming calls in `source/v1` and `review/v1`. It keeps the head
+  it last saw per repository in Postgres and reads both logs from there, so
+  a dropped stream loses nothing.
 - Each binary runs every role it has. The chart runs one Deployment of each
   and scales each by replica count. A split by role waits for a measurement
   that asks for it.
@@ -131,33 +153,26 @@ modules add.
 - No cache service until a requirement needs one, measured. Every replica
   caches immutable objects in memory and on local disk.
 
-### Tokens
+### Certificates
 
-```mermaid
-sequenceDiagram
-    participant client as browser or jf
-    participant server
-    participant idp as OpenID Connect provider
-    participant vcs
-    client->>server: authorization code with PKCE, or device flow
-    server->>idp: sign-in, federated
-    idp-->>server: identity
-    server-->>client: JWT with jjforge scopes, signed by the server
-    client->>vcs: request with the JWT
-    vcs->>vcs: verify offline against the published key set
-```
-
-- jjforge stores no passwords. Each organization connects its provider.
-- jjforge is its own OAuth 2.0 authorization server, built on Spring
-  Authorization Server.
-- A token that a sub-agent can narrow offline waits for a requirement that
-  needs one, and replaces the format without replacing the flows. vcs
-  verifies JWTs with `jsonwebtoken` 9 on ring until then, so it leaves that
-  crate with the format instead of moving to another cryptography library.
-- Cedar holds the authorization policy, evaluated in the server. Every
-  decision is recorded in Postgres with the policy that made it.
-- Revocation takes effect when the current token expires, so tokens are
-  short-lived.
+- Every principal proves who it is with an OpenSSH user certificate. Its
+  key ID names the principal, its validity bounds the access, and its
+  extensions carry the scopes and the delegation chain.
+- vcs trusts the certificate authorities its configuration lists, each for
+  the organizations it names. `jf` signs a challenge from vcs and the origin
+  it connected to, with ssh-agent, and gets a session of at most 15
+  minutes, so a cache can serve object reads. vcs refuses an origin that
+  isn't its own, so another site can't relay its challenge.
+- On its own, an administrator signs keys with `ssh-keygen -s`. With the
+  server, the server is the authority: a person signs in through the
+  organization's provider and gets a certificate for hours, an agent a
+  narrower one for minutes.
+- A browser signs in to the server, which calls vcs with its own certificate
+  and names the person in the delegation chain.
+- jjforge stores no passwords. Cedar holds the server's policy, and every
+  decision is recorded with the policy that made it. The landing rules live
+  in the repository.
+- Revocation takes effect when the session expires.
 
 ## Consequences
 

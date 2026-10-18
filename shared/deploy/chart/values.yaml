@@ -23,9 +23,12 @@ vcs:
     repository: ghcr.io/nca-apprentices/jjforge-vcs
     tag: ""
   replicas: 1
+  # A read holds a file once, and a push holds its body once, each up to
+  # 64 MiB, while jj-lib decodes it, so a limit of twice that and more leaves
+  # room for both.
   resources:
     requests: { cpu: 50m, memory: 32Mi }
-    limits: { memory: 128Mi }
+    limits: { memory: 384Mi }
   # Sync of ADR 0001, off while store is empty. With a store, vcs serves
   # sync/v1 at /sync/v1 of the ingress host, and keeps jj's index in an
   # emptyDir.
@@ -37,9 +40,6 @@ vcs:
     region: us-east-1
     # A secret with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for the store.
     secretName: ""
-    # The issuers whose tokens vcs trusts, each bound to one organization,
-    # such as ["0199c9a0-0000-7000-8000-00000000ac3e=https://id.example"].
-    tokenIssuers: []
 
 # Where the server and vcs send traces over OTLP/HTTP, as ADR 0005 decides,
 # such as http://telemetry.observability.svc:4318/v1/traces. Empty sends none.

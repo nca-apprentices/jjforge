@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-#MISE description="Run vcs on :50052, with traces to the twin of `mise run twins`"
+#MISE description="Run vcs on :50052 and sync/v1 on :8081, with repositories in shared/deploy/.dev/store and traces to the twin of `mise run twins`"
 #MISE dir="{{config_root}}/rust"
 set -euo pipefail
 
+mkdir -p ../shared/deploy/.dev/store
+deploy=$(cd ../shared/deploy && pwd)
+export VCS_STORE=file://$deploy/.dev/store
+# The principals of compose.yaml. `jf` names one in JJFORGE_TOKEN.
+export VCS_PRINCIPALS=$deploy/twins/principals
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:${JJFORGE_TRACES_PORT:-10428}/insert/opentelemetry/v1/traces
 
 exec cargo run --bin vcs

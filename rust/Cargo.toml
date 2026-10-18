@@ -27,11 +27,6 @@ blake3 = "1.8.7"
 clap = { version = "4.6.7", features = ["derive", "env"] }
 futures = "0.3.34"
 hex = "0.4.3"
-# Verifies the tokens of sync/v1 offline, as ADR 0002 decides. Version 9 runs
-# on ring, as the TLS stack does. Version 10 and later need aws-lc or the rsa
-# crate, which carries an open advisory. vcs types the time claims itself,
-# since version 9 skips one it can't parse.
-jsonwebtoken = "9.3.1"
 http = "1.5.0"
 metrics = "0.24.6"
 # The S3 client of the store crate, as ADR 0002 decides, on the TLS stack of
@@ -49,11 +44,11 @@ opentelemetry-otlp = { version = "0.33.1", default-features = false, features = 
 ] }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["trace"] }
 prost = "0.14.4"
+# google.protobuf.Timestamp, which source/v1 uses.
+prost-types = "0.14.4"
 # The protoc that tonic-prost-build runs, so no system protoc is needed.
 protoc-bin-vendored = "3.3.0"
 # The TLS stack jf uses: rustls on ring, with the roots of the platform.
-# Generates the keys of the token tests at run time, so no private key lives
-# in the repository.
 ring = "0.17.14"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
 rustls = { version = "0.23.45", default-features = false, features = ["ring"] }

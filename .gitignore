@@ -1,5 +1,7 @@
 # Local state, never committed
 .env
+# The repositories of `mise run rust:serve`
+shared/deploy/.dev/
 .claude-notes/
 .claude/worktrees/
 .DS_Store

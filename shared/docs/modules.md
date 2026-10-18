@@ -12,4 +12,5 @@ flowchart LR
     repos
     source
     telemetry
+    vcs
 ```

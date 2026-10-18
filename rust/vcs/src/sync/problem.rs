@@ -70,7 +70,7 @@ impl From<Refused> for Problem {
             Refused::Forbidden => Self::new(
                 StatusCode::FORBIDDEN,
                 "forbidden",
-                "the token doesn't allow writes to this repository",
+                "the principal may not write to this repository",
             ),
             Refused::Repo(err) => err.into(),
         }
@@ -84,6 +84,9 @@ impl From<RepoError> for Problem {
                 Self::new(StatusCode::NOT_FOUND, "not_found", err.to_string())
             }
             RepoError::Invalid(_) => Self::invalid(err.to_string()),
+            RepoError::Ambiguous(..) => {
+                Self::new(StatusCode::CONFLICT, "rev_ambiguous", err.to_string())
+            }
             RepoError::Internal(_) => {
                 tracing::error!(error = %err, "store failed");
                 Self::internal(StatusCode::INTERNAL_SERVER_ERROR, "the store failed")

@@ -8,5 +8,7 @@ set -euo pipefail
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:${JJFORGE_POSTGRES_PORT:-5432}/postgres
 export SPRING_DATASOURCE_USERNAME=postgres
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:${JJFORGE_TRACES_PORT:-10428}/insert/opentelemetry/v1/traces
+# The principal of shared/deploy/twins/principals that the server calls vcs as.
+export JJFORGE_VCS_PRINCIPAL=server
 
 exec gradle -p jvm bootRun

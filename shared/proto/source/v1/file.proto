@@ -36,6 +36,7 @@ message TreeEntry {
   string name = 1;
   string path = 2;
   Kind kind = 3;
+  // The bytes of a file, 0 for anything else.
   int64 size = 4;
 }
 

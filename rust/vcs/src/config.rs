@@ -8,8 +8,6 @@ use http::Uri;
 use tracing_subscriber::EnvFilter;
 use url::Url;
 
-use crate::auth::Issuer;
-
 /// vcs's settings. An invalid value stops vcs at startup with a usage
 /// message.
 #[derive(Parser)]
@@ -35,11 +33,10 @@ pub(crate) struct Config {
     #[arg(long, env = "VCS_CACHE")]
     pub(crate) cache: Option<PathBuf>,
 
-    /// The issuers whose tokens vcs trusts, separated by commas, each with
-    /// the organization it signs for, such as `acme=https://id.acme.example`.
-    /// vcs finds their keys through the discovery of `OpenID` Connect.
-    #[arg(long, env = "VCS_TOKEN_ISSUERS", value_delimiter = ',')]
-    pub(crate) token_issuers: Vec<Issuer>,
+    /// The file of the principals vcs knows and their scopes, as
+    /// `crate::auth` describes it. Without it, vcs refuses every request.
+    #[arg(long, env = "VCS_PRINCIPALS")]
+    pub(crate) principals: Option<PathBuf>,
 
     /// The address to serve Prometheus metrics on, at `/metrics`.
     #[arg(long, env = "VCS_METRICS_ADDR", default_value = "0.0.0.0:9090")]
@@ -94,18 +91,21 @@ mod tests {
     }
 
     #[test]
-    fn config_reads_the_store_and_its_issuers() {
+    fn config_reads_the_store_and_its_principals() {
         let config = Config::try_parse_from([
             "vcs",
             "--store",
             "s3://jjforge",
-            "--token-issuers",
-            "acme=http://oidc:8080/acme,other=http://oidc:8080/other",
+            "--principals",
+            "/etc/vcs/principals",
         ])
         .unwrap();
 
         assert_eq!(config.store.unwrap().as_str(), "s3://jjforge");
-        assert_eq!(config.token_issuers.len(), 2);
+        assert_eq!(
+            config.principals.unwrap().to_str(),
+            Some("/etc/vcs/principals")
+        );
     }
 
     #[test]

@@ -29,9 +29,10 @@ every byte through the server, and HTTP caches can't cache gRPC.
 - A repository holds seven kinds of objects, encoded with Protocol Buffers
   and named by the BLAKE3 hash of their bytes, as
   [proto/store/v1](../../proto/store/v1/) describes: file, symbolic link,
-  tree, copy history, commit, operation, and view. The change ID is a field
+  tree, copy history, commit, operation, view, and the review log's
+  objects. The change ID is a field
   of the commit, a conflict is a merge of trees, and the operation records
-  the principal and its delegation chain from the verified token. The format
+  the principal and its delegation chain from the verified certificate. The format
   holds every field of jj-lib's `Commit`, `View`, and `Operation` except the
   git ones and the `predecessors` of a commit, which jj deprecates. The
   `commit_predecessors` of the operation record them instead.
@@ -41,7 +42,7 @@ every byte through the server, and HTTP caches can't cache gRPC.
 - The public API is HTTP only, in two parts. Both answer errors as
   `application/problem+json` with the same problem codes, so the CLI maps
   them to the same exit codes. gRPC runs only inside the cluster, under
-  `source/v1`.
+  `source/v1` and `review/v1`.
 
 | Part      | Served by | Under       | Described in                               | Changes                                                                                   |
 | --------- | --------- | ----------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
@@ -49,17 +50,27 @@ every byte through the server, and HTTP caches can't cache gRPC.
 | `sync/v1` | vcs       | `/sync/v1/` | [proto/sync/v1](../../proto/sync/v1/)      | Under `buf breaking`. It addresses a repository by IDs, so a rename doesn't break a clone |
 
 - OAuth routes stay where their RFCs put them.
+- `sync/v1` carries review records as well as objects, so `jf` reviews from
+  a clone.
 - Objects are read with `GET`, and their answers are immutable. vcs checks
-  the token before it serves or redirects to a short-lived signed URL, and
+  the session before it serves or redirects to a short-lived signed URL, and
   verifies the hash of every uploaded object.
 - A publish names the head it expects. vcs moves the head only when every
-  referenced object is present, the token's scope covers each changed
-  bookmark, a protected bookmark moves only under the landing token, and the
-  change ownership policy holds. vcs decides all of this from the token.
+  referenced object is present, the certificate's scope covers each changed
+  bookmark, and the change ownership policy holds. Only vcs's landing queue
+  moves a protected bookmark. vcs decides all of this from the certificate
+  of [ADR 0002](0002-state-boundaries-and-tokens.md#certificates).
 - The CLI is `jf`, built on jj-cli's `CliRunner`: every jj command works in
   it, and it registers the jjforge stores under the store type `jjforge`. The
   clash with the JFrog CLI is accepted. `jf` talks to the forge through REST
-  and `sync/v1`, and nothing else.
+  and `sync/v1`, and nothing else, except for a direct repository.
+- A direct repository has no vcs. `jf` reads and writes it in the object
+  store through the same store crate, and runs review and landing with
+  vcs's code. No rule holds there: write credentials for the bucket grant
+  everything. A repository is served or direct, never both: vcs writes
+  `SERVED` when it creates one, and `jf` never writes such a repository
+  directly. Whoever writes an operation signs it, vcs or `jf`, so readers
+  can verify them later.
 - A clone fetches the operations and views. The working copy fetches files
   and trees as it needs them, in bundles, before `jf` hands a checkout to
   jj-lib.

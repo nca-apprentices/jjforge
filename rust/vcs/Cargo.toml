@@ -13,16 +13,15 @@ jjforge-store.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 clap.workspace = true
+futures.workspace = true
 hex.workspace = true
 http.workspace = true
-jsonwebtoken.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
 opentelemetry.workspace = true
 opentelemetry-otlp.workspace = true
 opentelemetry_sdk.workspace = true
 prost.workspace = true
-reqwest.workspace = true
 rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -37,7 +36,6 @@ url.workspace = true
 
 [dev-dependencies]
 opentelemetry_sdk = { workspace = true, features = ["testing"] }
-ring.workspace = true
 tempfile.workspace = true
 tower = { workspace = true, features = ["util"] }
 

@@ -6,7 +6,7 @@
 //! server ──gRPC──▶ grpc ─┐
 //!                        ├─▶ gate ──▶ store crate's Repos ──▶ object store
 //! jf ───sync/v1──▶ sync ─┘     │
-//!                              └─ auth verifies the token
+//!                              └─ auth looks up the principal
 //! ```
 
 // A line written past `tracing` reaches no log store as JSON and carries no
@@ -24,7 +24,7 @@ mod telemetry;
 use clap::Parser;
 use jjforge_store::server::Repos;
 
-use crate::auth::Verifier;
+use crate::auth::Principals;
 use crate::config::Config;
 use crate::gate::Gate;
 
@@ -34,8 +34,8 @@ async fn main() -> anyhow::Result<()> {
     let traces = telemetry::install(&config.log, config.traces_endpoint.as_ref())?;
     metrics::install(config.metrics_addr)?;
 
-    // The S3 client and the key set client share reqwest's TLS, which
-    // leaves the provider to the binary. A second install changes nothing.
+    // The S3 client uses reqwest's TLS, which leaves the provider to the
+    // binary. A second install changes nothing.
     rustls::crypto::ring::default_provider()
         .install_default()
         .ok();
@@ -48,8 +48,13 @@ async fn main() -> anyhow::Result<()> {
                 .clone()
                 .unwrap_or_else(|| std::env::temp_dir().join("vcs"));
             let repos = Repos::open(url, &cache)?;
-            let verifier = Verifier::new(config.token_issuers.clone())?;
-            Some(Gate::new(repos, verifier))
+            let principals = if let Some(path) = &config.principals {
+                Principals::read(path)?
+            } else {
+                tracing::warn!("no principals, so vcs refuses every request");
+                Principals::default()
+            };
+            Some(Gate::new(repos, principals))
         }
         None => None,
     };

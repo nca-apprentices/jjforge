@@ -44,6 +44,7 @@ use jj_lib::signing_factory::signer_from_settings;
 use jj_lib::simple_workspace_store::SimpleWorkspaceStore;
 use jj_lib::tree_merge::MergeOptions;
 use jjforge_proto::store::v1::CommitIds;
+use jjforge_proto::store::v1::Head as StoredHead;
 use jjforge_proto::sync::v1::PublishRequest;
 use prost::Message as _;
 use tokio::sync::RwLock;
@@ -54,6 +55,9 @@ use super::bucket::Bucket;
 use super::bucket::Swap;
 use super::bucket::Tagged;
 use super::segment;
+
+mod read;
+
 use crate::Published;
 use crate::codec;
 use crate::codec::Object;
@@ -65,6 +69,8 @@ use crate::jj::Backend;
 use crate::jj::OperationStore;
 use crate::jj::Shelf;
 use crate::jj::Source;
+pub use read::FileRead;
+pub use read::Page;
 
 /// How many objects vcs reads from the object store at once.
 const CONCURRENCY: usize = 16;
@@ -82,6 +88,9 @@ pub enum RepoError {
     /// The request breaks a rule of the store.
     #[error("{0}")]
     Invalid(String),
+    /// A revision names more than one commit, which it lists when it can.
+    #[error("revision {0} is ambiguous")]
+    Ambiguous(String, Vec<String>),
     /// The object store or the local cache failed.
     #[error(transparent)]
     Internal(Source),
@@ -97,10 +106,41 @@ fn internal(err: impl Into<Source>) -> RepoError {
     RepoError::Internal(err.into())
 }
 
-/// Who made an operation, from the verified token, as #102 decides.
+/// The IDs that `HEAD` holds. A `HEAD` of 32 bytes, as vcs wrote it before
+/// the review log, is an operation ID alone.
+struct HeadIds {
+    operation: Vec<u8>,
+    review: Vec<u8>,
+}
+
+impl HeadIds {
+    fn decode(bytes: &[u8]) -> Result<Self, RepoError> {
+        if bytes.len() == ids::ID_LENGTH {
+            return Ok(Self {
+                operation: bytes.to_vec(),
+                review: vec![],
+            });
+        }
+        let head = StoredHead::decode(bytes).map_err(internal)?;
+        Ok(Self {
+            operation: head.operation_id,
+            review: head.review_operation_id,
+        })
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        StoredHead {
+            operation_id: self.operation.clone(),
+            review_operation_id: self.review.clone(),
+        }
+        .encode_to_vec()
+    }
+}
+
+/// Who made an operation: the request's principal, as #102 decides.
 #[derive(Clone, Debug)]
 pub struct Author {
-    /// The principal the token names.
+    /// The principal the request names.
     pub subject: String,
     /// The principals that delegated to `subject`, outermost first.
     pub delegation: Vec<String>,
@@ -234,8 +274,18 @@ impl Repo {
     /// Fails when the store does.
     #[tracing::instrument(name = "repo create", skip_all)]
     pub async fn create(&self) -> Result<(), RepoError> {
+        let head = HeadIds {
+            operation: ids::root_operation_id().to_bytes(),
+            review: vec![],
+        };
         self.bucket
-            .swap(&self.key("HEAD"), None, ids::root_operation_id().to_bytes())
+            .swap(&self.key("HEAD"), None, head.encode())
+            .await
+            .map_err(internal)?;
+        // Marks the repository as one that vcs serves, so `jf` never writes
+        // it directly, as ADR 0001 decides.
+        self.bucket
+            .put_immutable(&self.key("SERVED"), b"vcs".to_vec())
             .await
             .map_err(internal)?;
         Ok(())
@@ -272,9 +322,20 @@ impl Repo {
     /// Fails when the repository doesn't exist, or when the store does.
     #[tracing::instrument(name = "repo head", skip_all, fields(jjforge.operation.id = Empty))]
     pub async fn head(&self) -> Result<OperationId, RepoError> {
-        let head = operation_id(&self.tagged_head().await?.bytes)?;
+        Ok(self.heads().await?.0)
+    }
+
+    /// Reads both IDs of `HEAD`: the latest operation, and the latest review
+    /// operation, empty while the repository has no review.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the repository doesn't exist, or when the store does.
+    pub async fn heads(&self) -> Result<(OperationId, Vec<u8>), RepoError> {
+        let ids = HeadIds::decode(&self.tagged_head().await?.bytes)?;
+        let head = operation_id(&ids.operation)?;
         tracing::Span::current().record("jjforge.operation.id", head.to_string());
-        Ok(head)
+        Ok((head, ids.review))
     }
 
     async fn read_operation(&self, id: &[u8]) -> Result<(Vec<u8>, Operation), RepoError> {
@@ -617,16 +678,17 @@ impl Repo {
         author: &Author,
     ) -> Result<Published, RepoError> {
         let head = self.tagged_head().await?;
-        if request.expected_operation_id != head.bytes {
-            return Ok(Published::Stale(operation_id(&head.bytes)?));
+        let ids = HeadIds::decode(&head.bytes)?;
+        if request.expected_operation_id != ids.operation {
+            return Ok(Published::Stale(operation_id(&ids.operation)?));
         }
-        self.advance(&head.bytes).await?;
+        self.advance(&ids.operation).await?;
 
         let overlay = self.read_segments(&request.segment_ids).await?;
         let predecessors = commit_predecessors(request)?;
         let loader = self.loader(overlay.clone())?;
         let operation = loader
-            .load_operation(&JjOperationId::new(head.bytes.clone()))
+            .load_operation(&JjOperationId::new(ids.operation.clone()))
             .await
             .map_err(internal)?;
         let base = loader.load_at(&operation).await.map_err(internal)?;
@@ -637,7 +699,7 @@ impl Repo {
             .iter()
             .any(|(name, old, _)| repo.get_local_bookmark(name) != old)
         {
-            return Ok(Published::Stale(operation_id(&head.bytes)?));
+            return Ok(Published::Stale(operation_id(&ids.operation)?));
         }
         let mut visible = request.head_ids.clone();
         for (_, _, new) in &bookmarks {
@@ -676,13 +738,13 @@ impl Repo {
 
         // A publish that changes no view leaves the log as it is.
         if view.store_view() == base.view().store_view() {
-            return Ok(Published::Moved(operation_id(&head.bytes)?));
+            return Ok(Published::Moved(operation_id(&ids.operation)?));
         }
 
         let view_id = self.write_view(view.store_view()).await?;
         let new = Operation {
             view_id,
-            parents: vec![JjOperationId::new(head.bytes.clone())],
+            parents: vec![JjOperationId::new(ids.operation.clone())],
             metadata: metadata(request, author),
             commit_predecessors: Some(predecessors),
         };
@@ -701,14 +763,41 @@ impl Repo {
         );
         loader.index_store().write_index(index, &written).ok();
 
-        match self
-            .bucket
-            .swap(&self.key("HEAD"), Some(&head), id.clone())
-            .await
-            .map_err(internal)?
-        {
-            Swap::Done => Ok(Published::Moved(operation_id(&id)?)),
-            Swap::Lost => Ok(Published::Stale(self.head().await?)),
+        self.swap_head(head, ids, id).await
+    }
+
+    /// Moves `HEAD` from `head`, which holds `ids`, to the operation `id`. A
+    /// review written in the meantime moves `HEAD` but not the operation, so
+    /// the swap tries again on top of it. Another operation makes the publish
+    /// stale.
+    async fn swap_head(
+        &self,
+        mut head: Tagged,
+        ids: HeadIds,
+        id: Vec<u8>,
+    ) -> Result<Published, RepoError> {
+        let mut review = ids.review;
+        loop {
+            let next = HeadIds {
+                operation: id.clone(),
+                review: review.clone(),
+            };
+            match self
+                .bucket
+                .swap(&self.key("HEAD"), Some(&head), next.encode())
+                .await
+                .map_err(internal)?
+            {
+                Swap::Done => return Ok(Published::Moved(operation_id(&id)?)),
+                Swap::Lost => {
+                    head = self.tagged_head().await?;
+                    let now = HeadIds::decode(&head.bytes)?;
+                    if now.operation != ids.operation {
+                        return Ok(Published::Stale(operation_id(&now.operation)?));
+                    }
+                    review = now.review;
+                }
+            }
         }
     }
 
@@ -899,8 +988,9 @@ fn commit_predecessors(
         .collect()
 }
 
-/// The operation's metadata. The author comes from the token and the time
-/// from vcs's clock, so a client can claim neither, as #102 decides.
+/// The operation's metadata. The author comes from the request's principal
+/// and the time from vcs's clock, so the body of a publish claims neither,
+/// as #102 decides.
 fn metadata(request: &PublishRequest, author: &Author) -> OperationMetadata {
     let millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1036,5 +1126,60 @@ impl OpHeadsStore for Heads {
 
     async fn lock(&self) -> Result<Box<dyn OpHeadsStoreLock + '_>, OpHeadsStoreError> {
         Ok(Box::new(NoLock))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn repo() -> (tempfile::TempDir, Repo) {
+        let cache = tempfile::tempdir().unwrap();
+        let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path()).unwrap();
+        let repo = repos.get("acme", "forge").unwrap();
+        (cache, repo)
+    }
+
+    #[tokio::test]
+    async fn create_marks_the_repository_as_served() {
+        let (_cache, repo) = repo();
+
+        repo.create().await.unwrap();
+
+        assert!(
+            repo.bucket
+                .get(&repo.key("SERVED"))
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_head_of_one_operation_id_still_reads() {
+        let (_cache, repo) = repo();
+        let root = ids::root_operation_id().to_bytes();
+        repo.bucket
+            .swap(&repo.key("HEAD"), None, root.clone())
+            .await
+            .unwrap();
+
+        let (head, review) = repo.heads().await.unwrap();
+
+        assert_eq!(head.to_vec(), root);
+        assert_eq!(review, Vec::<u8>::new());
+    }
+
+    #[test]
+    fn a_head_holds_both_ids() {
+        let head = HeadIds {
+            operation: vec![1; ids::ID_LENGTH],
+            review: vec![2; ids::ID_LENGTH],
+        };
+
+        let read = HeadIds::decode(&head.encode()).unwrap();
+
+        assert_eq!(read.operation, head.operation);
+        assert_eq!(read.review, head.review);
     }
 }

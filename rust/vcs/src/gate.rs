@@ -1,5 +1,5 @@
 //! The one way a request reaches a repository, over gRPC or `sync/v1`: its
-//! token must grant the access it asks for. A principal without any access
+//! principal must have the access it asks for. A principal without any access
 //! to the organization learns nothing, not even that the repository exists,
 //! as #27 decides.
 
@@ -12,13 +12,13 @@ use jjforge_store::server::Repos;
 
 use crate::auth::Access;
 use crate::auth::AuthError;
-use crate::auth::Verifier;
+use crate::auth::Principals;
 
-/// The repositories behind the token check.
+/// The repositories behind the principal check.
 #[derive(Clone)]
 pub(crate) struct Gate {
     repos: Arc<Repos>,
-    verifier: Arc<Verifier>,
+    principals: Arc<Principals>,
 }
 
 /// Why a request didn't reach a repository. Each transport answers it with
@@ -28,7 +28,7 @@ pub(crate) enum Refused {
     #[error(transparent)]
     Unauthenticated(#[from] AuthError),
     /// The principal may read the organization but not do this.
-    #[error("the token doesn't allow this")]
+    #[error("the principal may not do this")]
     Forbidden,
     /// The repository doesn't exist, or the principal may not know it does.
     #[error(transparent)]
@@ -36,24 +36,24 @@ pub(crate) enum Refused {
 }
 
 impl Gate {
-    pub(crate) fn new(repos: Repos, verifier: Verifier) -> Self {
+    pub(crate) fn new(repos: Repos, principals: Principals) -> Self {
         Self {
             repos: Arc::new(repos),
-            verifier: Arc::new(verifier),
+            principals: Arc::new(principals),
         }
     }
 
-    /// Verifies the bearer token in `authorization`, checks that it grants
-    /// `access` to the repositories of `org`, and opens `org/repo`. The
-    /// current span records whom the request was for, as ADR 0005 decides,
-    /// and why it refused it, so it must declare `jjforge.org.id`,
-    /// `jjforge.repo.id`, `jjforge.principal.id`, and `jjforge.refusal`.
+    /// Finds the principal in `authorization`, checks that it has `access`
+    /// to the repositories of `org`, and opens `org/repo`. The current span
+    /// records whom the request was for, as ADR 0005 decides, and why it
+    /// refused it, so it must declare `jjforge.org.id`, `jjforge.repo.id`,
+    /// `jjforge.principal.id`, and `jjforge.refusal`.
     ///
     /// # Errors
     ///
-    /// Fails when the token doesn't verify, when it lacks `access`, or when
-    /// the repository's IDs are invalid.
-    pub(crate) async fn open(
+    /// Fails when vcs doesn't know the principal, when it lacks `access`, or
+    /// when the repository's IDs are invalid.
+    pub(crate) fn open(
         &self,
         authorization: Option<&str>,
         org: &str,
@@ -65,7 +65,7 @@ impl Gate {
         let span = tracing::Span::current();
         span.record("jjforge.org.id", org);
         span.record("jjforge.repo.id", repo);
-        let principal = match self.verifier.verify(authorization).await {
+        let principal = match self.principals.verify(authorization) {
             Ok(principal) => principal,
             Err(err) => {
                 span.record("jjforge.refusal", "unauthenticated");

@@ -116,6 +116,10 @@ impl World {
     fn new() -> Self {
         let cache = tempfile::tempdir().unwrap();
         let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path()).unwrap();
+        Self::with(cache, repos)
+    }
+
+    fn with(cache: TempDir, repos: Repos) -> Self {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap();
@@ -864,4 +868,213 @@ fn a_retry_after_a_lost_race_uploads_nothing_again() {
     assert_eq!(*ada.forge.uploads.lock().unwrap(), 1);
     let bob = Clone::new(world.forge("bob"));
     assert_eq!(bob.read("main", "README"), "hello\n");
+}
+
+#[test]
+fn a_new_repository_has_no_review_yet() {
+    let world = World::new();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let (head, review) = block_on_tokio(repo.heads()).unwrap();
+
+    assert_eq!(head, OperationId::root());
+    assert_eq!(review, Vec::<u8>::new());
+}
+
+/// Runs a future of the store on a runtime of its own, as vcs does.
+fn block_on_tokio<F: std::future::Future>(future: F) -> F::Output {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(future)
+}
+
+/// The reads of `source/v1` on a repository with two pushes: README, then
+/// src/lib.rs on top.
+#[test]
+fn the_server_reads_history_files_and_diffs_of_a_pushed_repository() {
+    use jjforge_proto::source::v1::diff_response::Status;
+    use jjforge_proto::source::v1::tree_entry::Kind;
+
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let first = ada.commit(None, "main", "README", "one\n");
+    ada.push("main").unwrap();
+    let second = ada.commit(Some("main"), "main", "src/lib.rs", "fn main() {}\n");
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let log = block_on_tokio(repo.log("")).unwrap();
+    let ids: Vec<_> = log.iter().map(|change| change.commit_id.clone()).collect();
+    assert_eq!(ids[..2], [second.id().hex(), first.id().hex()]);
+    assert_eq!(log[0].bookmarks, ["main"]);
+
+    let change_id = jj_lib::hex_util::encode_reverse_hex(first.change_id().as_bytes());
+    let resolved = block_on_tokio(repo.resolve(&change_id[..8])).unwrap();
+    assert_eq!(resolved.commit_id, first.id().hex());
+    assert!(matches!(
+        block_on_tokio(repo.resolve("nothing")),
+        Err(jjforge_store::server::RepoError::NotFound(_))
+    ));
+
+    let root = block_on_tokio(repo.tree("main", "", "", 0)).unwrap();
+    let entries: Vec<_> = root
+        .items
+        .iter()
+        .map(|entry| (entry.name.as_str(), entry.kind(), entry.size))
+        .collect();
+    assert_eq!(
+        entries,
+        [("README", Kind::File, 4), ("src", Kind::Directory, 0)]
+    );
+
+    let file = block_on_tokio(repo.file("main", "src/lib.rs", 3, 4)).unwrap();
+    assert_eq!(
+        (file.size, file.binary, file.bytes.as_slice()),
+        (13, false, &b"main"[..])
+    );
+
+    let diff = block_on_tokio(repo.diff("main", "", "")).unwrap();
+    assert_eq!(diff.len(), 1);
+    assert_eq!(
+        (diff[0].path.as_str(), diff[0].status()),
+        ("src/lib.rs", Status::Added)
+    );
+    assert_eq!(diff[0].hunks[0].lines[0].text, "fn main() {}\n");
+
+    let operations = block_on_tokio(repo.operation_page("", 1)).unwrap();
+    assert_eq!(operations.items.len(), 1);
+    assert_eq!(operations.items[0].principal_id, "ada");
+    assert_eq!(operations.next, "1");
+
+    let bookmarks = block_on_tokio(repo.bookmarks("", 0)).unwrap();
+    assert_eq!(bookmarks.items[0].name, "main");
+
+    let evolution = block_on_tokio(repo.evolution("main", "", 0)).unwrap();
+    assert_eq!(evolution.items[0].commit_id, second.id().hex());
+}
+
+#[test]
+fn a_watch_yields_each_push_in_order() {
+    use futures::StreamExt as _;
+    use futures::TryStreamExt as _;
+
+    let world = World::new();
+    let repo = world.repos.get("acme", "forge").unwrap();
+    let watcher = std::thread::spawn(move || {
+        block_on_tokio(async move {
+            repo.watch(None, std::time::Duration::from_millis(10))
+                .take(2)
+                .try_collect::<Vec<_>>()
+                .await
+        })
+    });
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.commit(None, "main", "README", "one\n");
+    ada.push("main").unwrap();
+    ada.commit(Some("main"), "main", "README", "two\n");
+    ada.push("main").unwrap();
+
+    let operations = watcher.join().unwrap().unwrap();
+
+    assert_eq!(operations[1].parent_ids, [operations[0].id.clone()]);
+    assert_eq!(operations[0].principal_id, "ada");
+}
+
+#[test]
+fn a_watch_from_an_operation_outside_the_log_fails() {
+    use futures::StreamExt as _;
+
+    let world = World::new();
+    let repo = world.repos.get("acme", "forge").unwrap();
+    let elsewhere: OperationId = "07".repeat(32).parse().unwrap();
+
+    let first = block_on_tokio(async move {
+        repo.watch(Some(elsewhere), std::time::Duration::from_millis(10))
+            .next()
+            .await
+    });
+
+    assert!(matches!(
+        first,
+        Some(Err(jjforge_store::server::RepoError::NotFound(_)))
+    ));
+}
+
+impl Clone {
+    /// Merges the commits that `left` and `right` point at, adds `path` on
+    /// top, and points `bookmark` at the merge.
+    fn merge(
+        &mut self,
+        left: &str,
+        right: &str,
+        bookmark: &str,
+        path: &str,
+    ) -> jj_lib::commit::Commit {
+        let repo = self.repo.clone();
+        let parent = |name: &str| {
+            repo.store()
+                .get_commit(
+                    repo.view()
+                        .get_local_bookmark(RefName::new(name))
+                        .as_normal()
+                        .unwrap(),
+                )
+                .unwrap()
+        };
+        let parents = [parent(left), parent(right)];
+        let merged =
+            block_on(jj_lib::rewrite::merge_commit_trees(repo.as_ref(), &parents)).unwrap();
+        let file = block_on(repo.store().write_file(
+            RepoPath::from_internal_string(path).unwrap(),
+            &mut "merged\n".as_bytes(),
+        ))
+        .unwrap();
+        let mut builder = MergedTreeBuilder::new(merged);
+        builder.set_or_remove(
+            RepoPathBuf::from_internal_string(path).unwrap(),
+            Merge::normal(TreeValue::File {
+                id: file,
+                executable: false,
+                copy_id: CopyId::placeholder(),
+            }),
+        );
+        let tree = block_on(builder.write_tree()).unwrap();
+        let mut tx = repo.start_transaction();
+        let commit = block_on(
+            tx.repo_mut()
+                .new_commit(parents.iter().map(|p| p.id().clone()).collect(), tree)
+                .set_description("merge")
+                .write(),
+        )
+        .unwrap();
+        tx.repo_mut().set_local_bookmark_target(
+            RefName::new(bookmark),
+            RefTarget::normal(commit.id().clone()),
+        );
+        self.repo = block_on(tx.commit("merge")).unwrap();
+        commit
+    }
+}
+
+#[test]
+fn the_diff_of_a_merge_shows_only_what_the_merge_added() {
+    use jjforge_proto::source::v1::diff_response::Status;
+
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.commit(None, "left", "README", "one\n");
+    ada.commit(None, "right", "NOTES", "two\n");
+    ada.merge("left", "right", "main", "MERGED");
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let diff = block_on_tokio(repo.diff("main", "", "")).unwrap();
+
+    let files: Vec<_> = diff
+        .iter()
+        .map(|file| (file.path.as_str(), file.status()))
+        .collect();
+    assert_eq!(files, [("MERGED", Status::Added)]);
 }

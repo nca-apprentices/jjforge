@@ -161,6 +161,15 @@ message Operation {
   bool stores_commit_predecessors = 15;
 }
 
+// What `HEAD` holds: the latest operation and the latest review operation,
+// so one compare-and-swap moves both, as ADR 0002 decides. Empty
+// `review_operation_id` means the repository has no review yet. A `HEAD` of
+// 32 bytes, as vcs wrote it before, is an operation ID alone.
+message Head {
+  bytes operation_id = 1;
+  bytes review_operation_id = 2;
+}
+
 message CommitIds {
   repeated bytes ids = 1;
 }

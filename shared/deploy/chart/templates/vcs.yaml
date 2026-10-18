@@ -43,15 +43,14 @@ spec:
             {{- end }}
             {{- with .Values.vcs.sync.store }}
             # Sync of ADR 0001: the repositories in the object store, jj's
-            # index in the cache, and the issuers whose tokens vcs trusts.
+            # index in the cache. vcs gets no principals, so it refuses every
+            # request until sign-in exists, as #6 plans.
             - name: VCS_STORE
               value: {{ . | quote }}
             - name: VCS_SYNC_ADDR
               value: 0.0.0.0:8081
             - name: VCS_CACHE
               value: /cache
-            - name: VCS_TOKEN_ISSUERS
-              value: {{ join "," $.Values.vcs.sync.tokenIssuers | quote }}
             {{- with $.Values.vcs.sync.endpoint }}
             - name: AWS_ENDPOINT
               value: {{ . | quote }}

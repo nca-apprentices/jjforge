@@ -122,9 +122,7 @@ async fn open(parts: &mut Parts, gate: &Gate, access: Access) -> Result<(Repo, A
         .headers
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok());
-    Ok(gate
-        .open(authorization, &path.org, &path.repo, access)
-        .await?)
+    Ok(gate.open(authorization, &path.org, &path.repo, access)?)
 }
 
 fn protobuf(message: &impl Message) -> Response {
@@ -151,9 +149,10 @@ fn ids(body: &Bytes) -> Result<Vec<ObjectId>, Problem> {
 }
 
 async fn head(Reader(repo): Reader) -> Result<Response, Problem> {
-    let head = repo.head().await?;
+    let (head, review) = repo.heads().await?;
     let mut response = protobuf(&Head {
         operation_id: head.to_vec(),
+        review_operation_id: review,
     });
     set_etag(&mut response, head);
     Ok(response)
@@ -255,34 +254,19 @@ mod tests {
     use jjforge_store::server::Repos;
 
     use super::*;
-    use crate::auth::Issuer;
-    use crate::auth::TestKey;
-    use crate::auth::Verifier;
-    use crate::auth::issuer_with;
-    use crate::auth::token_with;
-
-    fn token(fixture: &Fixture, scope: &str) -> String {
-        token_with(&fixture.issuer, &fixture.key, scope)
-    }
+    use crate::auth::test_principals;
 
     struct Fixture {
         router: Router,
-        issuer: Url,
-        key: TestKey,
         _cache: tempfile::TempDir,
     }
 
     async fn fixture() -> Fixture {
-        let key = TestKey::new();
-        let issuer = issuer_with("acme", &key).await;
         let cache = tempfile::tempdir().unwrap();
         let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path()).unwrap();
         repos.get("acme", "demo").unwrap().create().await.unwrap();
-        let verifier = Verifier::new(vec![Issuer::new("acme", issuer.clone())]).unwrap();
         Fixture {
-            router: router(Gate::new(repos, verifier)),
-            issuer,
-            key,
+            router: router(Gate::new(repos, test_principals())),
             _cache: cache,
         }
     }
@@ -305,13 +289,10 @@ mod tests {
         serde_json::from_slice::<serde_json::Value>(&body).unwrap()["detail"].clone()
     }
 
-    fn get_head(fixture: &Fixture, scope: Option<&str>) -> Request<Body> {
+    fn get_head(principal: Option<&str>) -> Request<Body> {
         let mut request = Request::get("/sync/v1/acme/demo/head");
-        if let Some(scope) = scope {
-            request = request.header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(fixture, scope)),
-            );
+        if let Some(principal) = principal {
+            request = request.header(header::AUTHORIZATION, format!("Bearer {principal}"));
         }
         request.body(Body::empty()).unwrap()
     }
@@ -320,17 +301,17 @@ mod tests {
     async fn head_answers_the_root_operation_of_a_new_repository() {
         let fixture = fixture().await;
 
-        let response = call(&fixture, get_head(&fixture, Some("sync:read:acme"))).await;
+        let response = call(&fixture, get_head(Some("reader"))).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::ETAG], etag(&[0; 32]).as_str());
     }
 
     #[tokio::test]
-    async fn a_request_without_a_token_is_unauthenticated() {
+    async fn a_request_without_a_principal_is_unauthenticated() {
         let fixture = fixture().await;
 
-        let response = call(&fixture, get_head(&fixture, None)).await;
+        let response = call(&fixture, get_head(None)).await;
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(code(response).await, "unauthenticated");
@@ -340,7 +321,7 @@ mod tests {
     async fn a_principal_outside_the_organization_finds_nothing() {
         let fixture = fixture().await;
 
-        let response = call(&fixture, get_head(&fixture, Some("sync:write:other"))).await;
+        let response = call(&fixture, get_head(Some("stranger"))).await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert_eq!(code(response).await, "not_found");
@@ -350,10 +331,7 @@ mod tests {
     async fn a_reader_can_not_upload() {
         let fixture = fixture().await;
         let request = Request::post("/sync/v1/acme/demo/objects")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer reader")
             .body(Body::from(ObjectBundle::default().encode_to_vec()))
             .unwrap();
 
@@ -370,10 +348,7 @@ mod tests {
             objects: vec![b"not an object".to_vec()],
         };
         let request = Request::post("/sync/v1/acme/demo/objects")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:write:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer writer")
             .body(Body::from(bundle.encode_to_vec()))
             .unwrap();
 
@@ -391,10 +366,7 @@ mod tests {
             ..PublishRequest::default()
         };
         let request = Request::post("/sync/v1/acme/demo/publish")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:write:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer writer")
             .header(header::IF_MATCH, etag(&[1; 32]))
             .body(Body::from(stale.encode_to_vec()))
             .unwrap();
@@ -413,10 +385,7 @@ mod tests {
             ids: vec![vec![1; 32]; 1001],
         };
         let request = Request::post("/sync/v1/acme/demo/objects/fetch")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer reader")
             .body(Body::from(ids.encode_to_vec()))
             .unwrap();
 
@@ -430,10 +399,7 @@ mod tests {
     async fn the_bearer_scheme_is_case_insensitive() {
         let fixture = fixture().await;
         let request = Request::get("/sync/v1/acme/demo/head")
-            .header(
-                header::AUTHORIZATION,
-                format!("bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "bearer reader")
             .body(Body::empty())
             .unwrap();
 
@@ -446,10 +412,7 @@ mod tests {
     async fn a_body_above_the_limit_answers_a_problem() {
         let fixture = fixture().await;
         let request = Request::post("/sync/v1/acme/demo/objects")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:write:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer writer")
             .body(Body::from(vec![0; BODY_LIMIT + 1]))
             .unwrap();
 
@@ -466,10 +429,7 @@ mod tests {
     async fn a_repository_that_was_never_created_is_not_found() {
         let fixture = fixture().await;
         let request = Request::get("/sync/v1/acme/nothing/head")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer reader")
             .body(Body::empty())
             .unwrap();
 
@@ -483,17 +443,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_refused_token_gets_no_parser_detail() {
+    async fn an_unknown_principal_learns_nothing_more() {
         let fixture = fixture().await;
-        let request = Request::get("/sync/v1/acme/demo/head")
-            .header(header::AUTHORIZATION, "Bearer abc.def.ghi")
-            .body(Body::empty())
-            .unwrap();
 
-        let response = call(&fixture, request).await;
+        let response = call(&fixture, get_head(Some("mallory"))).await;
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        assert_eq!(detail(response).await, "the token is invalid");
+        assert_eq!(detail(response).await, "the principal is unknown");
     }
 
     #[tokio::test]
@@ -504,10 +460,7 @@ mod tests {
             .clone()
             .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
         let request = Request::post("/sync/v1/acme/demo/objects")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer reader")
             .body(Body::empty())
             .unwrap();
 
@@ -516,7 +469,7 @@ mod tests {
         assert_eq!(response.unwrap().status(), StatusCode::FORBIDDEN);
         assert_eq!(
             crate::telemetry::attribute(&spans, "jjforge.principal.id").as_deref(),
-            Some("ada")
+            Some("reader")
         );
         assert_eq!(
             crate::telemetry::attribute(&spans, "jjforge.refusal").as_deref(),
@@ -537,10 +490,7 @@ mod tests {
             ..PublishRequest::default()
         };
         let request = Request::post("/sync/v1/acme/demo/publish")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:write:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer writer")
             .body(Body::from(unchanged.encode_to_vec()))
             .unwrap();
 
@@ -583,10 +533,7 @@ mod tests {
                 .method(method)
                 .uri(format!("/sync/v1/acme/demo/{route}"))
                 .header("traceparent", format!("00-{TRACE}-00f067aa0ba902b7-01"))
-                .header(
-                    header::AUTHORIZATION,
-                    format!("Bearer {}", token(&fixture, "sync:write:acme")),
-                )
+                .header(header::AUTHORIZATION, "Bearer writer")
                 .body(Body::empty())
                 .unwrap();
 
@@ -601,7 +548,7 @@ mod tests {
             for (key, value) in [
                 ("jjforge.org.id", "acme"),
                 ("jjforge.repo.id", "demo"),
-                ("jjforge.principal.id", "ada"),
+                ("jjforge.principal.id", "writer"),
             ] {
                 assert_eq!(
                     crate::telemetry::attribute(&spans, key).as_deref(),
@@ -613,35 +560,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_request_that_reloads_the_key_sets_shows_it() {
+    async fn a_request_without_a_principal_names_why_it_was_refused() {
         let fixture = fixture().await;
         let app = fixture
             .router
             .clone()
             .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
 
-        let (_, spans) = crate::telemetry::finished_spans(
-            app.oneshot(get_head(&fixture, Some("sync:read:acme"))),
-        )
-        .await;
-
-        assert!(crate::telemetry::events(&spans).contains(&"key sets reload".to_owned()));
-    }
-
-    #[tokio::test]
-    async fn a_request_without_a_token_names_why_it_was_refused() {
-        let fixture = fixture().await;
-        let app = fixture
-            .router
-            .clone()
-            .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
-
-        let (_, spans) =
-            crate::telemetry::finished_spans(app.oneshot(get_head(&fixture, None))).await;
+        let (_, spans) = crate::telemetry::finished_spans(app.oneshot(get_head(None))).await;
 
         assert_eq!(
             crate::telemetry::attribute(&spans, "jjforge.refusal").as_deref(),
             Some("unauthenticated")
         );
+    }
+
+    #[tokio::test]
+    async fn a_refused_principal_shows_why_in_the_trace() {
+        let fixture = fixture().await;
+        let app = fixture
+            .router
+            .clone()
+            .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
+        let (_, spans) =
+            crate::telemetry::finished_spans(app.oneshot(get_head(Some("mallory")))).await;
+
+        assert!(crate::telemetry::events(&spans).contains(&"principal refused".to_owned()));
     }
 }

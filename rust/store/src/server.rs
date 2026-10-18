@@ -5,7 +5,9 @@
 //! pool/seg/{segment}   the objects of one upload
 //! pool/idx/{segment}   where each object of the segment starts and ends
 //! op/{hash}            operations and views
-//! HEAD                 the current operation's ID, moved by compare-and-swap
+//! HEAD                 the current operation and review operation, moved
+//!                      together by compare-and-swap
+//! SERVED               present once vcs created the repository
 //! ```
 //!
 //! An operation names the segments it made visible, so the log alone finds
@@ -17,6 +19,8 @@ mod repo;
 mod segment;
 
 pub use repo::Author;
+pub use repo::FileRead;
+pub use repo::Page;
 pub use repo::Repo;
 pub use repo::RepoError;
 pub use repo::Repos;
