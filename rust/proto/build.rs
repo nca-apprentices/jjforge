@@ -10,7 +10,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         proto_root.join("source/v1/file.proto"),
         proto_root.join("source/v1/history.proto"),
         proto_root.join("source/v1/repo.proto"),
-        proto_root.join("source/v1/session.proto"),
         proto_root.join("store/v1/store.proto"),
         proto_root.join("sync/v1/sync.proto"),
     ];

@@ -26,7 +26,7 @@ call() {
   grpcurl -plaintext -import-path "$BATS_TEST_DIRNAME/../../proto" \
     -proto source/v1/history.proto -proto source/v1/file.proto \
     -proto source/v1/diff.proto -proto source/v1/repo.proto \
-    -H "authorization: Bearer $(JJFORGE_KEY=$(key acme_owner) jf auth token "$url")" \
+    -H "authorization: Bearer acme_owner" \
     -d "{\"repo\": {\"org_id\": \"$acme_org\", \"repo_id\": \"$repo\"}${fields:+, $fields}}" \
     "$@" "localhost:${JJFORGE_VCS_PORT:-50052}" "source.v1.$method"
 }

@@ -29,14 +29,11 @@ services:
       <<: *database
       SPRING_FLYWAY_ENABLED: "false"
       JJFORGE_VCS_TARGET: vcs:50052
-      # The server's dev certificate, from shared/deploy/twins/cert.
-      JJFORGE_VCS_CREDENTIAL_KEY: /etc/jjforge/server
+      # The principal of twins/principals that the server calls vcs as.
+      JJFORGE_VCS_PRINCIPAL: server
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://traces:10428/insert/opentelemetry/v1/traces
     ports:
       - "${JJFORGE_PORT:-8080}:8080"
-    volumes:
-      - ./.dev/people/server:/etc/jjforge/server:ro
-      - ./.dev/people/server-cert.pub:/etc/jjforge/server-cert.pub:ro
 
   # Migrates the database and exits before the server starts, as the chart's
   # migration Job does.
@@ -50,9 +47,8 @@ services:
       SPRING_PROFILES_ACTIVE: migrate
 
   # Keeps the repositories in the seaweedfs bucket that `bucket` creates,
-  # and trusts the dev certificate authority that shared/deploy/twins/cert
-  # makes, for both organizations of the seed. The session key is for this
-  # twin setup only.
+  # and knows the principals of twins/principals, whose names a request
+  # carries until sign-in exists, as #6 plans.
   # `jf` reaches sync/v1 on JJFORGE_SYNC_PORT, and the scenarios create
   # repositories through gRPC on JJFORGE_VCS_PORT until the server does, as
   # #25 decides.
@@ -70,10 +66,7 @@ services:
       VCS_ADDR: 0.0.0.0:50052
       VCS_SYNC_ADDR: 0.0.0.0:8081
       VCS_STORE: s3://jjforge
-      VCS_AUTHORITIES: >-
-        0199c9a0-0000-7000-8000-00000000ac3e=/etc/vcs/authority.pub,0199c9a0-0000-7000-8000-0000000007e2=/etc/vcs/authority.pub
-      VCS_SESSION_KEY: 74776e2d6f6e6c792d6b65792d746861742d7365616c732d6e6f7468696e672d7265616c
-      VCS_SIGNING_KEY: /etc/vcs/signing-key
+      VCS_PRINCIPALS: /etc/vcs/principals
       # The twin checks no key, but the S3 client signs every request.
       AWS_ENDPOINT: http://seaweedfs:8333
       AWS_ALLOW_HTTP: "true"
@@ -85,8 +78,7 @@ services:
       - "${JJFORGE_SYNC_PORT:-8081}:8081"
       - "${JJFORGE_VCS_PORT:-50052}:50052"
     volumes:
-      - ./.dev/authority.pub:/etc/vcs/authority.pub:ro
-      - ./.dev/vcs:/etc/vcs/signing-key:ro
+      - ./twins/principals:/etc/vcs/principals:ro
 
   # Creates the bucket of vcs once seaweedfs answers, and exits.
   bucket:

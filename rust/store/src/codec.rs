@@ -110,13 +110,11 @@ fn stored_object(object: &Object) -> Result<proto::StoredObject, Error> {
 /// give the object other bytes, and so another ID.
 pub(crate) fn decode(bytes: &[u8]) -> Result<Object, Error> {
     let message = proto::StoredObject::decode(bytes)?;
-    // The store sets an operation's segments and signature, which jj-lib
-    // never sees, so the check carries them over.
-    let (segment_ids, signature) = match &message.kind {
-        Some(Kind::Operation(operation)) => {
-            (operation.segment_ids.clone(), operation.signature.clone())
-        }
-        _ => (vec![], vec![]),
+    // The store sets an operation's segments, which jj-lib never sees, so
+    // the check carries them over.
+    let segment_ids = match &message.kind {
+        Some(Kind::Operation(operation)) => operation.segment_ids.clone(),
+        _ => vec![],
     };
 
     let object = object_from_proto(message)?;
@@ -124,7 +122,6 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Object, Error> {
     let mut canonical = stored_object(&object)?;
     if let Some(Kind::Operation(operation)) = &mut canonical.kind {
         operation.segment_ids = segment_ids;
-        operation.signature = signature;
     }
     if canonical.encode_to_vec() != bytes {
         return Err(Error::NotCanonical);
@@ -134,16 +131,10 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Object, Error> {
 }
 
 /// Encodes an operation with the segments that hold the objects it made
-/// visible, as ADR 0002 decides, and the writer's signature over the
-/// operation encoded without one. Only vcs writes them.
-pub(crate) fn encode_operation(
-    operation: &Operation,
-    segment_ids: Vec<Vec<u8>>,
-    signature: Vec<u8>,
-) -> Vec<u8> {
+/// visible. Only vcs writes them, as ADR 0002 decides.
+pub(crate) fn encode_operation(operation: &Operation, segment_ids: Vec<Vec<u8>>) -> Vec<u8> {
     let mut message = operation_to_proto(operation);
     message.segment_ids = segment_ids;
-    message.signature = signature;
     proto::StoredObject {
         kind: Some(Kind::Operation(message)),
     }
@@ -451,7 +442,6 @@ fn operation_to_proto(operation: &Operation) -> proto::Operation {
         start_tz_offset_minutes: metadata.time.start.tz_offset,
         end_tz_offset_minutes: metadata.time.end.tz_offset,
         stores_commit_predecessors: operation.commit_predecessors.is_some(),
-        signature: vec![],
     }
 }
 

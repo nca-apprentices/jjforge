@@ -19,7 +19,6 @@ use jjforge_store::client;
 use jjforge_store::client::Synced;
 use reqwest::Url;
 
-use crate::credential::Credential;
 use crate::forge;
 
 /// Lets `jf undo` undo a fetch, and the fetch that ends a push, which jj
@@ -104,28 +103,11 @@ enum Command {
         #[arg(long = "bookmark", short, required = true)]
         bookmarks: Vec<String>,
     },
-    /// Signs in to the forge with an SSH certificate.
-    #[command(subcommand)]
-    Auth(Auth),
     /// Creates a repository of the store type `jjforge` without a forge.
     #[command(hide = true)]
     Init {
         /// The directory of the new workspace.
         destination: PathBuf,
-    },
-}
-
-/// The commands of `jf auth`.
-#[derive(Subcommand)]
-enum Auth {
-    /// Prints a session for the forge of a clone address, for a script that
-    /// calls the forge itself.
-    ///
-    /// `JJFORGE_KEY` names the SSH key, and its certificate sits next to it
-    /// as `{key}-cert.pub`. The session ends within 15 minutes.
-    Token {
-        /// A clone address of the forge.
-        address: Url,
     },
 }
 
@@ -148,7 +130,6 @@ async fn run(ui: &mut Ui, helper: &CommandHelper, command: Command) -> Result<()
         } => clone(ui, helper, address, destination).await,
         Command::Fetch => fetch(ui, helper).await,
         Command::Push { bookmarks } => push(ui, helper, &bookmarks).await,
-        Command::Auth(Auth::Token { address }) => token(ui, address),
         Command::Init { destination } => {
             std::fs::create_dir_all(&destination)?;
             client::init(helper.settings(), &destination)
@@ -171,16 +152,9 @@ fn echo(ui: &mut Ui, helper: &CommandHelper, words: &[String]) -> Result<(), Com
     Ok(())
 }
 
-/// Prints a session for the forge of `address`.
-fn token(ui: &mut Ui, address: Url) -> Result<(), CommandError> {
-    let credential = Credential::from_env()
-        .ok_or_else(|| user_error("Set JJFORGE_KEY to the SSH key that your certificate is for"))?;
-    let session = forge::SyncClient::new(address, Some(credential))
-        .and_then(|client| client.session().map_err(anyhow::Error::from_boxed))
-        .map_err(user_error)?
-        .unwrap_or_default();
-    writeln!(ui.stdout(), "{session}")?;
-    Ok(())
+/// The token of `JJFORGE_TOKEN`, until `jf` signs people in itself.
+fn token() -> Option<String> {
+    std::env::var("JJFORGE_TOKEN").ok()
 }
 
 /// The repository's forge, as a clone recorded it.
@@ -188,7 +162,7 @@ fn transport(repo_path: &Path) -> Result<forge::SyncClient, CommandError> {
     let url = client::forge_url(repo_path)?
         .ok_or_else(|| user_error("This repository has no forge to sync with"))?;
     let url = Url::parse(&url).map_err(user_error)?;
-    forge::SyncClient::new(url, Credential::from_env()).map_err(user_error)
+    forge::SyncClient::new(url, token()).map_err(user_error)
 }
 
 /// Clones into `destination`, and removes the directory again when the
@@ -241,8 +215,7 @@ async fn clone_into(
     address: &Url,
     root: &Path,
 ) -> Result<(), CommandError> {
-    let transport =
-        forge::SyncClient::new(address.clone(), Credential::from_env()).map_err(user_error)?;
+    let transport = forge::SyncClient::new(address.clone(), token()).map_err(user_error)?;
     let (workspace, _) = client::init(helper.settings(), root)
         .await
         .map_err(user_error)?;
@@ -362,20 +335,6 @@ mod tests {
         };
 
         assert_eq!(bookmarks, ["main", "dev"]);
-    }
-
-    #[test]
-    fn auth_token_needs_an_address() {
-        assert!(parse(&["jf", "auth", "token"]).is_err());
-        assert!(
-            parse(&[
-                "jf",
-                "auth",
-                "token",
-                "http://localhost:8081/sync/v1/acme/forge"
-            ])
-            .is_ok()
-        );
     }
 
     #[test]

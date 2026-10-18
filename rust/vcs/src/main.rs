@@ -6,7 +6,7 @@
 //! server ──gRPC──▶ grpc ─┐
 //!                        ├─▶ gate ──▶ store crate's Repos ──▶ object store
 //! jf ───sync/v1──▶ sync ─┘     │
-//!                              └─ auth verifies the session
+//!                              └─ auth looks up the principal
 //! ```
 
 // A line written past `tracing` reaches no log store as JSON and carries no
@@ -24,8 +24,7 @@ mod telemetry;
 use clap::Parser;
 use jjforge_store::server::Repos;
 
-use crate::auth::SessionKey;
-use crate::auth::Verifier;
+use crate::auth::Principals;
 use crate::config::Config;
 use crate::gate::Gate;
 
@@ -48,19 +47,14 @@ async fn main() -> anyhow::Result<()> {
                 .cache
                 .clone()
                 .unwrap_or_else(|| std::env::temp_dir().join("vcs"));
-            let mut repos = Repos::open(url, &cache)?;
-            if let Some(path) = &config.signing_key {
-                repos = repos.with_signer(auth::operation_signer(path)?);
-            }
-            let key = if let Some(key) = config.session_key.clone() {
-                key
+            let repos = Repos::open(url, &cache)?;
+            let principals = if let Some(path) = &config.principals {
+                Principals::read(path)?
             } else {
-                tracing::warn!("no session key, so sessions open on this replica only");
-                SessionKey::random()?
+                tracing::warn!("no principals, so vcs refuses every request");
+                Principals::default()
             };
-            let verifier =
-                Verifier::new(config.authorities.clone(), key).with_origins(config.origins.clone());
-            Some(Gate::new(repos, verifier))
+            Some(Gate::new(repos, principals))
         }
         None => None,
     };

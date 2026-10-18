@@ -137,25 +137,20 @@ impl HeadIds {
     }
 }
 
-/// Who made an operation, from the verified session, as #102 decides.
+/// Who made an operation: the request's principal, as #102 decides.
 #[derive(Clone, Debug)]
 pub struct Author {
-    /// The principal the session names.
+    /// The principal the request names.
     pub subject: String,
     /// The principals that delegated to `subject`, outermost first.
     pub delegation: Vec<String>,
 }
-
-/// Signs the bytes of an operation that vcs writes, as ADR 0001 decides, and
-/// returns the SSHSIG to store with it.
-pub type Signer = Arc<dyn Fn(&[u8]) -> Vec<u8> + Send + Sync>;
 
 /// Every repository under one object store URL.
 pub struct Repos {
     bucket: Arc<Bucket>,
     cache: PathBuf,
     settings: UserSettings,
-    signer: Option<Signer>,
     catalogs: std::sync::Mutex<HashMap<String, Arc<RwLock<Catalog>>>>,
 }
 
@@ -181,16 +176,8 @@ impl Repos {
             bucket: Arc::new(bucket),
             cache: cache.to_owned(),
             settings,
-            signer: None,
             catalogs: std::sync::Mutex::default(),
         })
-    }
-
-    /// Signs every operation that a publish writes with `signer`.
-    #[must_use]
-    pub fn with_signer(mut self, signer: Signer) -> Self {
-        self.signer = Some(signer);
-        self
     }
 
     /// The repository with these IDs. vcs addresses repositories by ID, so a
@@ -217,7 +204,6 @@ impl Repos {
             bucket: self.bucket.clone(),
             cache: self.cache.join(org).join(repo),
             settings: self.settings.clone(),
-            signer: self.signer.clone(),
             catalog,
             prefix,
             name: format!("{org}/{repo}"),
@@ -232,7 +218,6 @@ pub struct Repo {
     bucket: Arc<Bucket>,
     cache: PathBuf,
     settings: UserSettings,
-    signer: Option<Signer>,
     catalog: Arc<RwLock<Catalog>>,
     prefix: String,
     /// `{org}/{repo}`, as errors name the repository to a client.
@@ -763,10 +748,7 @@ impl Repo {
             metadata: metadata(request, author),
             commit_predecessors: Some(predecessors),
         };
-        let mut bytes = codec::encode_operation(&new, request.segment_ids.clone(), vec![]);
-        if let Some(sign) = &self.signer {
-            bytes = codec::encode_operation(&new, request.segment_ids.clone(), sign(&bytes));
-        }
+        let bytes = codec::encode_operation(&new, request.segment_ids.clone());
         let id = ids::hash(&bytes);
         self.bucket
             .put_immutable(&self.op_key(&id), bytes)
@@ -1006,8 +988,9 @@ fn commit_predecessors(
         .collect()
 }
 
-/// The operation's metadata. The author comes from the session and the time
-/// from vcs's clock, so a client can claim neither, as #102 decides.
+/// The operation's metadata. The author comes from the request's principal
+/// and the time from vcs's clock, so the body of a publish claims neither,
+/// as #102 decides.
 fn metadata(request: &PublishRequest, author: &Author) -> OperationMetadata {
     let millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)

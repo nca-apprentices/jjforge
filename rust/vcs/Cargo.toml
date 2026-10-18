@@ -22,13 +22,11 @@ opentelemetry.workspace = true
 opentelemetry-otlp.workspace = true
 opentelemetry_sdk.workspace = true
 prost.workspace = true
-ring.workspace = true
 rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-ssh-key.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["net", "signal", "time"] }
+tokio = { workspace = true, features = ["net", "signal"] }
 tonic.workspace = true
 tower.workspace = true
 tracing.workspace = true
@@ -38,7 +36,6 @@ url.workspace = true
 
 [dev-dependencies]
 opentelemetry_sdk = { workspace = true, features = ["testing"] }
-ssh-key = { workspace = true, features = ["getrandom"] }
 tempfile.workspace = true
 tower = { workspace = true, features = ["util"] }
 

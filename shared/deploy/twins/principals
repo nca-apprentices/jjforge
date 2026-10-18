@@ -1,0 +1,10 @@
+# The principals that vcs knows in compose, each with its scopes, as
+# rust/vcs/src/auth.rs reads them. A request names one as
+# `Authorization: Bearer {name}` until sign-in exists, as #6 plans.
+#
+# acme is 0199c9a0-0000-7000-8000-00000000ac3e and other is
+# 0199c9a0-0000-7000-8000-0000000007e2, as the seed of #23 names them.
+acme_owner sync:write:0199c9a0-0000-7000-8000-00000000ac3e sync:admin:0199c9a0-0000-7000-8000-00000000ac3e
+acme_member sync:write:0199c9a0-0000-7000-8000-00000000ac3e
+other_owner sync:write:0199c9a0-0000-7000-8000-0000000007e2 sync:admin:0199c9a0-0000-7000-8000-0000000007e2
+server sync:read:0199c9a0-0000-7000-8000-00000000ac3e sync:admin:0199c9a0-0000-7000-8000-00000000ac3e sync:read:0199c9a0-0000-7000-8000-0000000007e2 sync:admin:0199c9a0-0000-7000-8000-0000000007e2

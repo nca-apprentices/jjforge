@@ -1,5 +1,5 @@
 //! The one way a request reaches a repository, over gRPC or `sync/v1`: its
-//! session must grant the access it asks for. A principal without any access
+//! principal must have the access it asks for. A principal without any access
 //! to the organization learns nothing, not even that the repository exists,
 //! as #27 decides.
 
@@ -12,13 +12,13 @@ use jjforge_store::server::Repos;
 
 use crate::auth::Access;
 use crate::auth::AuthError;
-use crate::auth::Verifier;
+use crate::auth::Principals;
 
-/// The repositories behind the session check.
+/// The repositories behind the principal check.
 #[derive(Clone)]
 pub(crate) struct Gate {
     repos: Arc<Repos>,
-    verifier: Arc<Verifier>,
+    principals: Arc<Principals>,
 }
 
 /// Why a request didn't reach a repository. Each transport answers it with
@@ -28,7 +28,7 @@ pub(crate) enum Refused {
     #[error(transparent)]
     Unauthenticated(#[from] AuthError),
     /// The principal may read the organization but not do this.
-    #[error("the session doesn't allow this")]
+    #[error("the principal may not do this")]
     Forbidden,
     /// The repository doesn't exist, or the principal may not know it does.
     #[error(transparent)]
@@ -36,23 +36,23 @@ pub(crate) enum Refused {
 }
 
 impl Gate {
-    pub(crate) fn new(repos: Repos, verifier: Verifier) -> Self {
+    pub(crate) fn new(repos: Repos, principals: Principals) -> Self {
         Self {
             repos: Arc::new(repos),
-            verifier: Arc::new(verifier),
+            principals: Arc::new(principals),
         }
     }
 
-    /// Verifies the bearer session in `authorization`, checks that it grants
-    /// `access` to the repositories of `org`, and opens `org/repo`. The
-    /// current span records whom the request was for, as ADR 0005 decides,
-    /// and why it refused it, so it must declare `jjforge.org.id`,
-    /// `jjforge.repo.id`, `jjforge.principal.id`, and `jjforge.refusal`.
+    /// Finds the principal in `authorization`, checks that it has `access`
+    /// to the repositories of `org`, and opens `org/repo`. The current span
+    /// records whom the request was for, as ADR 0005 decides, and why it
+    /// refused it, so it must declare `jjforge.org.id`, `jjforge.repo.id`,
+    /// `jjforge.principal.id`, and `jjforge.refusal`.
     ///
     /// # Errors
     ///
-    /// Fails when the session doesn't verify, when it lacks `access`, or when
-    /// the repository's IDs are invalid.
+    /// Fails when vcs doesn't know the principal, when it lacks `access`, or
+    /// when the repository's IDs are invalid.
     pub(crate) fn open(
         &self,
         authorization: Option<&str>,
@@ -65,7 +65,7 @@ impl Gate {
         let span = tracing::Span::current();
         span.record("jjforge.org.id", org);
         span.record("jjforge.repo.id", repo);
-        let principal = match self.verifier.verify(authorization) {
+        let principal = match self.principals.verify(authorization) {
             Ok(principal) => principal,
             Err(err) => {
                 span.record("jjforge.refusal", "unauthenticated");
@@ -83,17 +83,5 @@ impl Gate {
             return Err(Refused::Forbidden);
         }
         Ok((self.repos.get(org, repo)?, principal.into()))
-    }
-
-    /// When the session in `authorization` ends, in seconds since the
-    /// epoch, for a call that outlives the moment `open` checked it.
-    pub(crate) fn session_end(&self, authorization: Option<&str>) -> Result<u64, Refused> {
-        Ok(self.verifier.verify(authorization)?.expires_at)
-    }
-
-    /// The verifier that opens sessions, for the routes that need no
-    /// repository.
-    pub(crate) fn verifier(&self) -> &Verifier {
-        &self.verifier
     }
 }

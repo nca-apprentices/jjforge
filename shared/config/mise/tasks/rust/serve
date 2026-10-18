@@ -3,14 +3,11 @@
 #MISE dir="{{config_root}}/rust"
 set -euo pipefail
 
-# The dev certificate authority, trusted for both organizations of the seed,
-# as in compose.yaml. `mise run cert <person>` signs a key for `jf`.
-../shared/deploy/twins/cert
-dev=$(cd ../shared/deploy/.dev && pwd)
-mkdir -p "$dev/store"
-export VCS_STORE=file://$dev/store
-export VCS_AUTHORITIES=0199c9a0-0000-7000-8000-00000000ac3e=$dev/authority.pub,0199c9a0-0000-7000-8000-0000000007e2=$dev/authority.pub
-export VCS_SIGNING_KEY=$dev/vcs
+mkdir -p ../shared/deploy/.dev/store
+deploy=$(cd ../shared/deploy && pwd)
+export VCS_STORE=file://$deploy/.dev/store
+# The principals of compose.yaml. `jf` names one in JJFORGE_TOKEN.
+export VCS_PRINCIPALS=$deploy/twins/principals
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:${JJFORGE_TRACES_PORT:-10428}/insert/opentelemetry/v1/traces
 
 exec cargo run --bin vcs

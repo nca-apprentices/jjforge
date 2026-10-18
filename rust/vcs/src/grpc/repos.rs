@@ -1,7 +1,7 @@
 //! `RepoService` of `source/v1`, which the server calls to create and delete
-//! a repository's storage, as #25 and #28 decide. The call carries the
-//! caller's session, and vcs verifies it as `sync/v1` does. Creating and
-//! deleting need the admin scope, which a session for pushing lacks.
+//! a repository's storage, as #25 and #28 decide. The call names its
+//! principal, and vcs checks it as `sync/v1` does. Creating and deleting
+//! need the admin scope, which a principal that pushes lacks.
 
 use jjforge_proto::source::v1::CreateRepoRequest;
 use jjforge_proto::source::v1::CreateRepoResponse;
@@ -73,9 +73,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::auth::SessionKey;
-    use crate::auth::Verifier;
-    use crate::auth::token_with;
+    use crate::auth::test_principals;
     use crate::telemetry::attribute;
     use crate::telemetry::finished_spans;
 
@@ -91,13 +89,11 @@ mod tests {
     #[tokio::test]
     async fn every_call_is_traceable_with_its_org_repo_and_principal() {
         const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
-        let key = SessionKey::random().unwrap();
         let cache = tempfile::tempdir().unwrap();
         let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path()).unwrap();
-        let verifier = Verifier::new(vec![], key.clone());
-        let mut service = crate::telemetry::TraceGrpc
-            .layer(RepoServiceServer::new(Service(Gate::new(repos, verifier))));
-        let token = token_with(&key, "sync:admin:acme sync:read:acme");
+        let mut service = crate::telemetry::TraceGrpc.layer(RepoServiceServer::new(Service(
+            Gate::new(repos, test_principals()),
+        )));
         let repo = || {
             Some(RepoRef {
                 org_id: "acme".to_owned(),
@@ -114,7 +110,7 @@ mod tests {
             let request = http::Request::post(format!("/source.v1.RepoService/{method}"))
                 .header("content-type", "application/grpc")
                 .header("traceparent", format!("00-{TRACE}-00f067aa0ba902b7-01"))
-                .header("authorization", format!("Bearer {token}"))
+                .header("authorization", "Bearer admin")
                 .body(tonic::body::Body::new(axum::body::Body::from(body)))
                 .unwrap();
 
@@ -129,7 +125,7 @@ mod tests {
             for (key, value) in [
                 ("jjforge.org.id", "acme"),
                 ("jjforge.repo.id", "demo"),
-                ("jjforge.principal.id", "ada"),
+                ("jjforge.principal.id", "admin"),
             ] {
                 assert_eq!(attribute(&spans, key).as_deref(), Some(value), "{method}");
             }

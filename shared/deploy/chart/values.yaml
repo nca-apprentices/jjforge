@@ -14,10 +14,6 @@ server:
   # migrates a database it wasn't given.
   database:
     secretName: ""
-  # A secret with the files `server` and `server-cert.pub`: the server's SSH
-  # key and the certificate that opens its session with vcs. Empty calls vcs
-  # without a session, which only echo/v1 accepts.
-  vcsCredentialSecretName: ""
   resources:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { memory: 1Gi }
@@ -44,18 +40,6 @@ vcs:
     region: us-east-1
     # A secret with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for the store.
     secretName: ""
-    # The certificate authorities vcs trusts, as ADR 0002 decides, each with
-    # the organization it signs for and its public key in OpenSSH form, such
-    # as [{org: 0199c9a0-0000-7000-8000-00000000ac3e, publicKey: "ssh-ed25519 AAAA..."}].
-    authorities: []
-    # A secret with VCS_SESSION_KEY, the key in hex that seals sessions on
-    # every replica. Empty lets each replica draw its own, which holds for one
-    # replica only.
-    sessionSecretName: ""
-    # A secret with the file `signing-key`, the unencrypted OpenSSH key that
-    # vcs signs each operation with, as ADR 0001 decides. Empty leaves
-    # operations unsigned.
-    signingKeySecretName: ""
 
 # Where the server and vcs send traces over OTLP/HTTP, as ADR 0005 decides,
 # such as http://telemetry.observability.svc:4318/v1/traces. Empty sends none.
@@ -71,7 +55,7 @@ ingress:
   # Traefik Middlewares in the release's namespace that every request passes,
   # such as [github-login].
   middlewares: []
-  # The Middlewares of /sync/v1, which jf reaches with a session and no
+  # The Middlewares of /sync/v1, which jf reaches with a bearer token and no
   # login page, such as [no-cookies].
   syncMiddlewares: []
   tls:

@@ -1,6 +1,6 @@
 # Local state, never committed
 .env
-# The dev certificate authority and keys of shared/deploy/twins/cert
+# The repositories of `mise run rust:serve`
 shared/deploy/.dev/
 .claude-notes/
 .claude/worktrees/

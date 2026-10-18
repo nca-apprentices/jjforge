@@ -8,9 +8,6 @@ use http::Uri;
 use tracing_subscriber::EnvFilter;
 use url::Url;
 
-use crate::auth::Authority;
-use crate::auth::SessionKey;
-
 /// vcs's settings. An invalid value stops vcs at startup with a usage
 /// message.
 #[derive(Parser)]
@@ -36,29 +33,10 @@ pub(crate) struct Config {
     #[arg(long, env = "VCS_CACHE")]
     pub(crate) cache: Option<PathBuf>,
 
-    /// The certificate authorities vcs trusts, separated by commas, each with
-    /// the organization it signs for and the file of its public key, such as
-    /// `acme=/etc/vcs/acme-ca.pub`.
-    #[arg(long, env = "VCS_AUTHORITIES", value_delimiter = ',')]
-    pub(crate) authorities: Vec<Authority>,
-
-    /// The key, in hex, that seals sessions, at least 32 bytes and the same
-    /// on every replica. Without it, vcs draws a key of its own, and a
-    /// session opens on that replica only.
-    #[arg(long, env = "VCS_SESSION_KEY")]
-    pub(crate) session_key: Option<SessionKey>,
-
-    /// The origins that `jf` reaches `sync/v1` at, separated by commas, such
-    /// as `https://jjforge.example.com`. A session's signature names the
-    /// origin, so a challenge that another site relays opens nothing.
-    /// Without any, vcs allows loopback origins only.
-    #[arg(long, env = "VCS_ORIGINS", value_delimiter = ',')]
-    pub(crate) origins: Vec<String>,
-
-    /// The unencrypted OpenSSH key that vcs signs each operation it writes
-    /// with, as ADR 0001 decides. Without it, operations go unsigned.
-    #[arg(long, env = "VCS_SIGNING_KEY")]
-    pub(crate) signing_key: Option<PathBuf>,
+    /// The file of the principals vcs knows and their scopes, as
+    /// `crate::auth` describes it. Without it, vcs refuses every request.
+    #[arg(long, env = "VCS_PRINCIPALS")]
+    pub(crate) principals: Option<PathBuf>,
 
     /// The address to serve Prometheus metrics on, at `/metrics`.
     #[arg(long, env = "VCS_METRICS_ADDR", default_value = "0.0.0.0:9090")]
@@ -113,32 +91,21 @@ mod tests {
     }
 
     #[test]
-    fn config_reads_the_store_and_its_authorities() {
-        let dir = tempfile::tempdir().unwrap();
-        let key = dir.path().join("ca.pub");
-        std::fs::write(
-            &key,
-            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl ca\n",
-        )
-        .unwrap();
-        let authorities = format!("acme={0},other={0}", key.display());
-
+    fn config_reads_the_store_and_its_principals() {
         let config = Config::try_parse_from([
             "vcs",
             "--store",
             "s3://jjforge",
-            "--authorities",
-            &authorities,
+            "--principals",
+            "/etc/vcs/principals",
         ])
         .unwrap();
 
         assert_eq!(config.store.unwrap().as_str(), "s3://jjforge");
-        assert_eq!(config.authorities.len(), 2);
-    }
-
-    #[test]
-    fn config_refuses_a_short_session_key() {
-        assert!(Config::try_parse_from(["vcs", "--session-key", "00ff"]).is_err());
+        assert_eq!(
+            config.principals.unwrap().to_str(),
+            Some("/etc/vcs/principals")
+        );
     }
 
     #[test]

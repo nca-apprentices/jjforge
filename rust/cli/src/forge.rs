@@ -3,18 +3,12 @@
 //! trace.
 
 use std::fmt;
-use std::sync::Mutex;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
 
-use jjforge_proto::sync::v1::Challenge;
 use jjforge_proto::sync::v1::HashList;
 use jjforge_proto::sync::v1::Head;
 use jjforge_proto::sync::v1::ObjectBundle;
 use jjforge_proto::sync::v1::PublishRequest;
 use jjforge_proto::sync::v1::PublishResponse;
-use jjforge_proto::sync::v1::Session;
-use jjforge_proto::sync::v1::SessionRequest;
 use jjforge_proto::sync::v1::Uploaded;
 use jjforge_store::ObjectId;
 use jjforge_store::OperationId;
@@ -34,8 +28,6 @@ use reqwest::header::HeaderValue;
 use reqwest::header::IF_MATCH;
 use serde::Deserialize;
 use serde::Serialize;
-
-use crate::credential::Credential;
 
 /// The `Echo` schema of shared/openapi.yaml.
 #[derive(Serialize, Deserialize)]
@@ -131,21 +123,14 @@ struct ProblemBody {
 
 /// One repository's `sync/v1`, as the store crate's `Transport` asks. jj-cli
 /// runs commands on its own executor, so each call blocks on a runtime of
-/// its own. With a credential, it opens a session on the first call and
-/// opens another shortly before that one ends.
+/// its own.
 #[derive(Debug)]
 pub(crate) struct SyncClient {
     client: Client,
     base: Url,
-    credential: Option<Credential>,
-    /// The session and when it ends, in seconds since the epoch.
-    session: Mutex<Option<(String, i64)>>,
+    token: Option<String>,
     runtime: tokio::runtime::Runtime,
 }
-
-/// How long before its end `jf` replaces a session, so no request carries one
-/// that ends on the way.
-const RENEW_BEFORE: i64 = 30;
 
 impl fmt::Debug for Client {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -154,14 +139,13 @@ impl fmt::Debug for Client {
 }
 
 impl SyncClient {
-    /// Calls the repository at the clone address `base`, signed in with
-    /// `credential` when there is one.
-    pub(crate) fn new(base: Url, credential: Option<Credential>) -> anyhow::Result<Self> {
+    /// Calls the repository at the clone address `base`, with the token of
+    /// `JJFORGE_TOKEN` when one is set.
+    pub(crate) fn new(base: Url, token: Option<String>) -> anyhow::Result<Self> {
         Ok(Self {
             client: Client::new(base.clone())?,
             base,
-            credential,
-            session: Mutex::default(),
+            token,
             runtime: tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()?,
@@ -173,67 +157,11 @@ impl SyncClient {
         Ok(Url::parse(&format!("{base}/{path}"))?)
     }
 
-    /// The address of a route of `sync/v1` itself, such as `session`, from
-    /// a clone address `{host}/sync/v1/{org}/{repo}`.
-    fn root(&self, route: &str) -> Result<Url, TransportError> {
-        let base = self.base.as_str();
-        let at = base
-            .find("/sync/v1/")
-            .ok_or_else(|| format!("{base} is not a clone address"))?;
-        Ok(Url::parse(&format!("{}/sync/v1/{route}", &base[..at]))?)
-    }
-
-    /// The current session, opened or renewed when it has none or its
-    /// session ends soon, or `None` without a credential.
-    pub(crate) fn session(&self) -> Result<Option<String>, TransportError> {
-        let Some(credential) = &self.credential else {
-            return Ok(None);
-        };
-        let mut session = self
-            .session
-            .lock()
-            .map_err(|_| "a session request panicked")?;
-        if let Some((token, ends)) = &*session
-            && *ends - RENEW_BEFORE > now()
-        {
-            return Ok(Some(token.clone()));
-        }
-
-        let challenge = self.client.http.get(self.root("challenge")?);
-        let challenge: Challenge = decode(&self.runtime, self.answer(challenge)?)?;
-        // The signature names the forge that `jf` connected to, so a forge
-        // that relays another forge's challenge gains nothing.
-        let origin = self.base.origin().ascii_serialization();
-        let signed = [origin.as_bytes(), b"\n", &challenge.nonce].concat();
-        let request = SessionRequest {
-            certificate: credential.certificate()?,
-            signature: credential.sign(&signed)?,
-            nonce: challenge.nonce,
-            origin,
-        };
-        let opened = self
-            .client
-            .http
-            .post(self.root("session")?)
-            .header(CONTENT_TYPE, PROTOBUF)
-            .body(request.encode_to_vec());
-        let opened: Session = decode(&self.runtime, self.answer(opened)?)?;
-        *session = Some((opened.token.clone(), opened.expires_at));
-        Ok(Some(opened.token))
-    }
-
     fn send(&self, request: reqwest::RequestBuilder) -> Result<reqwest::Response, TransportError> {
-        let request = match self.session()? {
+        let request = match &self.token {
             Some(token) => request.header(AUTHORIZATION, format!("Bearer {token}")),
             None => request,
         };
-        self.answer(request)
-    }
-
-    fn answer(
-        &self,
-        request: reqwest::RequestBuilder,
-    ) -> Result<reqwest::Response, TransportError> {
         self.runtime.block_on(async {
             let response = request.send().await?;
             if response.status().is_success() {
@@ -368,14 +296,6 @@ impl fmt::Display for Trace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:032x}", self.0)
     }
-}
-
-fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| {
-            i64::try_from(since.as_secs()).unwrap_or(i64::MAX)
-        })
 }
 
 fn random<const N: usize>() -> anyhow::Result<[u8; N]> {

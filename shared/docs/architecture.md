@@ -34,9 +34,11 @@ flowchart TB
     vcs --> store
 ```
 
-vcs runs on its own as a forge with review and landing, and every principal
-signs in with an SSH certificate, as
-[ADR 0002](adr/0002-state-boundaries-and-tokens.md) decides. `jf` can also
+vcs runs on its own as a forge with review and landing.
+[ADR 0002](adr/0002-state-boundaries-and-tokens.md) decides that every
+principal signs in with an SSH certificate. Until sign-in exists
+([#6](https://github.com/nca-apprentices/jjforge/issues/6)), a request names
+its principal and vcs trusts the name. `jf` can also
 share a repository through the object store alone, as
 [ADR 0001](adr/0001-native-jj-without-git.md) decides.
 

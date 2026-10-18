@@ -1,8 +1,7 @@
 //! `sync/v1`, the routes `jf` pushes, fetches, and clones through, as
 //! shared/proto/sync/v1/sync.proto describes them. A handler takes a
 //! [`Reader`] or a [`Writer`], so no route reaches a repository before the
-//! [`Gate`] lets it. The challenge and session routes open the session that the
-//! others carry.
+//! [`Gate`] lets it.
 
 mod problem;
 
@@ -14,7 +13,6 @@ use axum::extract::DefaultBodyLimit;
 use axum::extract::FromRequestParts;
 use axum::extract::Path;
 use axum::extract::Query;
-use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::http::header;
 use axum::http::request::Parts;
@@ -22,14 +20,11 @@ use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::get;
 use axum::routing::post;
-use jjforge_proto::sync::v1::Challenge;
 use jjforge_proto::sync::v1::HashList;
 use jjforge_proto::sync::v1::Head;
 use jjforge_proto::sync::v1::ObjectBundle;
 use jjforge_proto::sync::v1::PublishRequest;
 use jjforge_proto::sync::v1::PublishResponse;
-use jjforge_proto::sync::v1::Session;
-use jjforge_proto::sync::v1::SessionRequest;
 use jjforge_proto::sync::v1::Uploaded;
 use jjforge_store::ObjectId;
 use jjforge_store::OperationId;
@@ -45,7 +40,6 @@ use self::problem::etag;
 use self::problem::set_etag;
 use crate::auth::Access;
 use crate::gate::Gate;
-use crate::gate::Refused;
 use crate::telemetry;
 
 /// The largest request body, so a hostile client can't exhaust memory. An
@@ -76,8 +70,6 @@ pub(crate) async fn serve(addr: SocketAddr, gate: Gate) -> anyhow::Result<()> {
 
 fn router(gate: Gate) -> Router {
     Router::new()
-        .route("/sync/v1/challenge", get(challenge))
-        .route("/sync/v1/session", post(session))
         .route("/sync/v1/{org}/{repo}/head", get(head))
         .route("/sync/v1/{org}/{repo}/operations", get(operations))
         .route("/sync/v1/{org}/{repo}/objects/missing", post(missing))
@@ -154,33 +146,6 @@ fn ids(body: &Bytes) -> Result<Vec<ObjectId>, Problem> {
             ObjectId::try_from(id.as_slice()).map_err(|err| Problem::invalid(err.to_string()))
         })
         .collect()
-}
-
-/// A nonce for the client to sign with the key of its certificate.
-async fn challenge(State(gate): State<Gate>) -> Result<Response, Problem> {
-    let nonce = gate
-        .verifier()
-        .challenge()
-        .map_err(|err| Problem::unavailable(err.to_string()))?;
-    Ok(protobuf(&Challenge { nonce }))
-}
-
-/// Opens a session for the certificate whose key signed a challenge.
-async fn session(State(gate): State<Gate>, body: Bytes) -> Result<Response, Problem> {
-    let request = decode::<SessionRequest>(&body)?;
-    let (token, expires_at) = gate
-        .verifier()
-        .session(
-            &request.certificate,
-            crate::auth::Audience::Origin(&request.origin),
-            &request.nonce,
-            &request.signature,
-        )
-        .map_err(Refused::from)?;
-    Ok(protobuf(&Session {
-        token,
-        expires_at: i64::try_from(expires_at).unwrap_or(i64::MAX),
-    }))
 }
 
 async fn head(Reader(repo): Reader) -> Result<Response, Problem> {
@@ -289,34 +254,19 @@ mod tests {
     use jjforge_store::server::Repos;
 
     use super::*;
-    use crate::auth::ORIGIN;
-    use crate::auth::SessionKey;
-    use crate::auth::TestAuthority;
-    use crate::auth::Verifier;
-    use crate::auth::token_with;
-
-    fn token(fixture: &Fixture, scope: &str) -> String {
-        token_with(&fixture.key, scope)
-    }
+    use crate::auth::test_principals;
 
     struct Fixture {
         router: Router,
-        key: SessionKey,
-        authority: TestAuthority,
         _cache: tempfile::TempDir,
     }
 
     async fn fixture() -> Fixture {
-        let key = SessionKey::random().unwrap();
         let cache = tempfile::tempdir().unwrap();
         let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path()).unwrap();
         repos.get("acme", "demo").unwrap().create().await.unwrap();
-        let authority = TestAuthority::new();
-        let verifier = Verifier::new(vec![authority.authority("acme")], key.clone());
         Fixture {
-            router: router(Gate::new(repos, verifier)),
-            key,
-            authority,
+            router: router(Gate::new(repos, test_principals())),
             _cache: cache,
         }
     }
@@ -339,13 +289,10 @@ mod tests {
         serde_json::from_slice::<serde_json::Value>(&body).unwrap()["detail"].clone()
     }
 
-    fn get_head(fixture: &Fixture, scope: Option<&str>) -> Request<Body> {
+    fn get_head(principal: Option<&str>) -> Request<Body> {
         let mut request = Request::get("/sync/v1/acme/demo/head");
-        if let Some(scope) = scope {
-            request = request.header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(fixture, scope)),
-            );
+        if let Some(principal) = principal {
+            request = request.header(header::AUTHORIZATION, format!("Bearer {principal}"));
         }
         request.body(Body::empty()).unwrap()
     }
@@ -354,17 +301,17 @@ mod tests {
     async fn head_answers_the_root_operation_of_a_new_repository() {
         let fixture = fixture().await;
 
-        let response = call(&fixture, get_head(&fixture, Some("sync:read:acme"))).await;
+        let response = call(&fixture, get_head(Some("reader"))).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::ETAG], etag(&[0; 32]).as_str());
     }
 
     #[tokio::test]
-    async fn a_request_without_a_session_is_unauthenticated() {
+    async fn a_request_without_a_principal_is_unauthenticated() {
         let fixture = fixture().await;
 
-        let response = call(&fixture, get_head(&fixture, None)).await;
+        let response = call(&fixture, get_head(None)).await;
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(code(response).await, "unauthenticated");
@@ -374,7 +321,7 @@ mod tests {
     async fn a_principal_outside_the_organization_finds_nothing() {
         let fixture = fixture().await;
 
-        let response = call(&fixture, get_head(&fixture, Some("sync:write:other"))).await;
+        let response = call(&fixture, get_head(Some("stranger"))).await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert_eq!(code(response).await, "not_found");
@@ -384,10 +331,7 @@ mod tests {
     async fn a_reader_can_not_upload() {
         let fixture = fixture().await;
         let request = Request::post("/sync/v1/acme/demo/objects")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer reader")
             .body(Body::from(ObjectBundle::default().encode_to_vec()))
             .unwrap();
 
@@ -404,10 +348,7 @@ mod tests {
             objects: vec![b"not an object".to_vec()],
         };
         let request = Request::post("/sync/v1/acme/demo/objects")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:write:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer writer")
             .body(Body::from(bundle.encode_to_vec()))
             .unwrap();
 
@@ -425,10 +366,7 @@ mod tests {
             ..PublishRequest::default()
         };
         let request = Request::post("/sync/v1/acme/demo/publish")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:write:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer writer")
             .header(header::IF_MATCH, etag(&[1; 32]))
             .body(Body::from(stale.encode_to_vec()))
             .unwrap();
@@ -447,10 +385,7 @@ mod tests {
             ids: vec![vec![1; 32]; 1001],
         };
         let request = Request::post("/sync/v1/acme/demo/objects/fetch")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer reader")
             .body(Body::from(ids.encode_to_vec()))
             .unwrap();
 
@@ -464,10 +399,7 @@ mod tests {
     async fn the_bearer_scheme_is_case_insensitive() {
         let fixture = fixture().await;
         let request = Request::get("/sync/v1/acme/demo/head")
-            .header(
-                header::AUTHORIZATION,
-                format!("bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "bearer reader")
             .body(Body::empty())
             .unwrap();
 
@@ -480,10 +412,7 @@ mod tests {
     async fn a_body_above_the_limit_answers_a_problem() {
         let fixture = fixture().await;
         let request = Request::post("/sync/v1/acme/demo/objects")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:write:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer writer")
             .body(Body::from(vec![0; BODY_LIMIT + 1]))
             .unwrap();
 
@@ -500,10 +429,7 @@ mod tests {
     async fn a_repository_that_was_never_created_is_not_found() {
         let fixture = fixture().await;
         let request = Request::get("/sync/v1/acme/nothing/head")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer reader")
             .body(Body::empty())
             .unwrap();
 
@@ -517,17 +443,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_refused_session_gets_no_parser_detail() {
+    async fn an_unknown_principal_learns_nothing_more() {
         let fixture = fixture().await;
-        let request = Request::get("/sync/v1/acme/demo/head")
-            .header(header::AUTHORIZATION, "Bearer abc.def.ghi")
-            .body(Body::empty())
-            .unwrap();
 
-        let response = call(&fixture, request).await;
+        let response = call(&fixture, get_head(Some("mallory"))).await;
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        assert_eq!(detail(response).await, "the credential is invalid");
+        assert_eq!(detail(response).await, "the principal is unknown");
     }
 
     #[tokio::test]
@@ -538,10 +460,7 @@ mod tests {
             .clone()
             .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
         let request = Request::post("/sync/v1/acme/demo/objects")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:read:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer reader")
             .body(Body::empty())
             .unwrap();
 
@@ -550,7 +469,7 @@ mod tests {
         assert_eq!(response.unwrap().status(), StatusCode::FORBIDDEN);
         assert_eq!(
             crate::telemetry::attribute(&spans, "jjforge.principal.id").as_deref(),
-            Some("ada")
+            Some("reader")
         );
         assert_eq!(
             crate::telemetry::attribute(&spans, "jjforge.refusal").as_deref(),
@@ -571,10 +490,7 @@ mod tests {
             ..PublishRequest::default()
         };
         let request = Request::post("/sync/v1/acme/demo/publish")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token(&fixture, "sync:write:acme")),
-            )
+            .header(header::AUTHORIZATION, "Bearer writer")
             .body(Body::from(unchanged.encode_to_vec()))
             .unwrap();
 
@@ -617,10 +533,7 @@ mod tests {
                 .method(method)
                 .uri(format!("/sync/v1/acme/demo/{route}"))
                 .header("traceparent", format!("00-{TRACE}-00f067aa0ba902b7-01"))
-                .header(
-                    header::AUTHORIZATION,
-                    format!("Bearer {}", token(&fixture, "sync:write:acme")),
-                )
+                .header(header::AUTHORIZATION, "Bearer writer")
                 .body(Body::empty())
                 .unwrap();
 
@@ -635,7 +548,7 @@ mod tests {
             for (key, value) in [
                 ("jjforge.org.id", "acme"),
                 ("jjforge.repo.id", "demo"),
-                ("jjforge.principal.id", "ada"),
+                ("jjforge.principal.id", "writer"),
             ] {
                 assert_eq!(
                     crate::telemetry::attribute(&spans, key).as_deref(),
@@ -647,15 +560,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_request_without_a_session_names_why_it_was_refused() {
+    async fn a_request_without_a_principal_names_why_it_was_refused() {
         let fixture = fixture().await;
         let app = fixture
             .router
             .clone()
             .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
 
-        let (_, spans) =
-            crate::telemetry::finished_spans(app.oneshot(get_head(&fixture, None))).await;
+        let (_, spans) = crate::telemetry::finished_spans(app.oneshot(get_head(None))).await;
 
         assert_eq!(
             crate::telemetry::attribute(&spans, "jjforge.refusal").as_deref(),
@@ -663,106 +575,16 @@ mod tests {
         );
     }
 
-    async fn body(response: Response) -> Bytes {
-        axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap()
-    }
-
-    async fn open_session(fixture: &Fixture, request: &SessionRequest) -> Response {
-        let request = Request::post("/sync/v1/session")
-            .body(Body::from(request.encode_to_vec()))
-            .unwrap();
-        call(fixture, request).await
-    }
-
-    async fn nonce(fixture: &Fixture) -> Vec<u8> {
-        let request = Request::get("/sync/v1/challenge")
-            .body(Body::empty())
-            .unwrap();
-        let response = call(fixture, request).await;
-        assert_eq!(response.status(), StatusCode::OK);
-        Challenge::decode(body(response).await).unwrap().nonce
-    }
-
     #[tokio::test]
-    async fn a_signed_challenge_opens_a_session_that_reads_the_repository() {
-        let fixture = fixture().await;
-        let ada = fixture.authority.person("ada", "sync:read:acme", "");
-        let nonce = nonce(&fixture).await;
-        let request = SessionRequest {
-            certificate: ada.certificate(),
-            signature: ada.sign(&crate::auth::signed(ORIGIN, &nonce), crate::auth::NAMESPACE),
-            nonce,
-            origin: ORIGIN.to_owned(),
-        };
-
-        let response = open_session(&fixture, &request).await;
-        assert_eq!(response.status(), StatusCode::OK);
-        let session = Session::decode(body(response).await).unwrap();
-        let head = Request::get("/sync/v1/acme/demo/head")
-            .header(header::AUTHORIZATION, format!("Bearer {}", session.token))
-            .body(Body::empty())
-            .unwrap();
-
-        assert_eq!(call(&fixture, head).await.status(), StatusCode::OK);
-    }
-
-    #[tokio::test]
-    async fn a_challenge_signed_by_another_namespace_is_unauthenticated() {
-        let fixture = fixture().await;
-        let ada = fixture.authority.person("ada", "sync:read:acme", "");
-        let nonce = nonce(&fixture).await;
-        let request = SessionRequest {
-            certificate: ada.certificate(),
-            signature: ada.sign(&crate::auth::signed(ORIGIN, &nonce), "git"),
-            nonce,
-            origin: ORIGIN.to_owned(),
-        };
-
-        let response = open_session(&fixture, &request).await;
-
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        assert_eq!(code(response).await, "unauthenticated");
-    }
-
-    // The server's audience opens sessions over gRPC only, so a signature for
-    // it opens nothing at `POST /sync/v1/session`.
-    #[tokio::test]
-    async fn a_signature_for_the_server_audience_opens_no_http_session() {
-        let fixture = fixture().await;
-        let ada = fixture.authority.person("ada", "sync:read:acme", "");
-        let nonce = nonce(&fixture).await;
-        let audience = crate::auth::GRPC_AUDIENCE;
-        let request = SessionRequest {
-            certificate: ada.certificate(),
-            signature: ada.sign(
-                &crate::auth::signed(audience, &nonce),
-                crate::auth::NAMESPACE,
-            ),
-            nonce,
-            origin: audience.to_owned(),
-        };
-
-        let response = open_session(&fixture, &request).await;
-
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
-    async fn a_refused_session_shows_why_in_the_trace() {
+    async fn a_refused_principal_shows_why_in_the_trace() {
         let fixture = fixture().await;
         let app = fixture
             .router
             .clone()
             .layer(axum::middleware::from_fn(crate::telemetry::trace_http));
-        let request = Request::get("/sync/v1/acme/demo/head")
-            .header(header::AUTHORIZATION, "Bearer abc.def")
-            .body(Body::empty())
-            .unwrap();
+        let (_, spans) =
+            crate::telemetry::finished_spans(app.oneshot(get_head(Some("mallory")))).await;
 
-        let (_, spans) = crate::telemetry::finished_spans(app.oneshot(request)).await;
-
-        assert!(crate::telemetry::events(&spans).contains(&"session refused".to_owned()));
+        assert!(crate::telemetry::events(&spans).contains(&"principal refused".to_owned()));
     }
 }

@@ -58,25 +58,23 @@ mise run compose logs   # or any other docker-compose command, such as ps or dow
 
 Set `JJFORGE_PORT` for both when something else holds port 8080.
 
-## Signing in
+## Principals
 
-`jf` signs in with an SSH certificate, as
-[ADR 0002](adr/0002-state-boundaries-and-tokens.md) decides. `mise run up`
-and `mise run rust:serve` make a development certificate authority in
-`shared/deploy/.dev/`, which vcs trusts for both organizations of the seed.
-`mise run cert` signs a certificate for 12 hours and prints the key for
-`JJFORGE_KEY`:
+vcs authenticates no one until sign-in exists, as
+[#6](https://github.com/nca-apprentices/jjforge/issues/6) plans. A request
+names its principal, and vcs grants the scopes that
+`shared/deploy/twins/principals` gives that name. `jf` sends the name in
+`JJFORGE_TOKEN`:
 
 ```text
-set -x JJFORGE_KEY (mise run cert acme_member)
+set -x JJFORGE_TOKEN acme_member
 jf clone http://localhost:8081/sync/v1/0199c9a0-0000-7000-8000-00000000ac3e/<repo>
-jf auth token http://localhost:8081/sync/v1/0199c9a0-0000-7000-8000-00000000ac3e/<repo>
 ```
 
 The people of the seed are `acme_owner`, `acme_member`, and `other_owner`.
-`server` is the server's own certificate, which opens its session with vcs.
-`jf auth token` prints a session for a script, such as a `grpcurl` call to
-`RepoService`.
+The server calls vcs as `server`. A script such as a `grpcurl` call to
+`RepoService` sends `authorization: Bearer acme_owner`. A deployed vcs has no
+principals file, so it refuses every request.
 
 `jf echo hi` prints the trace ID of its request on stderr, and so does the
 echo page. The twin of the trace store shows that trace at

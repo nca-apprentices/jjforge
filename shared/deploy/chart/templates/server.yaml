@@ -40,10 +40,6 @@ spec:
               value: "false"
             - name: JJFORGE_VCS_TARGET
               value: {{ include "jjforge.fullname" . }}-vcs:50052
-            {{- if .Values.server.vcsCredentialSecretName }}
-            - name: JJFORGE_VCS_CREDENTIAL_KEY
-              value: /etc/jjforge/vcs/server
-            {{- end }}
             {{- with include "jjforge.telemetryEnv" . }}
             {{- . | trim | nindent 12 }}
             {{- end }}
@@ -70,21 +66,11 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            {{- if .Values.server.vcsCredentialSecretName }}
-            - name: vcs-credential
-              mountPath: /etc/jjforge/vcs
-              readOnly: true
-            {{- end }}
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
       volumes:
         - name: tmp
           emptyDir: {}
-        {{- with .Values.server.vcsCredentialSecretName }}
-        - name: vcs-credential
-          secret:
-            secretName: {{ . }}
-        {{- end }}
 ---
 apiVersion: v1
 kind: Service

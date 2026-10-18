@@ -78,30 +78,13 @@ impl HistoryService for Service {
                     .map_err(|err| Status::invalid_argument(format!("since: {err}")))?,
             ),
         };
-        // A watch outlives the check at its start, so it ends with its
-        // session, and the caller opens a new one.
-        let authorization = request
-            .metadata()
-            .get("authorization")
-            .and_then(|value| value.to_str().ok());
-        let left = self
-            .0
-            .session_end(authorization)?
-            .saturating_sub(crate::auth::now());
-        let ended = tokio::time::sleep(std::time::Duration::from_secs(left));
-        let operations = repo
-            .watch(since, POLL)
-            .map(|operation| {
-                operation
-                    .map(|operation| WatchOperationsResponse {
-                        operation: Some(operation),
-                    })
-                    .map_err(status)
-            })
-            .take_until(ended)
-            .chain(futures::stream::once(async {
-                Err(Status::unauthenticated("the session ended"))
-            }));
+        let operations = repo.watch(since, POLL).map(|operation| {
+            operation
+                .map(|operation| WatchOperationsResponse {
+                    operation: Some(operation),
+                })
+                .map_err(status)
+        });
         Ok(Response::new(operations.boxed()))
     }
 
@@ -326,25 +309,22 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::auth::SessionKey;
-    use crate::auth::Verifier;
-    use crate::auth::token_with;
+    use crate::auth::test_principals;
 
-    async fn service() -> (tempfile::TempDir, SessionKey, Service) {
+    async fn service() -> (tempfile::TempDir, Service) {
         let cache = tempfile::tempdir().unwrap();
         let repos = Repos::open(&Url::parse("memory:///").unwrap(), cache.path()).unwrap();
         repos.get("acme", "demo").unwrap().create().await.unwrap();
-        let key = SessionKey::random().unwrap();
-        let verifier = Verifier::new(vec![], key.clone());
-        (cache, key, Service(Gate::new(repos, verifier)))
+        (cache, Service(Gate::new(repos, test_principals())))
     }
 
-    fn request<T>(message: T, token: Option<&str>) -> Request<T> {
+    fn request<T>(message: T, principal: Option<&str>) -> Request<T> {
         let mut request = Request::new(message);
-        if let Some(token) = token {
-            request
-                .metadata_mut()
-                .insert("authorization", format!("Bearer {token}").parse().unwrap());
+        if let Some(principal) = principal {
+            request.metadata_mut().insert(
+                "authorization",
+                format!("Bearer {principal}").parse().unwrap(),
+            );
         }
         request
     }
@@ -361,11 +341,10 @@ mod tests {
 
     #[tokio::test]
     async fn a_reader_lists_the_bookmarks_of_a_new_repository() {
-        let (_cache, key, service) = service().await;
-        let token = token_with(&key, "sync:read:acme");
+        let (_cache, service) = service().await;
 
         let answer = service
-            .list_bookmarks(request(bookmarks(), Some(&token)))
+            .list_bookmarks(request(bookmarks(), Some("reader")))
             .await
             .unwrap()
             .into_inner();
@@ -374,8 +353,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_read_without_a_session_is_unauthenticated() {
-        let (_cache, _, service) = service().await;
+    async fn a_read_without_a_principal_is_unauthenticated() {
+        let (_cache, service) = service().await;
 
         let refused = service.list_bookmarks(request(bookmarks(), None)).await;
 
@@ -384,47 +363,14 @@ mod tests {
 
     #[tokio::test]
     async fn a_log_without_trunk_is_not_found() {
-        let (_cache, key, service) = service().await;
-        let token = token_with(&key, "sync:read:acme");
+        let (_cache, service) = service().await;
         let log = LogRequest {
             repo: bookmarks().repo,
             rev: String::new(),
         };
 
-        let refused = service.log(request(log, Some(&token))).await;
+        let refused = service.log(request(log, Some("reader"))).await;
 
         assert_eq!(refused.err().unwrap().code(), tonic::Code::NotFound);
-    }
-
-    #[tokio::test]
-    async fn a_watch_ends_with_its_session() {
-        use crate::auth::Claims;
-
-        let (_cache, key, service) = service().await;
-        let token = key.seal(&Claims {
-            sub: "server".to_owned(),
-            delegation: vec![],
-            scopes: vec!["sync:read:acme".to_owned()],
-            orgs: vec!["acme".to_owned()],
-            exp: crate::auth::now() + 1,
-        });
-        let watch = WatchOperationsRequest {
-            repo: bookmarks().repo,
-            since: String::new(),
-        };
-
-        let mut stream = service
-            .watch_operations(request(watch, Some(&token)))
-            .await
-            .unwrap()
-            .into_inner();
-        let ended = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
-            .await
-            .unwrap();
-
-        assert_eq!(
-            ended.unwrap().unwrap_err().code(),
-            tonic::Code::Unauthenticated
-        );
     }
 }

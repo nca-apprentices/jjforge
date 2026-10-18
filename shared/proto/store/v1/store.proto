@@ -159,11 +159,6 @@ message Operation {
   int32 end_tz_offset_minutes = 14;
   // False when the operation was written before jj recorded predecessors.
   bool stores_commit_predecessors = 15;
-  // The SSHSIG of whoever wrote the operation over the operation encoded
-  // without this field, in the namespace `jjforge-operation`, as ADR 0001
-  // decides. vcs signs the operations it writes when it has a key. Empty
-  // when unsigned. jj-lib never sees it.
-  bytes signature = 16;
 }
 
 // What `HEAD` holds: the latest operation and the latest review operation,

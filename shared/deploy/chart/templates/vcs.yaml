@@ -43,26 +43,14 @@ spec:
             {{- end }}
             {{- with .Values.vcs.sync.store }}
             # Sync of ADR 0001: the repositories in the object store, jj's
-            # index in the cache, and the certificate authorities vcs trusts.
+            # index in the cache. vcs gets no principals, so it refuses every
+            # request until sign-in exists, as #6 plans.
             - name: VCS_STORE
               value: {{ . | quote }}
             - name: VCS_SYNC_ADDR
               value: 0.0.0.0:8081
             - name: VCS_CACHE
               value: /cache
-            {{- with include "jjforge.vcsAuthorities" $ }}
-            # Without authorities, vcs starts and refuses every session.
-            - name: VCS_AUTHORITIES
-              value: {{ . | quote }}
-            {{- end }}
-            # The origin `jf` reaches sync/v1 at, which every session's
-            # signature names.
-            - name: VCS_ORIGINS
-              value: {{ printf "https://%s" $.Values.ingress.host | quote }}
-            {{- if $.Values.vcs.sync.signingKeySecretName }}
-            - name: VCS_SIGNING_KEY
-              value: /etc/vcs/signing/signing-key
-            {{- end }}
             {{- with $.Values.vcs.sync.endpoint }}
             - name: AWS_ENDPOINT
               value: {{ . | quote }}
@@ -74,10 +62,6 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ required "vcs.sync.secretName is required with vcs.sync.store" $.Values.vcs.sync.secretName }}
-            {{- with $.Values.vcs.sync.sessionSecretName }}
-            - secretRef:
-                name: {{ . }}
-            {{- end }}
             {{- end }}
           ports:
             - name: grpc
@@ -103,26 +87,10 @@ spec:
           volumeMounts:
             - name: cache
               mountPath: /cache
-            - name: authorities
-              mountPath: /etc/vcs/authorities
-              readOnly: true
-            {{- if .Values.vcs.sync.signingKeySecretName }}
-            - name: signing
-              mountPath: /etc/vcs/signing
-              readOnly: true
-            {{- end }}
+      # jj's index, which vcs rebuilds from the log when the pod is new.
       volumes:
-        # jj's index, which vcs rebuilds from the log when the pod is new.
         - name: cache
           emptyDir: {}
-        - name: authorities
-          configMap:
-            name: {{ include "jjforge.fullname" . }}-vcs-authorities
-        {{- with .Values.vcs.sync.signingKeySecretName }}
-        - name: signing
-          secret:
-            secretName: {{ . }}
-        {{- end }}
           {{- end }}
 ---
 apiVersion: v1
@@ -144,18 +112,3 @@ spec:
       port: 8081
       targetPort: sync
     {{- end }}
-{{- if .Values.vcs.sync.store }}
----
-# The public keys of the certificate authorities vcs trusts, as ADR 0002
-# decides, one file per entry of vcs.sync.authorities.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "jjforge.fullname" . }}-vcs-authorities
-  labels:
-    {{- include "jjforge.labels" . | nindent 4 }}
-data:
-  {{- range $i, $authority := .Values.vcs.sync.authorities }}
-  {{ $i }}.pub: {{ $authority.publicKey | quote }}
-  {{- end }}
-{{- end }}

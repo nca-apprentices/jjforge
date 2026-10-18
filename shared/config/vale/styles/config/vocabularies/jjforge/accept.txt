@@ -69,4 +69,3 @@ Phabricator
 pushrebase
 Zuul
 redactions
-loopback

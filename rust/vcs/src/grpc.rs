@@ -4,7 +4,6 @@
 mod echo;
 mod reads;
 mod repos;
-mod session;
 
 use std::net::SocketAddr;
 
@@ -14,7 +13,6 @@ use jjforge_proto::source::v1::diff_service_server::DiffServiceServer;
 use jjforge_proto::source::v1::file_service_server::FileServiceServer;
 use jjforge_proto::source::v1::history_service_server::HistoryServiceServer;
 use jjforge_proto::source::v1::repo_service_server::RepoServiceServer;
-use jjforge_proto::source::v1::session_service_server::SessionServiceServer;
 
 use jjforge_store::server::Repo;
 use jjforge_store::server::RepoError;
@@ -42,10 +40,6 @@ pub(crate) async fn serve(addr: SocketAddr, gate: Option<Gate>) -> anyhow::Resul
         .add_service(EchoServiceServer::new(echo::Echo))
         .add_optional_service(
             gate.clone()
-                .map(|gate| SessionServiceServer::new(session::Service(gate))),
-        )
-        .add_optional_service(
-            gate.clone()
                 .map(|gate| HistoryServiceServer::new(reads::Service(gate))),
         )
         .add_optional_service(
@@ -64,7 +58,7 @@ pub(crate) async fn serve(addr: SocketAddr, gate: Option<Gate>) -> anyhow::Resul
     Ok(())
 }
 
-/// Opens the repository that a call names, with the session in its
+/// Opens the repository that a call names, for the principal in its
 /// `authorization` metadata, through the gate.
 fn open<T>(
     gate: &Gate,

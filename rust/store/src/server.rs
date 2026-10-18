@@ -24,4 +24,3 @@ pub use repo::Page;
 pub use repo::Repo;
 pub use repo::RepoError;
 pub use repo::Repos;
-pub use repo::Signer;

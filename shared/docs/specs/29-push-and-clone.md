@@ -13,8 +13,8 @@ that answers it. No requirement on this page is built until that section is
 gone.
 
 The scenarios create their repositories through the REST API of
-[#23](https://github.com/nca-apprentices/jjforge/issues/23), and sign in as
-the people of its seed.
+[#23](https://github.com/nca-apprentices/jjforge/issues/23), and act as the
+people of its seed.
 
 ## Clone a repository (#30)
 
@@ -201,13 +201,13 @@ requirement.
 
 | ID    | Functional requirement                                                                                                            |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 102.1 | vcs sets `Operation.username` to the certificate's key ID and `Operation.hostname` to `jjforge`.                                 |
-| 102.2 | vcs records the delegation chain in `Operation.attributes` under `jjforge.delegation`, as subjects from the outermost actor in.   |
+| 102.1 | vcs sets `Operation.username` to the request's principal and `Operation.hostname` to `jjforge`.                                  |
+| 102.2 | vcs records the delegation chain in `Operation.attributes` under `jjforge.delegation`, empty until sign-in of #6 delegates.       |
 | 102.3 | vcs sets the start and end time from its own clock. `PublishRequest` carries no name and no time, so a client can't claim either. |
 
 - Operations: `POST {base}/publish`.
 - Types: `store.v1.Operation`, and the store crate's `Author`, which vcs
-  builds from the verified session.
+  builds from the request's principal.
 - Flow: [push](#push), step 4.
 
 Scenario: [102-operation-author.bats](../../e2e/cli/102-operation-author.bats).
@@ -264,8 +264,9 @@ sequenceDiagram
     vcs-->>jf: 200 with the new operation, or 412 with the current head
 ```
 
-1. Session: `jf` signs a challenge with the key of its certificate and opens
-   a session, and vcs checks the session on every route. Refused: 401
+1. Principal: `jf` names the principal of `JJFORGE_TOKEN` as
+   `Authorization: Bearer {name}`, and vcs looks the name up in
+   `VCS_PRINCIPALS` on every route. A missing or unknown name is refused: 401
    `unauthenticated`. A principal without a scope for the
    organization gets 404 `not_found`, and one with read scope only 403
    `forbidden`.
@@ -395,18 +396,18 @@ depends on jj-lib and on `object_store`, which cargo-deny checks.
 | store | `Repo::operations_since`               | method      | Reads the operations and views after an operation.                                                                                                                                         |
 | store | `Repo::publish`                        | method      | Builds the view with jj-lib, writes it and the operation, and moves `HEAD` by compare-and-swap.                                                                                            |
 | store | `server::Author`                       | struct      | The subject and the delegation chain that go into the operation's metadata.                                                                                                                |
-| vcs   | `gate`                                 | module      | `Gate`, the one way a request reaches a `Repo`: it verifies the session, checks the access, and records whom the span is for.                                                              |
+| vcs   | `gate`                                 | module      | `Gate`, the one way a request reaches a `Repo`: it looks up the principal, checks the access, and records whom the span is for.                                                            |
 | vcs   | `sync`                                 | module      | The `sync/v1` routes over HTTP, with a server span per request. Each handler takes a `Reader` or a `Writer` that the gate opened.                                                          |
-| vcs   | `grpc`                                 | module      | `echo/v1`, and the `SessionService`, `RepoService`, `HistoryService`, `FileService`, and `DiffService` of `source/v1` for the server, through the gate.                                   |
-| vcs   | `auth`                                 | module      | Opens a session from a signed challenge and a certificate of a trusted authority, and reads its scopes and delegation chain.                                                               |
+| vcs   | `grpc`                                 | module      | `echo/v1`, and the `RepoService`, `HistoryService`, `FileService`, and `DiffService` of `source/v1` for the server, through the gate.                                                      |
+| vcs   | `auth`                                 | module      | `Principals`, the names of the `VCS_PRINCIPALS` file and their scopes, which vcs trusts until the sign-in of #6.                                                                           |
 | `jf`  | `commands`                             | module      | `clone`, `fetch`, `push`, and `import`, added to jj-cli, and a hook that lets `undo` undo a fetch.                                                                                         |
-| `jf`  | `forge`                                | module      | `SyncClient`, the `sync/v1` client, which implements `Fetch` and `Transport` and opens the session.                                                                                       |
-| `jf`  | `credential`                           | module      | The key that `JJFORGE_KEY` names and its certificate, and signing with `ssh-keygen -Y sign`.                                                                                               |
+| `jf`  | `forge`                                | module      | `SyncClient`, the `sync/v1` client, which implements `Fetch` and `Transport` and names the principal of `JJFORGE_TOKEN`.                                                                   |
 
 External systems and their twins in `shared/deploy/compose.yaml`: the object
-store as `seaweedfs`. vcs trusts the development certificate authority of
-`shared/deploy/twins/cert`, which signs a certificate for each person of
-the seed, and the scenarios create repositories through `RepoService` on vcs.
+store as `seaweedfs`. vcs knows the principals of
+`shared/deploy/twins/principals`, one for each person of the seed and one
+for the server, and the scenarios create repositories through `RepoService`
+on vcs.
 
 ## Libraries
 
@@ -476,37 +477,18 @@ entity tag for `HEAD`, `list`, and `delete_stream`. A local disk has no
 conditional replace, so vcs on `file://` moves `HEAD` under a lock of its
 own process, and one process serves it.
 
-### `ssh-key` 0.6.7
-
-vcs parses certificates with `Certificate::from_openssh`, checks them with
-`validate_at` against the fingerprints of its authorities, and verifies a
-challenge's signature with `PublicKey::verify` over an `SshSig`. It enables
-Ed25519 and ECDSA P-256 only, because the `rsa` crate carries an open
-advisory. `validate_at` checks neither the principals nor the critical
-options, so vcs refuses every certificate with a critical option and takes
-the principal from the key ID. vcs seals sessions and challenges with
-ring's HMAC-SHA256.
-
 ## Security
 
-- vcs opens a session only for a user certificate that an authority in
-  `VCS_AUTHORITIES` signed and that holds now, and only from a signature
-  by the certificate's key over the origin that `jf` connected to and a
-  challenge that vcs issued less than a minute before, in the namespace
-  `jjforge-session`. vcs refuses an origin outside `VCS_ORIGINS`, or any
-  but a loopback one when that is empty, so a forge that relays another
-  forge's challenge gains nothing. A challenge can be used again within its
-  minute, because vcs keeps no state. Each entry,
-  `{org}={path}`, trusts an authority for one organization, and a
-  certificate's scopes reach only the organizations whose authorities
-  signed it. The extension `jjforge-scope@nca-apprentices.dev` grants
-  `sync:read:{org}` or `sync:write:{org}`. Creating or deleting a
-  repository through `RepoService` needs `sync:admin:{org}`, which a
-  certificate for pushing lacks. The extension
-  `jjforge-delegation@nca-apprentices.dev` names the principals that
-  delegated to it. A session lasts 15 minutes at most and never outlives
-  its certificate. vcs ignores every name the client sends, so an operation
-  names the principal from the certificate's key ID.
+- vcs authenticates no one until sign-in exists, as
+  [#6](https://github.com/nca-apprentices/jjforge/issues/6) plans. It trusts
+  the name in `Authorization: Bearer {name}` and grants that name the scopes
+  of the `VCS_PRINCIPALS` file, so it serves only a network that its users
+  share, such as compose. Without the file, vcs knows no principal and
+  refuses every request with 401 `unauthenticated`, so a deployed vcs stays
+  closed. A scope is `sync:read:{org}` or `sync:write:{org}`. Creating or
+  deleting a repository through `RepoService` needs `sync:admin:{org}`,
+  which a principal that pushes lacks. vcs ignores every name in the body of
+  a publish, so an operation names the principal of the request.
 - vcs verifies the hash of every object it reads back, decodes every
   uploaded object, and computes each object's name itself, so a client
   can't store bytes under another object's name.

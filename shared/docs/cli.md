@@ -26,9 +26,8 @@
   ([#56](https://github.com/nca-apprentices/jjforge/issues/56)).
 - A setting comes from a flag first, then the environment, then the
   configuration file. `JJFORGE_ENDPOINT` names the forge to talk to.
-- `JJFORGE_KEY` names the SSH key that signs in, with its certificate next
-  to it as `{key}-cert.pub`. A key in ssh-agent works through its public
-  half. `jf auth token <address>` prints a session for a script.
+- `JJFORGE_TOKEN` names the principal that `jf` acts as, until `jf` signs
+  people in ([#6](https://github.com/nca-apprentices/jjforge/issues/6)).
 
 ## Exit codes
 
