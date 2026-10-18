@@ -32,7 +32,7 @@ every byte through the server, and HTTP caches can't cache gRPC.
   tree, copy history, commit, operation, view, and the review log's
   objects. The change ID is a field
   of the commit, a conflict is a merge of trees, and the operation records
-  the principal and its delegation chain from the verified certificate. The format
+  the principal and its delegation chain from the verified token. The format
   holds every field of jj-lib's `Commit`, `View`, and `Operation` except the
   git ones and the `predecessors` of a commit, which jj deprecates. The
   `commit_predecessors` of the operation record them instead.
@@ -56,10 +56,10 @@ every byte through the server, and HTTP caches can't cache gRPC.
   the session before it serves or redirects to a short-lived signed URL, and
   verifies the hash of every uploaded object.
 - A publish names the head it expects. vcs moves the head only when every
-  referenced object is present, the certificate's scope covers each changed
+  referenced object is present, the token's scope covers each changed
   bookmark, and the change ownership policy holds. Only vcs's landing queue
-  moves a protected bookmark. vcs decides all of this from the certificate
-  of [ADR 0002](0002-state-boundaries-and-tokens.md#certificates).
+  moves a protected bookmark. vcs decides all of this from the token of
+  [ADR 0002](0002-state-boundaries-and-tokens.md#tokens).
 - The CLI is `jf`, built on jj-cli's `CliRunner`: every jj command works in
   it, and it registers the jjforge stores under the store type `jjforge`. The
   clash with the JFrog CLI is accepted. `jf` talks to the forge through REST

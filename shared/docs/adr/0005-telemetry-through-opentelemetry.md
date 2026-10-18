@@ -192,7 +192,7 @@ vcs writes these events:
 
 | Event                 | Span                | When                                                       |
 | --------------------- | ------------------- | ---------------------------------------------------------- |
-| `session refused`     | the request's       | A certificate or a session fails its check, with the reason |
+| `session refused`     | the request's       | A token fails its check, with the reason                    |
 | `catalog starts over` | `advance`           | A repository was created again under the same IDs, at WARN |
 | `swap lost`           | `object_store swap` | Another writer moved `HEAD` first                          |
 

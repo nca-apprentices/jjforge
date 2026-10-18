@@ -51,9 +51,9 @@ has no server to issue tokens.
 
 | Option                                    | Cost                                                                                        |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
-| JWTs signed by the server                 | A standalone vcs needs an OAuth 2.0 server                                                  |
+| JWTs signed by the server                 | A standalone vcs has no sign-in until it gets an issuer of its own. Chosen                  |
 | SSH public keys listed per principal      | vcs keeps the list, and an agent can't get narrower, short-lived access                     |
-| SSH certificates from a trusted authority | A browser can't hold one, and narrowing goes back to the authority. Chosen                  |
+| SSH certificates from a trusted authority | A browser can't hold one, and narrowing goes back to the authority                          |
 | Mutual TLS with client certificates       | Every client manages an X.509 certificate, and browsers handle them poorly                  |
 
 ## Decision
@@ -120,11 +120,11 @@ modules add.
 | Binary | Owns                                                                                                                   | Never                                                                       |
 | ------ | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | vcs    | The jj backend, `sync/v1`, review, the landing queue, and its rules, in the object store                               | Organizations, sign-in, CI, issues, agents, and indexes across repositories |
-| server | Organizations, sign-in, certificates, CI and other gates, issues, agents, and indexes across repositories, in Postgres | Repository storage and review records                                       |
+| server | Organizations, sign-in, tokens, CI and other gates, issues, agents, and indexes across repositories, in Postgres       | Repository storage and review records                                       |
 
-- vcs works without the server, from the repository and the request's
-  certificate alone. The server calls vcs through gRPC, and the web app's
-  review calls go through the server.
+- vcs reviews and lands from the repository and the request's token
+  alone. Only sign-in needs the server. The server calls vcs through gRPC,
+  and the web app's review calls go through the server.
 - The server takes part in landing as a gate. vcs runs the queue and waits
   for the verdicts that the repository's landing policy requires.
 - The server builds inboxes and searches across repositories from vcs's
@@ -153,26 +153,24 @@ modules add.
 - No cache service until a requirement needs one, measured. Every replica
   caches immutable objects in memory and on local disk.
 
-### Certificates
+### Tokens
 
-- Every principal proves who it is with an OpenSSH user certificate. Its
-  key ID names the principal, its validity bounds the access, and its
-  extensions carry the scopes and the delegation chain.
-- vcs trusts the certificate authorities its configuration lists, each for
-  the organizations it names. `jf` signs a challenge from vcs and the origin
-  it connected to, with ssh-agent, and gets a session of at most 15
-  minutes, so a cache can serve object reads. vcs refuses an origin that
-  isn't its own, so another site can't relay its challenge.
-- On its own, an administrator signs keys with `ssh-keygen -s`. With the
-  server, the server is the authority: a person signs in through the
-  organization's provider and gets a certificate for hours, an agent a
-  narrower one for minutes.
-- A browser signs in to the server, which calls vcs with its own certificate
-  and names the person in the delegation chain.
+- The server issues every token. A person signs in through the
+  organization's provider, in a browser or with `jf login` in a terminal.
+  On a machine without a browser, `jf login` uses the device flow of
+  RFC 8628.
+- A token is a JWT that the server signs. Its subject names the principal,
+  its expiry bounds the access, and its claims carry the scopes and the
+  delegation chain. An agent gets a narrower token for minutes.
+- vcs verifies each token offline against the keys the server publishes,
+  so repository reads keep working while sign-in is down.
+- The web app's calls go through the server, which calls vcs with its own
+  token and names the person in the delegation chain.
+- A standalone vcs has no sign-in yet. A later decision gives it one.
 - jjforge stores no passwords. Cedar holds the server's policy, and every
   decision is recorded with the policy that made it. The landing rules live
   in the repository.
-- Revocation takes effect when the session expires.
+- Revocation takes effect when the token expires.
 
 ## Consequences
 

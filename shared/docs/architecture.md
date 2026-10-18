@@ -14,7 +14,7 @@ flowchart TB
     end
 
     subgraph server["server: Spring Boot"]
-        domains["sign-in, certificates, orgs, CI gates, issues, agents"]
+        domains["sign-in, tokens, orgs, CI gates, issues, agents"]
     end
 
     pg[("Postgres<br/>the server's state")]
@@ -36,10 +36,10 @@ flowchart TB
 
 vcs runs on its own as a forge with review and landing.
 [ADR 0002](adr/0002-state-boundaries-and-tokens.md) decides that every
-principal signs in with an SSH certificate. Until sign-in exists
-([#6](https://github.com/nca-apprentices/jjforge/issues/6)), a request names
-its principal and vcs trusts the name. `jf` can also
-share a repository through the object store alone, as
+principal signs in to the server and proves who it is with a token. Until
+sign-in exists ([#6](https://github.com/nca-apprentices/jjforge/issues/6)),
+a request names its principal and vcs trusts the name. `jf` can also share
+a repository through the object store alone, as
 [ADR 0001](adr/0001-native-jj-without-git.md) decides.
 
 ## Review and landing
@@ -132,7 +132,7 @@ commits the predecessors of the landed ones, so every clone replaces them.
 
 | #   | Block                          | What it holds                                                         |
 | --- | ------------------------------ | --------------------------------------------------------------------- |
-| 1   | Identity and authorization     | Principals, sign-in, certificates, policy, secrets, and the audit log |
+| 1   | Identity and authorization     | Principals, sign-in, tokens, policy, secrets, and the audit log       |
 | 2   | Source plane                   | Repositories, changes, the operation log, conflicts, stacks, and sync |
 | 3   | Spec and intent plane          | Specs linked to change IDs and traced to measurements                 |
 | 4   | Execution plane                | Sandboxes, durable workflows, quotas, and the build cache             |
@@ -147,19 +147,19 @@ commits the predecessors of the landed ones, so every clone replaces them.
 
 1. Every object is addressable by content hash or change ID.
 2. Every action is attributable to a principal with a delegation chain.
-3. Every capability is a scoped, expiring, identity-bound certificate.
+3. Every capability is a scoped, expiring, identity-bound token.
 4. Every state transition emits an event and is recorded.
 5. Every component, including the platform's own, uses the same registry,
    permission, and sandbox path.
 
 ## Dependency order
 
-Identity and certificate authority → forge with an operation log event
+Identity and token issuer → forge with an operation log event
 stream → event bus and hook contract → sandbox runtime → component manifest
 and registry → measurement store → spec plane → experimentation and promotion.
 
 Specs and measurements depend on stable change IDs and events. The registry
-depends on the permission model. Building the registry before the certificate
+depends on the permission model. Building the registry before the token
 model would force a rewrite of every component. The milestones follow this order.
 
 ## Releases and deployment
