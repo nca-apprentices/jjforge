@@ -41,6 +41,7 @@ message TreeEntry {
 }
 
 message ListTreeResponse {
+  // Directories first, then by name.
   repeated TreeEntry entries = 1;
   string next_page_token = 2;
 }

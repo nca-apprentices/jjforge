@@ -905,10 +905,23 @@ fn the_server_reads_history_files_and_diffs_of_a_pushed_repository() {
     ada.push("main").unwrap();
     let repo = world.repos.get("acme", "forge").unwrap();
 
-    let log = block_on_tokio(repo.log("")).unwrap();
-    let ids: Vec<_> = log.iter().map(|change| change.commit_id.clone()).collect();
-    assert_eq!(ids[..2], [second.id().hex(), first.id().hex()]);
-    assert_eq!(log[0].bookmarks, ["main"]);
+    let log = block_on_tokio(repo.log("", "", 0)).unwrap();
+    let ids: Vec<_> = log
+        .items
+        .iter()
+        .map(|change| change.commit_id.clone())
+        .collect();
+    assert_eq!(ids, [second.id().hex(), first.id().hex()]);
+    assert_eq!(log.items[0].bookmarks, ["main"]);
+    assert_eq!(log.next, "");
+
+    let change = block_on_tokio(repo.change("main")).unwrap();
+    let files: Vec<_> = change
+        .files
+        .iter()
+        .map(|file| (file.path.as_str(), file.status(), file.conflicted))
+        .collect();
+    assert_eq!(files, [("src/lib.rs", Status::Added, false)]);
 
     let change_id = jj_lib::hex_util::encode_reverse_hex(first.change_id().as_bytes());
     let resolved = block_on_tokio(repo.resolve(&change_id[..8])).unwrap();
@@ -926,7 +939,7 @@ fn the_server_reads_history_files_and_diffs_of_a_pushed_repository() {
         .collect();
     assert_eq!(
         entries,
-        [("README", Kind::File, 4), ("src", Kind::Directory, 0)]
+        [("src", Kind::Directory, 0), ("README", Kind::File, 4)]
     );
 
     let file = block_on_tokio(repo.file("main", "src/lib.rs", 3, 4)).unwrap();
@@ -935,7 +948,9 @@ fn the_server_reads_history_files_and_diffs_of_a_pushed_repository() {
         (13, false, &b"main"[..])
     );
 
-    let diff = block_on_tokio(repo.diff("main", "", "")).unwrap();
+    let diff = block_on_tokio(repo.diff("main", "", "", "", 0))
+        .unwrap()
+        .items;
     assert_eq!(diff.len(), 1);
     assert_eq!(
         (diff[0].path.as_str(), diff[0].status()),
@@ -1070,9 +1085,10 @@ fn the_diff_of_a_merge_shows_only_what_the_merge_added() {
     ada.push("main").unwrap();
     let repo = world.repos.get("acme", "forge").unwrap();
 
-    let diff = block_on_tokio(repo.diff("main", "", "")).unwrap();
+    let diff = block_on_tokio(repo.diff("main", "", "", "", 0)).unwrap();
 
     let files: Vec<_> = diff
+        .items
         .iter()
         .map(|file| (file.path.as_str(), file.status()))
         .collect();
@@ -1096,10 +1112,131 @@ fn the_diff_of_a_large_file_fits_in_one_grpc_message() {
     ada.push("main").unwrap();
     let repo = world.repos.get("acme", "forge").unwrap();
 
-    let diff = block_on_tokio(repo.diff("main", "", "")).unwrap();
+    let diff = block_on_tokio(repo.diff("main", "", "", "", 0))
+        .unwrap()
+        .items;
 
     assert_eq!(diff.len(), 1);
     assert!(diff[0].encoded_len() < GRPC_MESSAGE_LIMIT);
     assert!(diff[0].truncated);
     assert_eq!(diff[0].hunks.len(), 0);
+}
+
+#[test]
+fn a_log_continues_on_the_page_its_token_names() {
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let first = ada.commit(None, "main", "README", "one\n");
+    let second = ada.commit(Some("main"), "main", "README", "two\n");
+    let third = ada.commit(Some("main"), "main", "README", "three\n");
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let one = block_on_tokio(repo.log("main", "", 2)).unwrap();
+    let two = block_on_tokio(repo.log("main", &one.next, 2)).unwrap();
+
+    let ids = |page: &jjforge_store::server::Page<jjforge_proto::source::v1::Change>| {
+        page.items
+            .iter()
+            .map(|change| change.commit_id.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(ids(&one), [third.id().hex(), second.id().hex()]);
+    assert_eq!(ids(&two), [first.id().hex()]);
+    assert_eq!(two.next, "");
+}
+
+#[test]
+fn a_diff_continues_on_the_page_its_token_names() {
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let base = ada.commit(None, "main", "a", "a\n");
+    ada.commit(Some("main"), "main", "b", "b\n");
+    ada.commit(Some("main"), "main", "c", "c\n");
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+    let from = base.id().hex();
+
+    let one = block_on_tokio(repo.diff("", &from, "main", "", 1)).unwrap();
+    let two = block_on_tokio(repo.diff("", &from, "main", &one.next, 1)).unwrap();
+
+    assert_eq!(one.items[0].path, "b");
+    assert_eq!(two.items[0].path, "c");
+    assert_eq!(two.next, "");
+}
+
+#[test]
+fn a_divergent_change_is_ambiguous_with_both_commits_as_candidates() {
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let one = ada.commit(None, "main", "README", "one\n");
+    let two = ada.twin("main", "twin", "NOTES");
+    ada.push("main").unwrap();
+    ada.push("twin").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+    let change_id = jj_lib::hex_util::encode_reverse_hex(one.change_id().as_bytes());
+
+    let refused = block_on_tokio(repo.resolve(&change_id));
+
+    let Err(jjforge_store::server::RepoError::Ambiguous(rev, candidates)) = refused else {
+        panic!("{:?}", refused.map(|resolved| resolved.commit_id));
+    };
+    let mut expected = [one.id().hex(), two.id().hex()];
+    expected.sort();
+    let ids: Vec<_> = candidates
+        .iter()
+        .map(|change| change.commit_id.clone())
+        .collect();
+    assert_eq!(rev, change_id);
+    assert_eq!(ids, expected);
+    assert!(
+        candidates
+            .iter()
+            .all(|change| change.change_id == change_id)
+    );
+}
+
+impl Clone {
+    /// Writes a second commit of the change that `bookmark` points at, with
+    /// `path` added, and points `twin` at it, so the change is divergent.
+    fn twin(&mut self, bookmark: &str, twin: &str, path: &str) -> jj_lib::commit::Commit {
+        let repo = self.repo.clone();
+        let original = repo
+            .store()
+            .get_commit(
+                repo.view()
+                    .get_local_bookmark(RefName::new(bookmark))
+                    .as_normal()
+                    .unwrap(),
+            )
+            .unwrap();
+        let file = block_on(repo.store().write_file(
+            RepoPath::from_internal_string(path).unwrap(),
+            &mut "twin\n".as_bytes(),
+        ))
+        .unwrap();
+        let mut builder = MergedTreeBuilder::new(original.tree());
+        builder.set_or_remove(
+            RepoPathBuf::from_internal_string(path).unwrap(),
+            Merge::normal(TreeValue::File {
+                id: file,
+                executable: false,
+                copy_id: CopyId::placeholder(),
+            }),
+        );
+        let tree = block_on(builder.write_tree()).unwrap();
+        let mut tx = repo.start_transaction();
+        let commit = block_on(
+            tx.repo_mut()
+                .new_commit(original.parent_ids().to_vec(), tree)
+                .set_change_id(original.change_id().clone())
+                .set_description("twin")
+                .write(),
+        )
+        .unwrap();
+        tx.repo_mut()
+            .set_local_bookmark_target(RefName::new(twin), RefTarget::normal(commit.id().clone()));
+        self.repo = block_on(tx.commit("twin")).unwrap();
+        commit
+    }
 }

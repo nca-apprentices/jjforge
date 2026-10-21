@@ -88,9 +88,10 @@ pub enum RepoError {
     /// The request breaks a rule of the store.
     #[error("{0}")]
     Invalid(String),
-    /// A revision names more than one commit, which it lists when it can.
+    /// A revision names more than one commit, whose changes it lists by
+    /// commit ID.
     #[error("revision {0} is ambiguous")]
-    Ambiguous(String, Vec<String>),
+    Ambiguous(String, Vec<jjforge_proto::source::v1::Change>),
     /// The object store or the local cache failed.
     #[error(transparent)]
     Internal(Source),

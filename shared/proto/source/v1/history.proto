@@ -3,6 +3,7 @@ syntax = "proto3";
 package source.v1;
 
 import "google/protobuf/timestamp.proto";
+import "source/v1/diff.proto";
 import "source/v1/repo.proto";
 
 option java_multiple_files = true;
@@ -12,12 +13,15 @@ option java_package = "dev.nca.jjforge.source.v1";
 service HistoryService {
   // Resolves a change ID, a commit ID, a unique prefix of either, or a
   // bookmark. An empty revision is the trunk bookmark: main, master, or
-  // trunk. FAILED_PRECONDITION, with the candidates in the message, means
-  // the revision is ambiguous.
+  // trunk. Every call that takes a revision answers an ambiguous one with
+  // FAILED_PRECONDITION, and its google.rpc.Status details hold an
+  // AmbiguousRevision.
   rpc Resolve(ResolveRequest) returns (ResolveResponse);
-  // Streams the changes reachable from a revision, newest first, at most
-  // 1,000 of them, without the root commit.
+  // Streams the changes reachable from a revision, newest first, without
+  // the root commit, one page at a time. The last change of a page names
+  // the next page.
   rpc Log(LogRequest) returns (stream LogResponse);
+  // The change and the files it touches.
   rpc GetChange(GetChangeRequest) returns (GetChangeResponse);
   // Lists the versions of a change, newest first: the current one, then each
   // earlier one.
@@ -59,14 +63,27 @@ message ResolveResponse {
   string commit_id = 2;
 }
 
+// The detail of FAILED_PRECONDITION for a revision that matches more than
+// one change.
+message AmbiguousRevision {
+  string rev = 1;
+  // At most 100 of the changes the revision matches, by commit ID.
+  repeated Change candidates = 2;
+}
+
 message LogRequest {
   RepoRef repo = 1;
   // Empty means the trunk bookmark.
   string rev = 2;
+  string page_token = 3;
+  // At most 1,000. Zero means 100.
+  int32 page_size = 4;
 }
 
 message LogResponse {
   Change change = 1;
+  // Set on the last change of a page when another page follows.
+  string next_page_token = 2;
 }
 
 message GetChangeRequest {
@@ -76,6 +93,8 @@ message GetChangeRequest {
 
 message GetChangeResponse {
   Change change = 1;
+  // The files the change touches against its parents, by path.
+  repeated ChangedFile files = 2;
 }
 
 message GetEvolutionRequest {
