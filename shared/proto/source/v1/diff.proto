@@ -9,7 +9,8 @@ option java_package = "dev.nca.jjforge.source.v1";
 
 // Compares revisions. vcs computes every diff, and no client does.
 service DiffService {
-  // Streams one FileDiff per changed file.
+  // Streams one DiffResponse per changed file, by path, one page at a
+  // time. The last file of a page names the next page.
   rpc Diff(DiffRequest) returns (stream DiffResponse);
 }
 
@@ -19,6 +20,9 @@ message DiffRequest {
   string rev = 2;
   string from = 3;
   string to = 4;
+  string page_token = 5;
+  // At most 1,000. Zero means 100.
+  int32 page_size = 6;
 }
 
 message DiffResponse {
@@ -40,6 +44,21 @@ message DiffResponse {
   // none and the message stays below gRPC's default limit of 4 MiB. A
   // client reads both sides through FileService instead.
   bool truncated = 6;
+  // Set when either side of the file is conflicted, which then has no
+  // hunks.
+  bool conflicted = 7;
+  // Set on the last file of a page when another page follows.
+  string next_page_token = 8;
+}
+
+// A file that a change touches, without its hunks.
+message ChangedFile {
+  string path = 1;
+  // Set for a rename.
+  string old_path = 2;
+  DiffResponse.Status status = 3;
+  // Set when the file is conflicted in the change.
+  bool conflicted = 4;
 }
 
 message Hunk {

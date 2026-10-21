@@ -49,8 +49,8 @@ use crate::ids::OperationId;
 /// The bookmarks that name trunk, in the order `trunk()` tries them.
 const TRUNK: [&str; 3] = ["main", "master", "trunk"];
 
-/// The most changes one log answers, since `Log` has no pages.
-const LOG_LIMIT: usize = 1000;
+/// The most candidates an ambiguous revision lists.
+const CANDIDATES: usize = 100;
 
 /// The page size of a list that names none, and the most it may name.
 const PAGE_SIZE: usize = 100;
@@ -136,27 +136,47 @@ impl Repo {
         .await
     }
 
-    /// The change that `rev` names.
+    /// The change that `rev` names, and the files it touches against its
+    /// parents.
     ///
     /// # Errors
     ///
     /// Fails as [`Repo::resolve`] does.
-    pub async fn change(&self, rev: &str) -> Result<source::Change, RepoError> {
+    pub async fn change(&self, rev: &str) -> Result<source::GetChangeResponse, RepoError> {
         let rev = rev.to_owned();
         self.at_head(move |repo| async move {
             let commit = commit(&repo, &rev).await?;
-            Ok(change(&repo, &commit))
+            let before = parent_tree(&repo, &commit).await?;
+            let files = changed(&before, &commit.tree())
+                .map_ok(|file| source::ChangedFile {
+                    path: file.path.as_internal_file_string().to_owned(),
+                    old_path: String::new(),
+                    status: file.status.into(),
+                    conflicted: !file.after.is_resolved(),
+                })
+                .try_collect()
+                .await?;
+            Ok(source::GetChangeResponse {
+                change: Some(change(&repo, &commit)),
+                files,
+            })
         })
         .await
     }
 
-    /// The changes that `rev` reaches, newest first, at most `LOG_LIMIT`.
+    /// One page of the changes that `rev` reaches, newest first.
     ///
     /// # Errors
     ///
-    /// Fails as [`Repo::resolve`] does.
-    pub async fn log(&self, rev: &str) -> Result<Vec<source::Change>, RepoError> {
-        let rev = rev.to_owned();
+    /// Fails as [`Repo::resolve`] does, or on a page token this call didn't
+    /// give.
+    pub async fn log(
+        &self,
+        rev: &str,
+        token: &str,
+        size: i32,
+    ) -> Result<Page<source::Change>, RepoError> {
+        let (rev, offset, size) = (rev.to_owned(), offset(token)?, page_size(size));
         self.at_head(move |repo| async move {
             let start = commit(&repo, &rev).await?;
             // The root commit is no change anyone made, as `jj log` hides it.
@@ -167,7 +187,8 @@ impl Repo {
                 .map_err(internal)?;
             let ids: Vec<CommitId> = revset
                 .stream()
-                .take(LOG_LIMIT)
+                .skip(offset)
+                .take(size + 1)
                 .try_collect()
                 .await
                 .map_err(internal)?;
@@ -176,7 +197,7 @@ impl Repo {
                 let commit = repo.store().get_commit_async(&id).await.map_err(internal)?;
                 changes.push(change(&repo, &commit));
             }
-            Ok(changes)
+            Ok(page(changes, offset, size))
         })
         .await
     }
@@ -293,8 +314,9 @@ impl Repo {
         .await
     }
 
-    /// The entries of the directory at `path` in the tree of `rev`, by name.
-    /// A conflicted directory lists the names of every side.
+    /// The entries of the directory at `path` in the tree of `rev`,
+    /// directories first, then by name. A conflicted directory lists the
+    /// names of every side.
     ///
     /// # Errors
     ///
@@ -333,6 +355,9 @@ impl Repo {
                     )));
                 }
 
+                let mut names: Vec<_> = names.into_iter().collect();
+                // The sort is stable, so each group keeps the order of names.
+                names.sort_by_key(|(_, value)| !is_directory(value));
                 let mut entries = vec![];
                 for (name, value) in names.into_iter().skip(offset).take(size + 1) {
                     let path = dir
@@ -438,20 +463,24 @@ impl Repo {
         })
     }
 
-    /// One `DiffResponse` per changed file: of `rev` against its parents
-    /// when `rev` is set, otherwise from `from` to `to`. A conflicted side
-    /// shows no hunks.
+    /// One page of `DiffResponse`, one per changed file, by path: of `rev`
+    /// against its parents when `rev` is set, otherwise from `from` to `to`.
+    /// A conflicted side shows no hunks.
     ///
     /// # Errors
     ///
-    /// Fails as [`Repo::resolve`] does.
+    /// Fails as [`Repo::resolve`] does, or on a page token this call didn't
+    /// give.
     pub async fn diff(
         &self,
         rev: &str,
         from: &str,
         to: &str,
-    ) -> Result<Vec<source::DiffResponse>, RepoError> {
+        token: &str,
+        size: i32,
+    ) -> Result<Page<source::DiffResponse>, RepoError> {
         let (rev, from, to) = (rev.to_owned(), from.to_owned(), to.to_owned());
+        let (offset, size) = (offset(token)?, page_size(size));
         self.at_head(move |repo| async move {
             let (before, after) = if rev.is_empty() {
                 let from = commit(&repo, &from).await?.tree();
@@ -459,16 +488,9 @@ impl Repo {
                 (from, to)
             } else {
                 let commit = commit(&repo, &rev).await?;
-                // A merge's parents merge without resolving, since resolving
-                // writes trees that a read never may. `contents` resolves each
-                // path that merges cleanly.
-                let parent = commit
-                    .parent_tree_no_resolve(repo.as_ref())
-                    .await
-                    .map_err(internal)?;
-                (parent, commit.tree())
+                (parent_tree(&repo, &commit).await?, commit.tree())
             };
-            diff(&repo, &before, &after).await
+            diff(&repo, &before, &after, offset, size).await
         })
         .await
     }
@@ -595,13 +617,7 @@ async fn resolve(repo: &Arc<ReadonlyRepo>, rev: &str) -> Result<CommitId, RepoEr
     if bookmark.is_present() {
         return match bookmark.as_normal() {
             Some(id) => Ok(id.clone()),
-            None => Err(RepoError::Ambiguous(
-                rev.to_owned(),
-                bookmark
-                    .present_adds()
-                    .map(jj_lib::object_id::ObjectId::hex)
-                    .collect(),
-            )),
+            None => Err(ambiguous(repo, rev, bookmark.present_adds().cloned().collect()).await),
         };
     }
 
@@ -615,7 +631,7 @@ async fn resolve(repo: &Arc<ReadonlyRepo>, rev: &str) -> Result<CommitId, RepoEr
         {
             PrefixResolution::SingleMatch(id) => candidates.push(id),
             PrefixResolution::AmbiguousMatch => {
-                return Err(RepoError::Ambiguous(rev.to_owned(), vec![]));
+                return Err(ambiguous(repo, rev, matching(repo, rev).await?).await);
             }
             PrefixResolution::NoMatch => {}
         }
@@ -630,7 +646,7 @@ async fn resolve(repo: &Arc<ReadonlyRepo>, rev: &str) -> Result<CommitId, RepoEr
                 candidates.extend(targets.visible_with_offsets().map(|(_, id)| id.clone()));
             }
             PrefixResolution::AmbiguousMatch => {
-                return Err(RepoError::Ambiguous(rev.to_owned(), vec![]));
+                return Err(ambiguous(repo, rev, matching(repo, rev).await?).await);
             }
             PrefixResolution::NoMatch => {}
         }
@@ -638,14 +654,55 @@ async fn resolve(repo: &Arc<ReadonlyRepo>, rev: &str) -> Result<CommitId, RepoEr
     match candidates.len() {
         0 => Err(not_found()),
         1 => Ok(candidates.remove(0)),
-        _ => Err(RepoError::Ambiguous(
-            rev.to_owned(),
-            candidates
-                .iter()
-                .map(jj_lib::object_id::ObjectId::hex)
-                .collect(),
-        )),
+        _ => Err(ambiguous(repo, rev, candidates).await),
     }
+}
+
+/// The visible commits whose commit ID or change ID starts with `prefix`,
+/// at most `CANDIDATES` of them. It reads every visible commit, which only
+/// a revision that is already ambiguous pays for.
+async fn matching(repo: &ReadonlyRepo, prefix: &str) -> Result<Vec<CommitId>, RepoError> {
+    let revset = ResolvedRevsetExpression::visible_heads()
+        .ancestors()
+        .minus(&ResolvedRevsetExpression::root())
+        .evaluate(repo)
+        .map_err(internal)?;
+    revset
+        .commit_change_ids()
+        .try_filter(|(commit, change)| {
+            std::future::ready(
+                commit.hex().starts_with(prefix)
+                    || encode_reverse_hex(change.as_bytes()).starts_with(prefix),
+            )
+        })
+        .map_ok(|(commit, _)| commit)
+        .take(CANDIDATES)
+        .try_collect()
+        .await
+        .map_err(internal)
+}
+
+/// The error for a revision that names each of `ids`, with their changes
+/// by commit ID.
+async fn ambiguous(repo: &ReadonlyRepo, rev: &str, mut ids: Vec<CommitId>) -> RepoError {
+    ids.sort();
+    ids.dedup();
+    ids.truncate(CANDIDATES);
+    let mut candidates = Vec::with_capacity(ids.len());
+    for id in &ids {
+        match repo.store().get_commit_async(id).await {
+            Ok(commit) => candidates.push(change(repo, &commit)),
+            Err(err) => return internal(err),
+        }
+    }
+    RepoError::Ambiguous(rev.to_owned(), candidates)
+}
+
+/// The tree a change is compared with: its parents', merged without
+/// resolving, since resolving writes trees that a read never may.
+/// `contents` resolves each path that merges cleanly.
+async fn parent_tree(repo: &ReadonlyRepo, commit: &Commit) -> Result<MergedTree, RepoError> {
+    commit.parent_tree_no_resolve(repo).await.map_err(internal)
 }
 
 fn change(repo: &ReadonlyRepo, commit: &Commit) -> source::Change {
@@ -714,6 +771,10 @@ fn content_len(encoded: u64) -> Option<u64> {
     })
 }
 
+fn is_directory(value: &TreeValue) -> bool {
+    matches!(value, TreeValue::Tree(_) | TreeValue::GitSubmodule(_))
+}
+
 fn is_binary(bytes: &[u8]) -> bool {
     bytes[..bytes.len().min(BINARY_PROBE)].contains(&0)
 }
@@ -747,42 +808,74 @@ fn page<T>(mut items: Vec<T>, offset: usize, size: usize) -> Page<T> {
     Page { items, next }
 }
 
+/// A path whose sides differ once trivial conflicts are resolved.
+struct ChangedPath {
+    path: RepoPathBuf,
+    status: Status,
+    before: Merge<Option<TreeValue>>,
+    after: Merge<Option<TreeValue>>,
+}
+
+/// The paths that differ between `before` and `after`, by path, without
+/// reading a file.
+fn changed(
+    before: &MergedTree,
+    after: &MergedTree,
+) -> impl futures::Stream<Item = Result<ChangedPath, RepoError>> {
+    before
+        .diff_stream(after, &EverythingMatcher)
+        .map(|entry| {
+            let values = entry.values.map_err(internal)?;
+            let before = resolved(&values.before);
+            let after = resolved(&values.after);
+            let status = match (before.is_absent(), after.is_absent()) {
+                (true, _) => Status::Added,
+                (_, true) => Status::Deleted,
+                _ => Status::Modified,
+            };
+            Ok((before != after).then_some(ChangedPath {
+                path: entry.path,
+                status,
+                before,
+                after,
+            }))
+        })
+        .try_filter_map(|path| std::future::ready(Ok(path)))
+}
+
+/// The page of the diff from `before` to `after` that starts at `offset`.
+/// Only the files of the page are read.
 async fn diff(
     repo: &ReadonlyRepo,
     before: &MergedTree,
     after: &MergedTree,
-) -> Result<Vec<source::DiffResponse>, RepoError> {
-    let entries: Vec<_> = before
-        .diff_stream(after, &EverythingMatcher)
-        .collect()
-        .await;
+    offset: usize,
+    size: usize,
+) -> Result<Page<source::DiffResponse>, RepoError> {
+    let paths: Vec<_> = changed(before, after)
+        .skip(offset)
+        .take(size + 1)
+        .try_collect()
+        .await?;
+    let more = paths.len() > size;
     let mut files = vec![];
-    for entry in entries {
-        let values = entry.values.map_err(internal)?;
-        let before = resolved(&values.before);
-        let after = resolved(&values.after);
-        if before == after {
-            continue;
-        }
-        let status = match (before.is_absent(), after.is_absent()) {
-            (true, _) => Status::Added,
-            (_, true) => Status::Deleted,
-            _ => Status::Modified,
-        };
-        let old = contents(repo, &entry.path, &before).await?;
-        let new = contents(repo, &entry.path, &after).await?;
+    for changed in paths.into_iter().take(size) {
+        let old = contents(repo, &changed.path, &changed.before).await?;
+        let new = contents(repo, &changed.path, &changed.after).await?;
         let (binary, hunks) = match (old, new) {
             (Some(old), Some(new)) if is_binary(&old) || is_binary(&new) => (true, vec![]),
             (Some(old), Some(new)) => (false, hunks(&old, &new)),
             _ => (false, vec![]),
         };
         let mut file = source::DiffResponse {
-            path: entry.path.as_internal_file_string().to_owned(),
+            path: changed.path.as_internal_file_string().to_owned(),
             old_path: String::new(),
-            status: status.into(),
+            status: changed.status.into(),
             binary,
             hunks,
             truncated: false,
+            conflicted: !changed.before.is_resolved() || !changed.after.is_resolved(),
+            next_page_token: String::new(),
         };
         if file.encoded_len() > DIFF_LIMIT {
             file.hunks.clear();
@@ -790,7 +883,12 @@ async fn diff(
         }
         files.push(file);
     }
-    Ok(files)
+    let next = if more {
+        (offset + size).to_string()
+    } else {
+        String::new()
+    };
+    Ok(Page { items: files, next })
 }
 
 /// A side of a diff with its trivial conflicts resolved, as a clean merge

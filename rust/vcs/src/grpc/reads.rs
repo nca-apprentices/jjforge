@@ -109,13 +109,22 @@ impl HistoryService for Service {
             request.get_ref().repo.as_ref(),
             Access::Read,
         )?;
-        let changes = repo.log(&request.get_ref().rev).await.map_err(status)?;
-        let changes = changes
+        let request = request.get_ref();
+        let page = repo
+            .log(&request.rev, &request.page_token, request.page_size)
+            .await
+            .map_err(status)?;
+        let mut changes: Vec<_> = page
+            .items
             .into_iter()
             .map(|change| LogResponse {
                 change: Some(change),
+                next_page_token: String::new(),
             })
             .collect();
+        if let Some(last) = changes.last_mut() {
+            last.next_page_token = page.next;
+        }
         Ok(Response::new(answers(changes)))
     }
 
@@ -130,9 +139,7 @@ impl HistoryService for Service {
             Access::Read,
         )?;
         let change = repo.change(&request.get_ref().rev).await.map_err(status)?;
-        Ok(Response::new(GetChangeResponse {
-            change: Some(change),
-        }))
+        Ok(Response::new(change))
     }
 
     async fn get_evolution(
@@ -294,10 +301,20 @@ impl DiffService for Service {
                 "a diff names either rev, or both from and to",
             ));
         }
-        let files = repo
-            .diff(&request.rev, &request.from, &request.to)
+        let page = repo
+            .diff(
+                &request.rev,
+                &request.from,
+                &request.to,
+                &request.page_token,
+                request.page_size,
+            )
             .await
             .map_err(status)?;
+        let mut files = page.items;
+        if let Some(last) = files.last_mut() {
+            last.next_page_token = page.next;
+        }
         Ok(Response::new(answers(files)))
     }
 }
@@ -366,7 +383,7 @@ mod tests {
         let (_cache, service) = service().await;
         let log = LogRequest {
             repo: bookmarks().repo,
-            rev: String::new(),
+            ..LogRequest::default()
         };
 
         let refused = service.log(request(log, Some("reader"))).await;
