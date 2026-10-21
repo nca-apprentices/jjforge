@@ -17,9 +17,9 @@ service HistoryService {
   // FAILED_PRECONDITION, and its google.rpc.Status details hold an
   // AmbiguousRevision.
   rpc Resolve(ResolveRequest) returns (ResolveResponse);
-  // Streams the changes reachable from a revision, newest first, without
-  // the root commit, one page at a time. The last change of a page names
-  // the next page.
+  // Streams one page of the changes reachable from a revision, newest
+  // first, without the root commit. The last change of the page names the
+  // next page.
   rpc Log(LogRequest) returns (stream LogResponse);
   // The change and the files it touches.
   rpc GetChange(GetChangeRequest) returns (GetChangeResponse);
@@ -91,8 +91,12 @@ message GetChangeRequest {
 
 message GetChangeResponse {
   Change change = 1;
-  // The files the change touches against its parents, by path.
+  // The files the change touches against its parents, by path, at most
+  // 10,000 of them.
   repeated ChangedFile files = 2;
+  // Set when the change touches more files than `files` lists. Diff pages
+  // through every one.
+  bool files_truncated = 3;
 }
 
 message GetEvolutionRequest {

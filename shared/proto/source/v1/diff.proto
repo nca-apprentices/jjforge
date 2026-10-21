@@ -9,8 +9,8 @@ option java_package = "dev.nca.jjforge.source.v1";
 
 // Compares revisions. vcs computes every diff, and no client does.
 service DiffService {
-  // Streams one DiffResponse per changed file, by path, one page at a
-  // time. The last file of a page names the next page.
+  // Streams one page of the changed files, by path, one DiffResponse per
+  // file. The last file of the page names the next page.
   rpc Diff(DiffRequest) returns (stream DiffResponse);
 }
 
@@ -35,14 +35,16 @@ message DiffResponse {
   }
 
   string path = 1;
-  // Set for a rename.
+  // Set for a rename: the path of a deleted file whose content is the
+  // same, or whose lines are at least half the same.
   string old_path = 2;
   Status status = 3;
   bool binary = 4;
   repeated Hunk hunks = 5;
-  // Set when the file's hunks would take more than 1 MiB, so vcs sends
-  // none and the message stays below gRPC's default limit of 4 MiB. A
-  // client reads both sides through FileService instead.
+  // Set when the file's hunks would take more than 1 MiB, or a side is
+  // larger than 4 MiB, so vcs sends none and the message stays below gRPC's
+  // default limit of 4 MiB. A client reads both sides through FileService
+  // instead.
   bool truncated = 6;
   // Set when either side of the file is conflicted, which then has no
   // hunks.
