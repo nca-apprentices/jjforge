@@ -408,6 +408,136 @@ impl Clone {
         .unwrap();
         content
     }
+
+    /// Writes a second commit of the change that `bookmark` points at, with
+    /// `path` added, and points `twin` at it, so the change is divergent.
+    fn twin(&mut self, bookmark: &str, twin: &str, path: &str) -> jj_lib::commit::Commit {
+        let repo = self.repo.clone();
+        let original = repo
+            .store()
+            .get_commit(
+                repo.view()
+                    .get_local_bookmark(RefName::new(bookmark))
+                    .as_normal()
+                    .unwrap(),
+            )
+            .unwrap();
+        let file = block_on(repo.store().write_file(
+            RepoPath::from_internal_string(path).unwrap(),
+            &mut "twin\n".as_bytes(),
+        ))
+        .unwrap();
+        let mut builder = MergedTreeBuilder::new(original.tree());
+        builder.set_or_remove(
+            RepoPathBuf::from_internal_string(path).unwrap(),
+            Merge::normal(TreeValue::File {
+                id: file,
+                executable: false,
+                copy_id: CopyId::placeholder(),
+            }),
+        );
+        let tree = block_on(builder.write_tree()).unwrap();
+        let mut tx = repo.start_transaction();
+        let commit = block_on(
+            tx.repo_mut()
+                .new_commit(original.parent_ids().to_vec(), tree)
+                .set_change_id(original.change_id().clone())
+                .set_description("twin")
+                .write(),
+        )
+        .unwrap();
+        tx.repo_mut()
+            .set_local_bookmark_target(RefName::new(twin), RefTarget::normal(commit.id().clone()));
+        self.repo = block_on(tx.commit("twin")).unwrap();
+        commit
+    }
+
+    /// Commits on top of `bookmark` with `removes` gone and `adds` written,
+    /// and moves `bookmark` to it.
+    fn change(&mut self, bookmark: &str, removes: &[&str], adds: &[(&str, &str)]) {
+        let repo = self.repo.clone();
+        let parent = repo
+            .store()
+            .get_commit(
+                repo.view()
+                    .get_local_bookmark(RefName::new(bookmark))
+                    .as_normal()
+                    .unwrap(),
+            )
+            .unwrap();
+        let mut builder = MergedTreeBuilder::new(parent.tree());
+        for path in removes {
+            builder.set_or_remove(
+                RepoPathBuf::from_internal_string(*path).unwrap(),
+                Merge::absent(),
+            );
+        }
+        for (path, content) in adds {
+            let file = block_on(repo.store().write_file(
+                RepoPath::from_internal_string(path).unwrap(),
+                &mut content.as_bytes(),
+            ))
+            .unwrap();
+            builder.set_or_remove(
+                RepoPathBuf::from_internal_string(*path).unwrap(),
+                Merge::normal(TreeValue::File {
+                    id: file,
+                    executable: false,
+                    copy_id: CopyId::placeholder(),
+                }),
+            );
+        }
+        let tree = block_on(builder.write_tree()).unwrap();
+        let mut tx = repo.start_transaction();
+        let commit = block_on(
+            tx.repo_mut()
+                .new_commit(vec![parent.id().clone()], tree)
+                .set_description("change")
+                .write(),
+        )
+        .unwrap();
+        tx.repo_mut().set_local_bookmark_target(
+            RefName::new(bookmark),
+            RefTarget::normal(commit.id().clone()),
+        );
+        self.repo = block_on(tx.commit("change")).unwrap();
+    }
+
+    /// Commits a conflict at `path`, of `ours` and `theirs` from `base`, on
+    /// the root, and points `bookmark` at it.
+    fn conflict(&mut self, bookmark: &str, path: &str, base: &str, ours: &str, theirs: &str) {
+        let repo = self.repo.clone();
+        let file = |content: &str| {
+            let id = block_on(repo.store().write_file(
+                RepoPath::from_internal_string(path).unwrap(),
+                &mut content.as_bytes(),
+            ))
+            .unwrap();
+            Some(TreeValue::File {
+                id,
+                executable: false,
+                copy_id: CopyId::placeholder(),
+            })
+        };
+        let value = Merge::from_vec(vec![file(ours), file(base), file(theirs)]);
+        let root = repo.store().root_commit();
+        let mut builder = MergedTreeBuilder::new(root.tree());
+        builder.set_or_remove(RepoPathBuf::from_internal_string(path).unwrap(), value);
+        let tree = block_on(builder.write_tree()).unwrap();
+        let mut tx = repo.start_transaction();
+        let commit = block_on(
+            tx.repo_mut()
+                .new_commit(vec![root.id().clone()], tree)
+                .set_description("conflict")
+                .write(),
+        )
+        .unwrap();
+        tx.repo_mut().set_local_bookmark_target(
+            RefName::new(bookmark),
+            RefTarget::normal(commit.id().clone()),
+        );
+        self.repo = block_on(tx.commit("conflict")).unwrap();
+    }
 }
 
 /// Loads the repository with a backend that fetches from `forge`.
@@ -944,13 +1074,14 @@ fn the_server_reads_history_files_and_diffs_of_a_pushed_repository() {
 
     let file = block_on_tokio(repo.file("main", "src/lib.rs", 3, 4)).unwrap();
     assert_eq!(
-        (file.size, file.binary, file.bytes.as_slice()),
-        (13, false, &b"main"[..])
+        (file.size, file.binary, file.conflicted),
+        (13, false, false)
     );
+    assert_eq!(bytes(file), b"main");
+    let whole = block_on_tokio(repo.file("main", "src/lib.rs", 0, 0)).unwrap();
+    assert_eq!(bytes(whole), b"fn main() {}\n");
 
-    let diff = block_on_tokio(repo.diff("main", "", "", "", 0))
-        .unwrap()
-        .items;
+    let diff = diff_files(block_on_tokio(repo.diff("main", "", "", "", 0)).unwrap());
     assert_eq!(diff.len(), 1);
     assert_eq!(
         (diff[0].path.as_str(), diff[0].status()),
@@ -961,7 +1092,7 @@ fn the_server_reads_history_files_and_diffs_of_a_pushed_repository() {
     let operations = block_on_tokio(repo.operation_page("", 1)).unwrap();
     assert_eq!(operations.items.len(), 1);
     assert_eq!(operations.items[0].principal_id, "ada");
-    assert_eq!(operations.next, "1");
+    assert!(operations.next.ends_with(".1"), "{}", operations.next);
 
     let bookmarks = block_on_tokio(repo.bookmarks("", 0)).unwrap();
     assert_eq!(bookmarks.items[0].name, "main");
@@ -1085,10 +1216,9 @@ fn the_diff_of_a_merge_shows_only_what_the_merge_added() {
     ada.push("main").unwrap();
     let repo = world.repos.get("acme", "forge").unwrap();
 
-    let diff = block_on_tokio(repo.diff("main", "", "", "", 0)).unwrap();
+    let diff = diff_files(block_on_tokio(repo.diff("main", "", "", "", 0)).unwrap());
 
     let files: Vec<_> = diff
-        .items
         .iter()
         .map(|file| (file.path.as_str(), file.status()))
         .collect();
@@ -1112,9 +1242,7 @@ fn the_diff_of_a_large_file_fits_in_one_grpc_message() {
     ada.push("main").unwrap();
     let repo = world.repos.get("acme", "forge").unwrap();
 
-    let diff = block_on_tokio(repo.diff("main", "", "", "", 0))
-        .unwrap()
-        .items;
+    let diff = diff_files(block_on_tokio(repo.diff("main", "", "", "", 0)).unwrap());
 
     assert_eq!(diff.len(), 1);
     assert!(diff[0].encoded_len() < GRPC_MESSAGE_LIMIT);
@@ -1158,11 +1286,13 @@ fn a_diff_continues_on_the_page_its_token_names() {
     let from = base.id().hex();
 
     let one = block_on_tokio(repo.diff("", &from, "main", "", 1)).unwrap();
-    let two = block_on_tokio(repo.diff("", &from, "main", &one.next, 1)).unwrap();
+    let next = one.next.clone();
+    let two = block_on_tokio(repo.diff("", &from, "main", &next, 1)).unwrap();
+    let last = two.next.clone();
 
-    assert_eq!(one.items[0].path, "b");
-    assert_eq!(two.items[0].path, "c");
-    assert_eq!(two.next, "");
+    assert_eq!(diff_files(one)[0].path, "b");
+    assert_eq!(diff_files(two)[0].path, "c");
+    assert_eq!(last, "");
 }
 
 #[test]
@@ -1196,47 +1326,200 @@ fn a_divergent_change_is_ambiguous_with_both_commits_as_candidates() {
     );
 }
 
-impl Clone {
-    /// Writes a second commit of the change that `bookmark` points at, with
-    /// `path` added, and points `twin` at it, so the change is divergent.
-    fn twin(&mut self, bookmark: &str, twin: &str, path: &str) -> jj_lib::commit::Commit {
-        let repo = self.repo.clone();
-        let original = repo
-            .store()
-            .get_commit(
-                repo.view()
-                    .get_local_bookmark(RefName::new(bookmark))
-                    .as_normal()
-                    .unwrap(),
+#[test]
+fn every_page_of_a_log_reads_the_operation_of_the_first() {
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let first = ada.commit(None, "main", "README", "one\n");
+    let second = ada.commit(Some("main"), "main", "README", "two\n");
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let one = block_on_tokio(repo.log("main", "", 1)).unwrap();
+    ada.commit(Some("main"), "main", "README", "three\n");
+    ada.push("main").unwrap();
+    let two = block_on_tokio(repo.log("main", &one.next, 1)).unwrap();
+
+    assert_eq!(one.items[0].commit_id, second.id().hex());
+    assert_eq!(two.items[0].commit_id, first.id().hex());
+    assert_eq!(two.next, "");
+}
+
+#[test]
+fn a_page_token_of_another_repository_is_invalid() {
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.commit(None, "main", "README", "one\n");
+    ada.commit(Some("main"), "main", "README", "two\n");
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+    let elsewhere = format!("{}.1", "07".repeat(32));
+
+    let refused = block_on_tokio(repo.log("main", &elsewhere, 1));
+
+    assert!(matches!(
+        refused,
+        Err(jjforge_store::server::RepoError::Invalid(_))
+    ));
+}
+
+#[test]
+fn a_moved_file_shows_as_a_rename_with_or_without_edits() {
+    use jjforge_proto::source::v1::diff_response::Status;
+
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let text = "one\ntwo\nthree\nfour\nfive\nsix\n";
+    ada.commit(None, "main", "old/same", "unchanged\n");
+    ada.commit(Some("main"), "main", "old/edited", text);
+    ada.commit(Some("main"), "main", "kept", "kept\n");
+    ada.change(
+        "main",
+        &["old/same", "old/edited", "kept"],
+        &[
+            ("new/same", "unchanged\n"),
+            ("new/edited", &text.replace("six", "SIX")),
+            ("other", "nothing alike\n"),
+        ],
+    );
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let diff = diff_files(block_on_tokio(repo.diff("main", "", "", "", 0)).unwrap());
+    let change = block_on_tokio(repo.change("main")).unwrap();
+
+    let shown: Vec<_> = diff
+        .iter()
+        .map(|file| (file.path.as_str(), file.old_path.as_str(), file.status()))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            ("kept", "", Status::Deleted),
+            ("new/edited", "old/edited", Status::Renamed),
+            ("new/same", "old/same", Status::Renamed),
+            ("other", "", Status::Added),
+        ]
+    );
+    assert_eq!(diff[1].hunks.len(), 1);
+    assert_eq!(diff[2].hunks.len(), 0);
+    let listed: Vec<_> = change
+        .files
+        .iter()
+        .map(|file| (file.path.as_str(), file.old_path.as_str()))
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            ("kept", ""),
+            ("new/edited", "old/edited"),
+            ("new/same", "old/same"),
+            ("other", ""),
+        ]
+    );
+}
+
+#[test]
+fn a_conflicted_file_reads_with_conflict_markers() {
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.conflict("main", "README", "base\n", "ada\n", "bob\n");
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let read = block_on_tokio(repo.file("main", "README", 0, 0)).unwrap();
+
+    assert!(read.conflicted);
+    let text = String::from_utf8(bytes(read)).unwrap();
+    assert!(text.starts_with("<<<<<<<"), "{text}");
+    assert!(text.contains("ada\n") && text.contains("bob\n"), "{text}");
+}
+
+#[test]
+fn any_range_of_a_large_file_reads_alone() {
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let content = numbers(300_000);
+    ada.commit(None, "main", "numbers", &content);
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+    let at = 2_000_000;
+
+    let tail = block_on_tokio(repo.file("main", "numbers", at, 16)).unwrap();
+    let whole = block_on_tokio(repo.file("main", "numbers", 0, 0)).unwrap();
+
+    assert_eq!(tail.size, content.len() as u64);
+    assert_eq!(bytes(tail), content.as_bytes()[2_000_000..2_000_016]);
+    assert_eq!(bytes(whole), content.as_bytes());
+}
+
+#[test]
+fn the_diff_of_a_file_over_four_mib_is_truncated_unread() {
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    let content = numbers(600_000);
+    ada.commit(None, "main", "numbers", &content);
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let diff = diff_files(block_on_tokio(repo.diff("main", "", "", "", 0)).unwrap());
+
+    assert_eq!(diff.len(), 1);
+    assert!(diff[0].truncated);
+    assert!(!diff[0].binary);
+}
+
+#[test]
+fn watches_of_one_repository_share_a_poll_and_wake_on_a_push() {
+    use futures::StreamExt as _;
+
+    let world = World::new();
+    let repo = world.repos.get("acme", "forge").unwrap();
+    // A poll this long would time the test out, so a push must wake both.
+    let poll = std::time::Duration::from_secs(3600);
+    let watcher = std::thread::spawn(move || {
+        block_on_tokio(async move {
+            let one = repo.watch(None, poll);
+            let two = repo.watch(None, poll);
+            futures::future::join(
+                one.take(1).collect::<Vec<_>>(),
+                two.take(1).collect::<Vec<_>>(),
             )
-            .unwrap();
-        let file = block_on(repo.store().write_file(
-            RepoPath::from_internal_string(path).unwrap(),
-            &mut "twin\n".as_bytes(),
-        ))
-        .unwrap();
-        let mut builder = MergedTreeBuilder::new(original.tree());
-        builder.set_or_remove(
-            RepoPathBuf::from_internal_string(path).unwrap(),
-            Merge::normal(TreeValue::File {
-                id: file,
-                executable: false,
-                copy_id: CopyId::placeholder(),
-            }),
-        );
-        let tree = block_on(builder.write_tree()).unwrap();
-        let mut tx = repo.start_transaction();
-        let commit = block_on(
-            tx.repo_mut()
-                .new_commit(original.parent_ids().to_vec(), tree)
-                .set_change_id(original.change_id().clone())
-                .set_description("twin")
-                .write(),
-        )
-        .unwrap();
-        tx.repo_mut()
-            .set_local_bookmark_target(RefName::new(twin), RefTarget::normal(commit.id().clone()));
-        self.repo = block_on(tx.commit("twin")).unwrap();
-        commit
-    }
+            .await
+        })
+    });
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.commit(None, "main", "README", "one\n");
+    ada.push("main").unwrap();
+
+    let (one, two) = watcher.join().unwrap();
+
+    assert_eq!(one.len(), 1);
+    assert_eq!(two.len(), 1);
+}
+
+/// `count` lines of seven digits each.
+fn numbers(count: usize) -> String {
+    (0..count)
+        .map(|n| format!("{n:07}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The files of a page of a diff, each read as the stream reaches it.
+fn diff_files(
+    page: jjforge_store::server::DiffPage,
+) -> Vec<jjforge_proto::source::v1::DiffResponse> {
+    use futures::TryStreamExt as _;
+
+    block_on_tokio(page.files.try_collect()).unwrap()
+}
+
+/// The bytes of a file read.
+fn bytes(read: jjforge_store::server::FileRead) -> Vec<u8> {
+    use futures::TryStreamExt as _;
+
+    let parts: Vec<Vec<u8>> = block_on_tokio(read.chunks.try_collect()).unwrap();
+    parts.concat()
 }

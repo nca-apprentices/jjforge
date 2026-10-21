@@ -60,4 +60,7 @@ message ReadFileResponse {
   int64 size = 1;
   bool binary = 2;
   bytes chunk = 3;
+  // Set on the first chunk when the file is conflicted. Its bytes then hold
+  // each side between jj's conflict markers, as a working copy does.
+  bool conflicted = 4;
 }
