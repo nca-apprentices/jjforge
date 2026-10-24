@@ -69,6 +69,7 @@ use crate::jj::Backend;
 use crate::jj::OperationStore;
 use crate::jj::Shelf;
 use crate::jj::Source;
+pub use read::DiffPage;
 pub use read::FileRead;
 pub use read::Page;
 
@@ -88,9 +89,10 @@ pub enum RepoError {
     /// The request breaks a rule of the store.
     #[error("{0}")]
     Invalid(String),
-    /// A revision names more than one commit, which it lists when it can.
+    /// A revision names more than one commit, whose changes it lists by
+    /// commit ID.
     #[error("revision {0} is ambiguous")]
-    Ambiguous(String, Vec<String>),
+    Ambiguous(String, Vec<jjforge_proto::source::v1::Change>),
     /// The object store or the local cache failed.
     #[error(transparent)]
     Internal(Source),
@@ -152,6 +154,7 @@ pub struct Repos {
     cache: PathBuf,
     settings: UserSettings,
     catalogs: std::sync::Mutex<HashMap<String, Arc<RwLock<Catalog>>>>,
+    head_polls: std::sync::Mutex<HashMap<String, Arc<read::HeadSlot>>>,
 }
 
 impl fmt::Debug for Repos {
@@ -177,6 +180,7 @@ impl Repos {
             cache: cache.to_owned(),
             settings,
             catalogs: std::sync::Mutex::default(),
+            head_polls: std::sync::Mutex::default(),
         })
     }
 
@@ -200,11 +204,19 @@ impl Repos {
             .entry(prefix.clone())
             .or_default()
             .clone();
+        let head_poll = self
+            .head_polls
+            .lock()
+            .map_err(|_| RepoError::Internal("a head poll lock is poisoned".into()))?
+            .entry(prefix.clone())
+            .or_default()
+            .clone();
         Ok(Repo {
             bucket: self.bucket.clone(),
             cache: self.cache.join(org).join(repo),
             settings: self.settings.clone(),
             catalog,
+            head_poll,
             prefix,
             name: format!("{org}/{repo}"),
         })
@@ -219,6 +231,9 @@ pub struct Repo {
     cache: PathBuf,
     settings: UserSettings,
     catalog: Arc<RwLock<Catalog>>,
+    /// The poll of `HEAD` that every watch of the repository on this replica
+    /// shares.
+    head_poll: Arc<read::HeadSlot>,
     prefix: String,
     /// `{org}/{repo}`, as errors name the repository to a client.
     name: String,
@@ -669,6 +684,11 @@ impl Repo {
         let span = tracing::Span::current();
         span.record("jjforge.publish.outcome", outcome);
         span.record("jjforge.operation.id", head.to_string());
+        // Watches on this replica learn of the push without waiting for
+        // their next poll.
+        if outcome == "moved" {
+            self.head_poll.notify();
+        }
         Ok(published)
     }
 

@@ -7,6 +7,7 @@ use std::pin::Pin;
 
 use futures::Stream;
 use futures::StreamExt as _;
+use futures::TryStreamExt as _;
 use jjforge_proto::source::v1::DiffRequest;
 use jjforge_proto::source::v1::DiffResponse;
 use jjforge_proto::source::v1::GetChangeRequest;
@@ -109,13 +110,22 @@ impl HistoryService for Service {
             request.get_ref().repo.as_ref(),
             Access::Read,
         )?;
-        let changes = repo.log(&request.get_ref().rev).await.map_err(status)?;
-        let changes = changes
+        let request = request.get_ref();
+        let page = repo
+            .log(&request.rev, &request.page_token, request.page_size)
+            .await
+            .map_err(status)?;
+        let mut changes: Vec<_> = page
+            .items
             .into_iter()
             .map(|change| LogResponse {
                 change: Some(change),
+                next_page_token: String::new(),
             })
             .collect();
+        if let Some(last) = changes.last_mut() {
+            last.next_page_token = page.next;
+        }
         Ok(Response::new(answers(changes)))
     }
 
@@ -130,9 +140,7 @@ impl HistoryService for Service {
             Access::Read,
         )?;
         let change = repo.change(&request.get_ref().rev).await.map_err(status)?;
-        Ok(Response::new(GetChangeResponse {
-            change: Some(change),
-        }))
+        Ok(Response::new(change))
     }
 
     async fn get_evolution(
@@ -253,24 +261,37 @@ impl FileService for Service {
             )
             .await
             .map_err(status)?;
-        let size = i64::try_from(file.size).unwrap_or(i64::MAX);
-        // The first chunk carries the size and whether the file is binary,
-        // even when the range is empty. Each chunk is copied as it is sent,
-        // so the range sits in memory once.
-        let chunks = futures::stream::unfold(Some(0), move |at| {
-            let response = at.map(|at| {
-                let end = (at + CHUNK).min(file.bytes.len());
-                let first = at == 0;
-                let response = ReadFileResponse {
-                    size: if first { size } else { 0 },
-                    binary: first && file.binary,
-                    chunk: file.bytes[at..end].to_vec(),
+        // Each part of the store's read splits into chunks, so the file sits
+        // in memory one part at a time. The first message carries the size
+        // and the flags, even when the range is empty.
+        let mut chunks = file
+            .chunks
+            .flat_map(|part| {
+                let chunks: Vec<_> = match part {
+                    Ok(bytes) => bytes
+                        .chunks(CHUNK)
+                        .map(|chunk| Ok(chunk.to_vec()))
+                        .collect(),
+                    Err(err) => vec![Err(status(err))],
                 };
-                (Ok(response), (end < file.bytes.len()).then_some(end))
-            });
-            async move { response }
+                futures::stream::iter(chunks)
+            })
+            .boxed();
+        let first = ReadFileResponse {
+            size: i64::try_from(file.size).unwrap_or(i64::MAX),
+            binary: file.binary,
+            chunk: chunks.next().await.transpose()?.unwrap_or_default(),
+            conflicted: file.conflicted,
+        };
+        let rest = chunks.map_ok(|chunk| ReadFileResponse {
+            chunk,
+            ..ReadFileResponse::default()
         });
-        Ok(Response::new(chunks.boxed()))
+        Ok(Response::new(
+            futures::stream::once(async { Ok(first) })
+                .chain(rest)
+                .boxed(),
+        ))
     }
 }
 
@@ -294,11 +315,30 @@ impl DiffService for Service {
                 "a diff names either rev, or both from and to",
             ));
         }
-        let files = repo
-            .diff(&request.rev, &request.from, &request.to)
+        let page = repo
+            .diff(
+                &request.rev,
+                &request.from,
+                &request.to,
+                &request.page_token,
+                request.page_size,
+            )
             .await
             .map_err(status)?;
-        Ok(Response::new(answers(files)))
+        // The last file of the page names the next page.
+        let (last, next) = (page.len.saturating_sub(1), page.next);
+        let files = page
+            .files
+            .enumerate()
+            .map(move |(index, file)| {
+                let mut file = file.map_err(status)?;
+                if index == last {
+                    file.next_page_token.clone_from(&next);
+                }
+                Ok(file)
+            })
+            .boxed();
+        Ok(Response::new(files))
     }
 }
 
@@ -366,7 +406,7 @@ mod tests {
         let (_cache, service) = service().await;
         let log = LogRequest {
             repo: bookmarks().repo,
-            rev: String::new(),
+            ..LogRequest::default()
         };
 
         let refused = service.log(request(log, Some("reader"))).await;
