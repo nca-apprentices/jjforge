@@ -5,14 +5,15 @@ set -euo pipefail
 buf lint shared/proto
 mise run api:lint
 
-# ADR 0006: a list in a source/v1 response sits beside a page token, or a
-# comment that starts with `Bounded:` says why it stays small.
+# ADR 0006: a list that vcs answers, in any message but a request and at any
+# depth, sits beside a page token, or a comment that starts with `Bounded:`
+# says why it stays small.
 awk '
-  /^message [A-Za-z0-9]+Response \{/ { message = $2; token = 0; n = 0; bounded = 0; next }
+  /^message [A-Za-z0-9]+ \{/ { message = ($2 ~ /Request$/) ? "" : $2; token = 0; n = 0; bounded = 0; next }
   !message { next }
-  /^  \/\// { if (/Bounded:/) { bounded = 1 }; next }
+  /^ *\/\// { if (/Bounded:/) { bounded = 1 }; next }
   /next_page_token = / { token = 1 }
-  /^  repeated / && !bounded { lists[++n] = FILENAME ":" FNR ": " message " lists " $3 }
+  /^ *repeated / && !bounded { lists[++n] = FILENAME ":" FNR ": " message " lists " $3 }
   /^}/ {
     if (!token) { for (i = 1; i <= n; i++) { print lists[i] " without a page token or a Bounded: comment"; failed = 1 } }
     message = ""

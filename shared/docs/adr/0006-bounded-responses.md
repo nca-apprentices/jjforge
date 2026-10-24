@@ -40,6 +40,9 @@ bounded in items, in bytes, and in time.
   neither skips nor repeats an item.
 - A page holds at most its page size and at most 3 MiB. Zero asks for the
   default page size.
+- A list that streams, such as `Log` or `Diff`, streams one page, one
+  message per item. The last message carries the token of the next page,
+  and the request takes it back as `page_token`.
 - A call whose client always needs the start of a list answers its first
   page inline, with the token that continues it in a list call of its own.
   `GetChange` answers the first page of a change's files, and
@@ -58,8 +61,9 @@ bounded in items, in bytes, and in time.
 
 ### Time
 
-- Every vcs call runs under a deadline of 30 seconds, or under the client's
-  `grpc-timeout` when it is shorter. Past it, vcs answers `CANCELLED`.
+- Every vcs call runs under a deadline of 30 seconds. Past it, vcs answers
+  `DEADLINE_EXCEEDED`, which its telemetry counts as a failure of vcs, not
+  of the caller. A client's shorter deadline ends the call on its own side.
 - Work that grows with a diff has a limit of its own, as `diff.renameLimit`
   does in git. A diff looks for renames among at most 1,000
   added and 1,000 deleted files.
@@ -75,8 +79,8 @@ is never silent.
 ### Checks
 
 - `mise run shared:lint` fails on a `repeated` field of a `source/v1`
-  response message that has no page token beside it and no `Bounded:`
-  comment.
+  message other than a request, at any depth, that has no page token
+  beside it and no `Bounded:` comment.
 - Redocly's rules `list-answers-a-page` and `page-shape` hold the REST
   contract, as [ADR 0003](0003-checked-code-rules.md) decides.
 

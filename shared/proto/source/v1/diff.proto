@@ -60,5 +60,6 @@ message Hunk {
   int32 old_lines = 2;
   int32 new_start = 3;
   int32 new_lines = 4;
+  // Bounded: a file's hunks take at most 1 MiB in all.
   repeated Line lines = 5;
 }
