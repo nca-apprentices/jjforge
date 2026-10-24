@@ -35,6 +35,7 @@ message DiffResponse {
   string old_path = 2;
   Status status = 3;
   bool binary = 4;
+  // Bounded: at most 1 MiB, as truncated says.
   repeated Hunk hunks = 5;
   // Set when the file's hunks would take more than 1 MiB, so vcs sends
   // none and the message stays below gRPC's default limit of 4 MiB. A
