@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-#MISE description="Serve the web app with Vite, with /api proxied to the server on :8080"
-#MISE depends=["api:build"]
-set -euo pipefail
-
-pnpm --dir web install --frozen-lockfile
-exec pnpm --dir web dev

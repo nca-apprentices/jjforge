@@ -1,9 +1,0 @@
-# Deliberate exceptions to shared/config/redocly.yaml.
-../api/auth/paths.yaml:
-  # A browser sign-in only ever redirects.
-  operation-2xx-response:
-    - "#/authorize/get/responses"
-  # Takes the bearer token but lists no 401. Open until #11 says whether
-  # revocation needs a token.
-  rule/authenticated-answers-401:
-    - "#/revoke/post/responses"

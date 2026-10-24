@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-#MISE description="Serve the docs site on :8000, rebuilt on each change in shared/site/docs"
-set -euo pipefail
-
-# Zensical watches its own copy of shared/docs, so an edit in shared/docs
-# shows only after this task starts again.
-node shared/site/scripts/sync-docs.mjs
-cd shared/site
-exec zensical serve

@@ -105,7 +105,7 @@ jobs:
       PR: ${{ inputs.pr || github.event.issue.number }}
       # The second file publishes Postgres, so Claude can query it without
       # Docker.
-      COMPOSE_FILE: pr/shared/deploy/compose.yaml:review/compose.yaml
+      COMPOSE_FILE: pr/deploy/compose.yaml:review/compose.yaml
       JF_BIN: ${{ github.workspace }}/review/build/jf
       # Only main's config, so a mise call in pr/ doesn't trust the PR's.
       MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml

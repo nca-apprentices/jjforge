@@ -1,7 +1,7 @@
 # Local state, never committed
 .env
-# The repositories of `mise run rust:serve`
-shared/deploy/.dev/
+# The repositories of `mise run core:serve`
+deploy/.dev/
 .claude-notes/
 .claude/worktrees/
 .DS_Store
@@ -23,9 +23,9 @@ build/
 node_modules/
 .pnpm-store/
 dist/
-web/shared/api/src/contract.gen.ts
-# Bundled from shared/api by `mise run api:build`
-shared/openapi.yaml
+platform/web/shared/api/src/contract.gen.ts
+# Bundled from contracts/openapi by `mise run api:build`
+contracts/openapi.yaml
 
 # Generated: the release copies the web build into the server jar
-jvm/src/main/resources/static/
+platform/server/src/main/resources/static/

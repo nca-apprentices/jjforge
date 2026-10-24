@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Build the docs site from docs into site/dist"
+set -euo pipefail
+
+# The build fails on a link to a page or heading that doesn't exist.
+node site/scripts/sync-docs.mjs
+cd site
+zensical build --strict

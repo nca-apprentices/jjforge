@@ -1,0 +1,121 @@
+# The REST contract. `mise run api:build` bundles it into
+# contracts/openapi.yaml, which the server and the web app generate their
+# code from.
+#
+# Each aspect keeps its path items in <aspect>/paths.yaml and its schemas in
+# <aspect>/schemas.yaml. The common/ files hold what every aspect shares.
+# config/redocly.yaml checks the conventions.
+#
+# The spec page of an epic in docs/specs/ names the operations each
+# requirement adds. An operation that isn't built yet answers 501, see
+# docs/adr/0003-checked-code-rules.md.
+openapi: 3.1.0
+
+info:
+  title: jjforge
+  version: "1"
+  contact:
+    name: jjforge maintainers
+    url: https://github.com/nca-apprentices/jjforge
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+  description: |-
+    The public API of jjforge. The web app, the `jf` CLI, and agents all use it.
+    Only the sync protocol is exposed besides it: see
+    docs/adr/0001-native-jj-without-git.md.
+
+    A list answers one page and a `next` cursor while more pages exist. Every
+    failure answers `application/problem+json` with a stable `code`.
+
+servers:
+  - url: /
+    description: The host that serves the web app
+    variables: {}
+
+security:
+  - bearer: []
+
+tags:
+  - name: echo
+    description: The walking skeleton. Removed once a real operation runs end to end.
+  - name: auth
+    description: Sign-in, tokens, and the signed-in principal.
+  - name: orgs
+    description: Organizations, their members, and their access records.
+  - name: repos
+    description: Repositories and their activity.
+  - name: history
+    description: Changes, their evolution, operations, and bookmarks.
+  - name: files
+    description: Trees, file contents, and diffs.
+
+paths:
+  /.well-known/oauth-authorization-server:
+    $ref: auth/paths.yaml#/metadata
+  /api/v1/echo:
+    $ref: echo/paths.yaml#/echo
+  /api/v1/me:
+    $ref: auth/paths.yaml#/me
+  /api/v1/me/sessions:
+    $ref: auth/paths.yaml#/sessions
+  /api/v1/me/sessions/{session}:
+    $ref: auth/paths.yaml#/session
+  /api/v1/orgs:
+    $ref: orgs/paths.yaml#/orgs
+  /api/v1/orgs/{org}:
+    $ref: orgs/paths.yaml#/org
+  /api/v1/orgs/{org}/access-records:
+    $ref: orgs/paths.yaml#/access-records
+  /api/v1/orgs/{org}/identity-provider:
+    $ref: orgs/paths.yaml#/identity-provider
+  /api/v1/orgs/{org}/members:
+    $ref: orgs/paths.yaml#/members
+  /api/v1/orgs/{org}/members/{principal}:
+    $ref: orgs/paths.yaml#/member
+  /api/v1/orgs/{org}/repos:
+    $ref: repos/paths.yaml#/repos
+  /api/v1/orgs/{org}/repos/{repo}:
+    $ref: repos/paths.yaml#/repo
+  /api/v1/orgs/{org}/repos/{repo}/activity:
+    $ref: repos/paths.yaml#/activity
+  /api/v1/orgs/{org}/repos/{repo}/bookmarks:
+    $ref: history/paths.yaml#/bookmarks
+  /api/v1/orgs/{org}/repos/{repo}/changes:
+    $ref: history/paths.yaml#/changes
+  /api/v1/orgs/{org}/repos/{repo}/changes/{rev}:
+    $ref: history/paths.yaml#/change
+  /api/v1/orgs/{org}/repos/{repo}/changes/{rev}/evolution:
+    $ref: history/paths.yaml#/evolution
+  /api/v1/orgs/{org}/repos/{repo}/changes/{rev}/files:
+    $ref: history/paths.yaml#/changedFiles
+  /api/v1/orgs/{org}/repos/{repo}/contents:
+    $ref: files/paths.yaml#/contents
+  /api/v1/orgs/{org}/repos/{repo}/diff:
+    $ref: files/paths.yaml#/diff
+  /api/v1/orgs/{org}/repos/{repo}/operations:
+    $ref: history/paths.yaml#/operations
+  /api/v1/orgs/{org}/repos/{repo}/tree:
+    $ref: files/paths.yaml#/tree
+  /oauth/authorize:
+    $ref: auth/paths.yaml#/authorize
+  /oauth/device:
+    $ref: auth/paths.yaml#/device
+  /oauth/keys:
+    $ref: auth/paths.yaml#/keys
+  /oauth/revoke:
+    $ref: auth/paths.yaml#/revoke
+  /oauth/token:
+    $ref: auth/paths.yaml#/token
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: A token from `/oauth/token`. See docs/adr/0002-state-boundaries-and-tokens.md.
+  # The activity stream's events. OpenAPI 3.1 can't reference a schema from a
+  # text/event-stream response, so the bundle keeps it only through this entry.
+  schemas:
+    Activity:
+      $ref: repos/schemas.yaml#/Activity

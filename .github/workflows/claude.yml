@@ -52,7 +52,7 @@ jobs:
       pull-requests: write
     timeout-minutes: 60
     env:
-      COMPOSE_FILE: shared/deploy/compose.yaml
+      COMPOSE_FILE: deploy/compose.yaml
       MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
       # Hides the tokens from Claude's commands and their process IDs, so a
       # prompt injection in an issue or comment can't hand one to a command.

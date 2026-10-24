@@ -1,3 +1,0 @@
-# Build output, and the copy of shared/docs that scripts/sync-docs.mjs writes
-dist/
-docs/

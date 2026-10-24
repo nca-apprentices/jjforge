@@ -1,0 +1,275 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "files": {
+    "includes": [
+      "app/**",
+      "features/**",
+      "shared/**",
+      "*.json",
+      "*.ts",
+      "!**/dist",
+      "!**/node_modules"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 80
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "project": "recommended",
+      "react": "recommended",
+      "test": "recommended"
+    },
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "noUnresolvedImports": "off",
+        "noPrivateImports": {
+          "level": "error",
+          "options": {
+            "defaultVisibility": "package"
+          }
+        }
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "react": {
+                "importNames": ["useState", "useEffect"],
+                "message": "Every kind of browser state belongs to the library that owns it: TanStack Form owns a form, TanStack Query owns what a source answered, and TanStack Router owns what the address selects. A lazy singleton, such as a router, is constructed outside the component."
+              }
+            },
+            "patterns": [
+              {
+                "group": ["../**"],
+                "message": "Use the package name (@jjforge/*) instead of a parent-relative import. A relative path escapes the package boundary."
+              },
+              {
+                "group": ["**/*.css"],
+                "message": "Only @jjforge/ui writes styles. Use or add a component there (ADR 0003)."
+              },
+              {
+                "group": [
+                  "tailwindcss",
+                  "tailwindcss/**",
+                  "@tailwindcss/*",
+                  "@tailwindcss/*/**"
+                ],
+                "message": "Only @jjforge/ui uses Tailwind. Use or add a component there (ADR 0003)."
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["shared/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": {
+                    "importNames": ["useState", "useEffect"],
+                    "message": "Every kind of browser state belongs to the library that owns it: TanStack Form owns a form, TanStack Query owns what a source answered, and TanStack Router owns what the address selects. A lazy singleton, such as a router, is constructed outside the component."
+                  }
+                },
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Use the package name (@jjforge/*) instead of a parent-relative import. A relative path escapes the package boundary."
+                  },
+                  {
+                    "group": [
+                      "@jjforge/web",
+                      "@jjforge/web/**",
+                      "@jjforge/feature-*",
+                      "@jjforge/feature-*/**"
+                    ],
+                    "message": "Prohibited dependency: a shared package depends on neither the application nor a feature."
+                  },
+                  {
+                    "group": ["**/*.css"],
+                    "message": "Only @jjforge/ui writes styles. Use or add a component there (ADR 0003)."
+                  },
+                  {
+                    "group": [
+                      "tailwindcss",
+                      "tailwindcss/**",
+                      "@tailwindcss/*",
+                      "@tailwindcss/*/**"
+                    ],
+                    "message": "Only @jjforge/ui uses Tailwind. Use or add a component there (ADR 0003)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["shared/ui/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Use the package name (@jjforge/*) instead of a parent-relative import. A relative path escapes the package boundary."
+                  },
+                  {
+                    "group": [
+                      "@jjforge/web",
+                      "@jjforge/web/**",
+                      "@jjforge/feature-*",
+                      "@jjforge/feature-*/**"
+                    ],
+                    "message": "Prohibited dependency: a shared package depends on neither the application nor a feature."
+                  }
+                ]
+              }
+            }
+          },
+          "nursery": {
+            "useSortedClasses": {
+              "level": "error",
+              "fix": "safe",
+              "options": {
+                "functions": ["cn"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["features/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": {
+                    "importNames": ["useState", "useEffect"],
+                    "message": "Every kind of browser state belongs to the library that owns it: TanStack Form owns a form, TanStack Query owns what a source answered, and TanStack Router owns what the address selects. A lazy singleton, such as a router, is constructed outside the component."
+                  }
+                },
+                "patterns": [
+                  {
+                    "group": ["../**"],
+                    "message": "Use the package name (@jjforge/*) instead of a parent-relative import. A relative path escapes the package boundary."
+                  },
+                  {
+                    "group": [
+                      "@jjforge/web",
+                      "@jjforge/web/**",
+                      "@jjforge/feature-*",
+                      "@jjforge/feature-*/**"
+                    ],
+                    "message": "Prohibited dependency: a feature depends on neither the application nor another feature."
+                  },
+                  {
+                    "group": [
+                      "@tanstack/react-router",
+                      "@tanstack/react-router/**"
+                    ],
+                    "message": "Prohibited dependency: the application owns routing. A feature exposes a page instead."
+                  },
+                  {
+                    "group": ["**/*.css"],
+                    "message": "Only @jjforge/ui writes styles. Use or add a component there (ADR 0003)."
+                  },
+                  {
+                    "group": [
+                      "tailwindcss",
+                      "tailwindcss/**",
+                      "@tailwindcss/*",
+                      "@tailwindcss/*/**"
+                    ],
+                    "message": "Only @jjforge/ui uses Tailwind. Use or add a component there (ADR 0003)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["app/**", "features/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "fetch": "Use the @jjforge/api client instead of fetch."
+                }
+              }
+            }
+          }
+        }
+      },
+      "plugins": [
+        "./biome-plugins/no-bare-elements.grit",
+        "./biome-plugins/no-styling-props.grit"
+      ]
+    },
+    {
+      "includes": ["shared/api/src/contract.gen.ts"],
+      "assist": {
+        "enabled": false
+      },
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
+      "includes": ["**/*.test.{ts,tsx}"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noPrivateImports": "off"
+          }
+        }
+      }
+    }
+  ],
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
+}

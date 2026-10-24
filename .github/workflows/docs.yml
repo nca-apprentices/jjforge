@@ -1,12 +1,12 @@
 name: Docs
 
-# Publishes shared/docs to GitHub Pages as the site in shared/site.
+# Publishes docs/ to GitHub Pages as the site in site/.
 on:
   push:
     branches: [main]
     paths:
-      - shared/docs/**
-      - shared/site/**
+      - docs/**
+      - site/**
   workflow_dispatch:
 
 # One deploy at a time, and a running one finishes.
@@ -35,7 +35,7 @@ jobs:
         run: mise run site:build
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: shared/site/dist
+          path: site/dist
 
   deploy:
     name: Deploy

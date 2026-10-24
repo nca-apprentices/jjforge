@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#MISE description="Run the server on :8080 against the twins of `mise run twins` and vcs on :50052"
+#MISE depends=["api:build"]
+set -euo pipefail
+
+# The server migrates the database itself at startup, without the migration
+# Job of compose and the chart.
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:${JJFORGE_POSTGRES_PORT:-5432}/postgres
+export SPRING_DATASOURCE_USERNAME=postgres
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:${JJFORGE_TRACES_PORT:-10428}/insert/opentelemetry/v1/traces
+# The principal of deploy/twins/principals that the server calls vcs as.
+export JJFORGE_VCS_PRINCIPAL=server
+
+exec gradle -p platform/server bootRun

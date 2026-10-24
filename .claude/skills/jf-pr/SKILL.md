@@ -7,7 +7,7 @@ description: Open a pull request in this repository, alone or stacked on another
 
 1. **Base.** `main`, or the branch below this one in a stack. Push with
    `git push -u origin <branch>`.
-2. **Title.** The commit subject. [The workflow](../../../shared/docs/workflow.md#specifying-and-building)
+2. **Title.** The commit subject. [The workflow](../../../docs/workflow.md#specifying-and-building)
    gives the title of a spec PR and a build PR.
 3. **Body.** Markdown, one paragraph per line, never wrapped by hand:
    - `## Summary`: what changes. One or two sentences.

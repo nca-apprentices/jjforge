@@ -35,9 +35,9 @@ jobs:
         arch: [amd64, arm64]
         include:
           - component: server
-            dockerfile: jvm/Dockerfile
+            dockerfile: platform/server/Dockerfile
           - component: vcs
-            dockerfile: rust/vcs/Dockerfile
+            dockerfile: core/vcs/Dockerfile
           - arch: amd64
             runner: ubuntu-latest
           - arch: arm64

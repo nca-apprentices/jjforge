@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Run server:test, web:test, and core:test"
+set -euo pipefail
+
+mise run server:test
+mise run web:test
+mise run core:test

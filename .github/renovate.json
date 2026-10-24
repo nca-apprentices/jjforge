@@ -28,7 +28,7 @@
     {
       "customType": "regex",
       "description": "dprint plugins from npm. The exec plugin carries a checksum, so `dprint config update` updates it instead.",
-      "managerFilePatterns": ["/^shared/config/dprint\\.json$/"],
+      "managerFilePatterns": ["/^config/dprint\\.json$/"],
       "matchStrings": [
         "\"npm:(?<depName>(@[^/\"]+/)?[^@\"]+)@(?<currentValue>[^\"/@]+)\""
       ],
@@ -36,8 +36,8 @@
     },
     {
       "customType": "regex",
-      "description": "The Vale style package that shared:lint checks the prose against.",
-      "managerFilePatterns": ["/^shared/config/vale/vale\\.ini$/"],
+      "description": "The Vale style package that repo:lint checks the prose against.",
+      "managerFilePatterns": ["/^config/vale/vale\\.ini$/"],
       "matchStrings": [
         "errata-ai/Google/releases/download/(?<currentValue>v[\\d.]+)/"
       ],

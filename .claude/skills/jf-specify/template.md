@@ -1,6 +1,6 @@
 # Spec page template
 
-Copy the block into `shared/docs/specs/<epic>-<slug>.md` and replace each
+Copy the block into `docs/specs/<epic>-<slug>.md` and replace each
 placeholder. Drop an optional section the epic doesn't need. Drop the whole
 design half, from Summary to Model and Alternatives, when the epic adds no
 object, state, or protocol that another epic builds on.
@@ -106,7 +106,7 @@ erDiagram
 | --------------- | ------ | -------------------------- | ------------------ |
 | <crate>         | <item> | <struct, trait, or method> | <what it does>     |
 
-External systems and their twins in `shared/deploy/compose.yaml`: <system>
+External systems and their twins in `deploy/compose.yaml`: <system>
   as `<twin>`.
 
 ## Libraries

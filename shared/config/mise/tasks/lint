@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-#MISE description="Run shared:lint, jvm:lint, web:lint, and rust:lint"
-set -euo pipefail
-
-# One after another, because two pnpm installs into web/ at once collide.
-mise run shared:lint
-mise run jvm:lint
-mise run web:lint
-mise run rust:lint

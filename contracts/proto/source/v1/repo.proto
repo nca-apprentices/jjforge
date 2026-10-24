@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package source.v1;
+
+option java_multiple_files = true;
+option java_package = "dev.nca.jjforge.source.v1";
+
+// The internal contract between the server and vcs. Nothing outside the
+// cluster calls it: see docs/adr/0001-native-jj-without-git.md.
+//
+// Every call names its principal in the `authorization` metadata, as
+// `Bearer {name}`, until sign-in exists, as #6 plans. A RepoRef routes the
+// call to the repository's storage.
+//
+// A list reads at `HEAD` and answers a page token that names the operation it
+// read at. Every later page reads at that operation, so a push between two
+// pages neither skips nor repeats an item.
+
+service RepoService {
+  // Creates an empty repository.
+  rpc CreateRepo(CreateRepoRequest) returns (CreateRepoResponse);
+  // Deletes a repository and everything in it.
+  rpc DeleteRepo(DeleteRepoRequest) returns (DeleteRepoResponse);
+  // Returns the current operation head.
+  rpc GetHead(GetHeadRequest) returns (GetHeadResponse);
+}
+
+message RepoRef {
+  // UUIDv7, as ADR 0002 decides.
+  string org_id = 1;
+  string repo_id = 2;
+}
+
+message CreateRepoRequest {
+  RepoRef repo = 1;
+}
+
+message CreateRepoResponse {}
+
+message DeleteRepoRequest {
+  RepoRef repo = 1;
+}
+
+message DeleteRepoResponse {}
+
+message GetHeadRequest {
+  RepoRef repo = 1;
+}
+
+message GetHeadResponse {
+  string operation_id = 1;
+}

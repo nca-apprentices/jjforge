@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-#MISE description="Run jvm:test, web:test, and rust:test"
-set -euo pipefail
-
-mise run jvm:test
-mise run web:test
-mise run rust:test

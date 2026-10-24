@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-#MISE description="Format every file with shared/config/dprint.json, then the Rust code"
-set -euo pipefail
-
-dprint fmt --config shared/config/dprint.json
-mise run rust:fmt

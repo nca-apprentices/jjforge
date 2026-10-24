@@ -1,0 +1,64 @@
+// `mise run fmt` formats with this file, and `mise run lint` checks with it.
+// The Rust code in core/ is formatted by `mise run core:fmt`.
+{
+  "excludes": [
+    "**/node_modules",
+    "**/target",
+    "contracts/openapi/pnpm-lock.yaml",
+    "deploy/chart/templates/**",
+    "contracts/openapi.yaml",
+    "platform/web/pnpm-lock.yaml",
+    "platform/web/shared/api/src/contract.gen.ts"
+  ],
+  // Keep the Cargo.toml keys in the order they were written.
+  "toml": {
+    "cargo.applyConventions": false
+  },
+  "exec": {
+    // The exec globs resolve from this directory, not the repository root, so
+    // a path outside config/ starts with **/.
+    "associations": [
+      "**/*.{kt,kts,md,proto}",
+      "**/mise/tasks/**/*",
+      "**/*.bats",
+      "platform/web/**/*.{ts,tsx,json}"
+    ],
+    "commands": [
+      {
+        "command": "ktlint --stdin --stdin-path={{file_path}} --format --log-level=error",
+        "associations": ["**/*.{kt,kts}"]
+      },
+      {
+        "command": "rumdl fmt --config config/rumdl.toml --stdin --stdin-filename {{file_path}} --silent",
+        "associations": ["**/*.md"]
+      },
+      {
+        // buf formats a file on disk, not stdin.
+        "command": "buf format {{file_path}}",
+        "associations": ["**/*.proto"],
+        "stdin": false
+      },
+      {
+        "command": "shfmt --indent=2 --filename {{file_path}}",
+        "associations": ["**/mise/tasks/**/*"]
+      },
+      {
+        // Bats files format as the task scripts do. A command takes one glob.
+        "command": "shfmt --indent=2 --filename {{file_path}}",
+        "associations": ["**/*.bats"]
+      },
+      {
+        // The Biome that platform/web/ installs, so platform/web/biome.json
+        // stays its only config.
+        "command": "node_modules/.bin/biome format --stdin-file-path={{file_path}}",
+        "associations": ["platform/web/**/*.{ts,tsx,json}"],
+        "cwd": "platform/web"
+      }
+    ]
+  },
+  "plugins": [
+    "npm:@dprint/toml@0.9.0",
+    "npm:dprint-plugin-yaml@0.6.0",
+    "npm:@dprint/exec@0.7.4/plugin.json@14842df8dbb117b521c6bdfd171fd22d25c19d9588de65785cccf2caf59c4780"
+  ]
+}

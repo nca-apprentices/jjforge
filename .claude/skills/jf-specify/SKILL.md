@@ -1,15 +1,15 @@
 ---
 name: jf-specify
-description: Write or extend the spec PR of an epic, with its page in shared/docs/specs/, pending scenarios, and contract changes. Use when asked to specify or spec an epic or a requirement, or to write its scenarios.
+description: Write or extend the spec PR of an epic, with its page in docs/specs/, pending scenarios, and contract changes. Use when asked to specify or spec an epic or a requirement, or to write its scenarios.
 ---
 
 # Specify an epic
 
-The spec PR of [the workflow](../../../shared/docs/workflow.md#specifying-and-building).
-The [specs README](../../../shared/docs/specs/README.md#format) defines each
-section. [29-push-and-clone.md](../../../shared/docs/specs/29-push-and-clone.md)
+The spec PR of [the workflow](../../../docs/workflow.md#specifying-and-building).
+The [specs README](../../../docs/specs/README.md#format) defines each
+section. [29-push-and-clone.md](../../../docs/specs/29-push-and-clone.md)
 shows the reference half filled in, and
-[143-review-model.md](../../../shared/docs/specs/143-review-model.md) the
+[143-review-model.md](../../../docs/specs/143-review-model.md) the
 design half.
 
 1. **Read.** The epic and every requirement under it:
@@ -17,7 +17,7 @@ design half.
    `gh api graphql` on `subIssues`. Read the ADRs that decide the epic's paths.
    Done when you can name each requirement and each ADR.
 2. **Page.** Copy [template.md](template.md) to
-   `shared/docs/specs/<epic>-<slug>.md` and add its row to the specs README.
+   `docs/specs/<epic>-<slug>.md` and add its row to the specs README.
    Keep the design half when the epic adds an object, a state, or a protocol
    that another epic builds on.
 3. **Design half.** Write Model first: each object, its identity, its
@@ -25,7 +25,7 @@ design half.
    people that touches every object. Then Alternatives, one table per choice,
    and Prior art, read from each system's own documentation, never from
    memory. A choice that shapes more than one component becomes an ADR from
-   [the template](../../../shared/docs/adr/0000-template.md) in the same PR.
+   [the template](../../../docs/adr/0000-template.md) in the same PR.
    Write Summary and Motivation last. Done when a reader of the design half
    alone can say what is stored, what moves each state, and why.
 4. **Requirements.** Each requirement section links its issue and derives
@@ -40,20 +40,20 @@ design half.
 6. **Libraries.** For each library a path builds on, read its source at the
    pinned version, in the cargo registry or the Gradle cache, never from
    memory. Name the traits jjforge implements, map each type that crosses
-   into `shared/proto/` field by field, list the calls jjforge makes, and
+   into `contracts/proto/` field by field, list the calls jjforge makes, and
    list what it leaves unused. Done when every type in the store or the
    contract has a row.
 7. **Scenarios.** One file per requirement, `<n>-<slug>.hurl` in
-   `shared/e2e/http/` or `<n>-<slug>.bats` in `shared/e2e/cli/`, with
+   `e2e/http/` or `<n>-<slug>.bats` in `e2e/cli/`, with
    `# pending` as the first line. Each test name starts with the ID of the
    functional requirement it checks. Use concrete values, check the problem code
-   of every refusal and the exit code that `shared/docs/cli.md` gives it. A
+   of every refusal and the exit code that `docs/cli.md` gives it. A
    Bats file loads `forge` for its helpers.
-8. **Contract.** Change `shared/api/` and `shared/proto/` until every assert
-   is expressible. Change the contract, never the scenario. A REST operation
-   goes in the `paths.yaml` of its aspect, and `shared/api/openapi.yaml`
-   references its path. Each parameter, header, and body carries an example
-   that uses the values of the scenario.
+8. **Contract.** Change `contracts/openapi/` and `contracts/proto/` until
+   every assert is expressible. Change the contract, never the scenario. A
+   REST operation goes in the `paths.yaml` of its aspect, and
+   `contracts/openapi/openapi.yaml` references its path. Each parameter,
+   header, and body carries an example that uses the values of the scenario.
 9. **Unknowns.** Each question the page can't answer yet goes under
    `## Open questions` with the issue that answers it.
 10. **Check.** `mise run prose`, `mise run lint`, and `mise run api:breaking`

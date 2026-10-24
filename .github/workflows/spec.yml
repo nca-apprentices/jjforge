@@ -42,18 +42,18 @@ jobs:
             if [[ $(gh issue view "$n" --json issueType -q .issueType.name) != Requirement ]]; then
               continue
             fi
-            if ! git grep -qE "^##+ .*\(#$n\)" "origin/$BASE" -- 'shared/docs/specs/*.md'; then
+            if ! git grep -qE "^##+ .*\(#$n\)" "origin/$BASE" -- 'docs/specs/*.md'; then
               echo "::error::#$n closes with this PR, but no spec page on $BASE has a section headed with (#$n)"
               exit 1
             fi
-            page=$(git grep -lE "^##+ .*\(#$n\)" "origin/$BASE" -- 'shared/docs/specs/*.md' | head -1)
+            page=$(git grep -lE "^##+ .*\(#$n\)" "origin/$BASE" -- 'docs/specs/*.md' | head -1)
             if git show "$page" | grep -qx '## Open questions'; then
               echo "::error::#$n closes with this PR, but ${page#*:} still has open questions"
               exit 1
             fi
-            scenarios=$(find shared/e2e -name "$n-*" \( -name '*.hurl' -o -name '*.bats' \))
+            scenarios=$(find e2e -name "$n-*" \( -name '*.hurl' -o -name '*.bats' \))
             if [[ -z $scenarios ]]; then
-              echo "::error::#$n closes with this PR, but no scenario in shared/e2e/ is named $n-<slug>"
+              echo "::error::#$n closes with this PR, but no scenario in e2e/ is named $n-<slug>"
               exit 1
             fi
             # shellcheck disable=SC2086 # One word per scenario.

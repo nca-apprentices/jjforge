@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#MISE description="Fail on a breaking change to the REST contract against a git ref, origin/main by default"
+#MISE depends=["api:build"]
+#USAGE arg "[base]" default="origin/main"
+set -euo pipefail
+
+# The bundled file isn't committed, so the base ref's contract is bundled
+# into a scratch directory.
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+git archive "${usage_base:?}" contracts/openapi | tar -x -C "$scratch"
+
+# The YAML contract is the first baseline. A base from before it has
+# nothing to compare.
+if [[ ! -f $scratch/contracts/openapi/openapi.yaml ]]; then
+  echo "${usage_base} has no contracts/openapi/openapi.yaml, so nothing to compare."
+  exit 0
+fi
+
+export REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true
+pnpm --dir contracts/openapi exec redocly bundle "$scratch/contracts/openapi/openapi.yaml" --output "$scratch/openapi.yaml"
+
+oasdiff breaking "$scratch/openapi.yaml" contracts/openapi.yaml --fail-on ERR

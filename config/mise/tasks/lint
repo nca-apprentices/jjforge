@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Run repo:lint, server:lint, web:lint, and core:lint"
+set -euo pipefail
+
+# One after another, because two pnpm installs into platform/web/ at once
+# collide.
+mise run repo:lint
+mise run server:lint
+mise run web:lint
+mise run core:lint

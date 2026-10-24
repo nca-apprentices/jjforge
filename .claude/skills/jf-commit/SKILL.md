@@ -29,7 +29,7 @@ logical change, and its message lands on `main`.
 - The type and the description are lowercase and imperative, at most 72
   characters in all, with no final period.
 - The scope is the part of the repository the change touches: `jf`, `vcs`,
-  `rust`, `jvm`, `web`, `api`, `e2e`, `adr`, `deploy`, `ci`, or `agents`.
+  `core`, `server`, `web`, `api`, `e2e`, `adr`, `deploy`, `ci`, or `agents`.
   `git log --format=%s` shows each in use.
 - A change that breaks a contract, a task name, or a stored format adds `!`
   after the scope, as in `feat(api)!:`.

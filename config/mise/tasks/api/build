@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Bundle the OpenAPI files in contracts/openapi into contracts/openapi.yaml"
+set -euo pipefail
+
+pnpm --dir contracts/openapi install --frozen-lockfile
+
+# Redocly reports usage and checks for updates unless told not to.
+export REDOCLY_TELEMETRY=off REDOCLY_SUPPRESS_UPDATE_NOTICE=true
+pnpm --dir contracts/openapi exec redocly bundle openapi.yaml --output ../openapi.yaml

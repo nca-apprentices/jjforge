@@ -1,0 +1,227 @@
+# `mise run api:lint` lints contracts/openapi/ with this file. The strict
+# ruleset fails on what `recommended` only warns about, and the rules below
+# hold the conventions of the contract.
+# .redocly.lint-ignore.yaml lists the deliberate exceptions.
+extends:
+  - recommended-strict
+
+# A command without a file, such as `mise run api:redocly lint`, takes this
+# root.
+apis:
+  jjforge:
+    root: ../contracts/openapi/openapi.yaml
+
+rules:
+  # Built-in rules that `recommended` leaves off.
+  operation-singular-tag: error
+  paths-kebab-case: error
+  component-name-unique: error
+  no-path-trailing-slash: error
+  no-ambiguous-paths: error
+  no-required-schema-properties-undefined: error
+  no-schema-type-mismatch: error
+  no-enum-type-mismatch: error
+  array-parameter-serialization: error
+  boolean-parameter-prefixes: error
+  no-server-example.com: error
+  info-contact: error
+  request-mime-type:
+    severity: error
+    allowedValues: [application/json, application/x-www-form-urlencoded]
+  response-mime-type:
+    severity: error
+    allowedValues:
+      - application/json
+      - application/problem+json
+      - application/octet-stream
+      - text/plain
+      - text/event-stream
+
+  rule/operation-id-camel-case:
+    subject:
+      type: Operation
+      property: operationId
+    assertions:
+      casing: camelCase
+    message: An operationId is camelCase, because the generators turn it into a method name.
+
+  # The generators name each method after its operation ID, so the verb says
+  # what the method does.
+  rule/operation-id-verb:
+    subject:
+      type: Operation
+      property: operationId
+    assertions:
+      pattern: /^(list|get|create|update|set|put|delete|remove|revoke|stream|read|echo|authorize|token)/
+    message: An operationId starts with a verb such as list, get, create, or delete.
+
+  rule/operation-summary-sentence:
+    subject:
+      type: Operation
+      property: summary
+    assertions:
+      defined: true
+      pattern: /^[A-Z].*[^.]$/
+    message: A summary starts with a capital letter and doesn't end with a period.
+
+  # Every failure reuses a response of common/responses.yaml, so a status
+  # means the same thing on every operation.
+  rule/error-response-shared:
+    subject:
+      type: Responses
+      property: ["400", "401", "403", "404", "409", "422", "500"]
+    assertions:
+      ref: /^\.\.\/common\/responses\.yaml#\//
+    message: A failure references common/responses.yaml.
+
+  # A JSON body names its schema, so the generators give it a type of its own.
+  rule/media-type-schema-named:
+    subject:
+      type: MediaType
+      property: schema
+      filterInParentKeys: [application/json, application/problem+json]
+    assertions:
+      ref: true
+    message: A JSON body references a named schema instead of an inline one.
+
+  # A list answers one page and a `next` cursor.
+  rule/list-answers-a-page:
+    where:
+      - subject:
+          type: Operation
+          property: operationId
+        assertions:
+          pattern: /^list/
+      - subject:
+          type: Response
+          filterInParentKeys: ["200"]
+        assertions:
+          defined: true
+    subject:
+      type: MediaType
+      property: schema
+    assertions:
+      ref: /Page$/
+    message: A list operation answers a schema whose name ends in Page.
+
+  rule/page-shape:
+    where:
+      - subject:
+          type: MediaType
+          property: schema
+        assertions:
+          ref: /Page$/
+    subject:
+      type: SchemaProperties
+    assertions:
+      required: [items, next]
+    message: A page has `items` and a `next` cursor.
+
+  # An operation without its own `security` takes the bearer token, so it can
+  # answer 401.
+  rule/authenticated-answers-401:
+    where:
+      - subject:
+          type: Operation
+          property: security
+        assertions:
+          defined: false
+    subject:
+      type: Responses
+    assertions:
+      required: ["401"]
+    message: An operation that takes a token lists 401.
+
+  # Every operation shows how to call it and what it answers: each parameter,
+  # header, and body carries an example, and the strict rules check each one
+  # against its schema. A failure takes its example from common/responses.yaml.
+  rule/body-example:
+    subject:
+      type: MediaType
+      filterOutParentKeys: [application/octet-stream]
+    assertions:
+      requireAny: [example, examples]
+    message: A body that isn't raw bytes has an example.
+
+  rule/parameter-example:
+    subject:
+      type: Parameter
+    assertions:
+      requireAny: [example, examples]
+    message: A parameter has an example.
+
+  rule/header-example:
+    subject:
+      type: Header
+    assertions:
+      requireAny: [example, examples]
+    message: A response header has an example.
+
+  # Every string a client sends has a bound, so no request carries unlimited
+  # text into the server. Answers carry what the server stores.
+  rule/request-string-bounded:
+    where:
+      - subject:
+          type: RequestBody
+        assertions:
+          defined: true
+      # Redocly reaches a property's schema only through its properties.
+      - subject:
+          type: SchemaProperties
+        assertions:
+          defined: true
+      - subject:
+          type: Schema
+          property: type
+        assertions:
+          const: string
+    subject:
+      type: Schema
+    assertions:
+      requireAny: [maxLength, enum, format, pattern]
+    message: A string in a request body has a maxLength, an enum, a format, or a pattern.
+
+  rule/parameter-string-bounded:
+    where:
+      - subject:
+          type: Parameter
+        assertions:
+          defined: true
+      - subject:
+          type: Schema
+          property: type
+        assertions:
+          const: string
+    subject:
+      type: Schema
+    assertions:
+      requireAny: [maxLength, enum, format, pattern]
+    message: A string parameter has a maxLength, an enum, a format, or a pattern.
+
+  # The OAuth operations keep the snake_case names of their RFCs.
+  rule/property-camel-case:
+    where:
+      - subject:
+          type: Operation
+          property: operationId
+        assertions:
+          pattern: /^(?!(authorize|authorizeDevice|token|revoke|getKeys|getAuthorizationServerMetadata)$)/
+    subject:
+      type: SchemaProperties
+    assertions:
+      casing: camelCase
+    message: A property name is camelCase.
+
+  rule/body-schema-description:
+    where:
+      - subject:
+          type: MediaType
+          property: schema
+        assertions:
+          defined: true
+    subject:
+      type: Schema
+      property: description
+    assertions:
+      defined: true
+    message: A schema that a body uses has a description.

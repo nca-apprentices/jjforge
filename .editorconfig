@@ -20,7 +20,7 @@ max_line_length = 120
 indent_size = 4
 max_line_length = 100
 
-# Biome's lineWidth in web/biome.json.
+# Biome's lineWidth in platform/web/biome.json.
 [*.{ts,tsx,json}]
 max_line_length = 80
 
