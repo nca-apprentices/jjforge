@@ -113,6 +113,41 @@ hurl --test --variable server=https://jjforge.example.com e2e/http/*.hurl
 JJFORGE_ENDPOINT=https://jjforge.example.com bats e2e/cli
 ```
 
+## Inspecting a repository
+
+`jf init` creates a repository without a forge. Its objects lie in
+`.jj/repo/store/` and `.jj/repo/op_store/`, one file each, named by the
+BLAKE3 hash of its bytes. jj's debug commands read them by ID, from the
+current operation down to a file:
+
+```text
+jf init demo; cd demo
+jf op log -n1 -T 'id ++ "\n"'                # the current operation
+jf debug object operation <operation-id>     # its view_id, by full ID
+jf debug object view <view-id>               # heads, bookmarks, and @
+jf debug object commit (jf log -r @ --no-graph -T commit_id)
+jf debug object tree -r @ ''                 # the root directory
+jf debug object tree -r @ core/store         # its entries name each FileId
+jf debug object file -r @ core/store/src/lib.rs
+```
+
+Each file holds one `store.v1.StoredObject` of
+`contracts/proto/store/v1/store.proto`, which `protoc` decodes:
+
+```text
+set proto ~/bb/jjforge/contracts/proto
+protoc -I $proto --decode=store.v1.StoredObject store/v1/store.proto < .jj/repo/store/<id>
+```
+
+This counts the objects by kind:
+
+```text
+for f in .jj/repo/store/* .jj/repo/op_store/*
+    test (basename $f) = type; and continue
+    protoc -I $proto --decode=store.v1.StoredObject store/v1/store.proto < $f | head -1
+end | sort | uniq -c
+```
+
 ## Previews
 
 A PR with the `preview` label runs on the cluster next to `jjforge-dev`, at
