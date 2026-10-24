@@ -38,19 +38,26 @@ class ControllerContractTest {
     @Test
     fun `every generated interface has a controller`() {
         val implemented = controllers.flatMap { it.interfaces.toList() }.toSet()
-        val missing = scan(API_PACKAGE) { it.isInterface }.filterNot { it in implemented }.map { it.name }
+        val missing =
+            scan(
+                API_PACKAGE,
+            ) { it.isInterface }.filterNot { it in implemented }.map { it.name }
 
         assertEquals(emptyList(), missing)
     }
 
-    /** Finds the classes in [pkg] that carry @RestController, which the generator puts on its interfaces too. */
+    /**
+     * Finds the classes in [pkg] that carry @RestController, which the generator
+     * puts on its interfaces too.
+     */
     private fun scan(
         pkg: String,
         accept: (AnnotationMetadata) -> Boolean,
     ): List<Class<*>> {
         val scanner =
             object : ClassPathScanningCandidateComponentProvider(false) {
-                override fun isCandidateComponent(definition: AnnotatedBeanDefinition) = accept(definition.metadata)
+                override fun isCandidateComponent(definition: AnnotatedBeanDefinition) =
+                    accept(definition.metadata)
             }
         scanner.addIncludeFilter(AnnotationTypeFilter(RestController::class.java))
 

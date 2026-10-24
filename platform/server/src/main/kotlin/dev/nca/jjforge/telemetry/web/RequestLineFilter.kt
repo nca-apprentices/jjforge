@@ -57,7 +57,10 @@ class RequestLineFilter : OncePerRequestFilter() {
         const val CLIENT_ERROR = 400
         const val SERVER_ERROR = 500
 
-        /** The route of a request that no handler matched, so no path a caller sent reaches a line. */
+        /**
+         * The route of a request that no handler matched, so no path a caller sent
+         * reaches a line.
+         */
         const val UNMATCHED = "unmatched"
     }
 }

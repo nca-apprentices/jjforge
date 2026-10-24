@@ -8,6 +8,10 @@ style:
   # Guard clauses return early, so a function may return more than twice.
   ReturnCount:
     active: false
+  # Lines wrap at 100 columns, the width .editorconfig gives ktlint.
+  MaxLineLength:
+    active: true
+    maxLineLength: 100
 naming:
   # Function names stay under 30 characters. A test name is a sentence.
   FunctionNameMaxLength:

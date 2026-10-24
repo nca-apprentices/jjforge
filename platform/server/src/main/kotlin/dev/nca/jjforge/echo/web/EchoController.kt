@@ -11,5 +11,6 @@ import org.springframework.web.bind.annotation.RestController
 class EchoController(
     private val echoes: EchoService,
 ) : EchoApi {
-    override fun echo(echo: Echo): ResponseEntity<Echo> = ResponseEntity.ok(Echo(echoes.echo(echo.message)))
+    override fun echo(echo: Echo): ResponseEntity<Echo> =
+        ResponseEntity.ok(Echo(echoes.echo(echo.message)))
 }

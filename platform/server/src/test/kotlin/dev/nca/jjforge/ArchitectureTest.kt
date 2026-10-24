@@ -26,7 +26,10 @@ import org.springframework.web.client.RestTemplate
  * The server's code rules that the compiler doesn't check, as ADR 0003 and
  * ADR 0005 decide. ControllerContractTest holds the rules for controllers.
  */
-@AnalyzeClasses(packages = ["dev.nca.jjforge"], importOptions = [ImportOption.DoNotIncludeTests::class])
+@AnalyzeClasses(
+    packages = ["dev.nca.jjforge"],
+    importOptions = [ImportOption.DoNotIncludeTests::class],
+)
 class ArchitectureTest {
     @ArchTest
     val settingsComeFromProperties =
@@ -34,7 +37,9 @@ class ArchitectureTest {
             .should()
             .dependOnClassesThat()
             .areAssignableTo(Value::class.java)
-            .because("a setting is a field of a validated @ConfigurationProperties class, not an @Value")
+            .because(
+                "a setting is a field of a validated @ConfigurationProperties class, not an @Value",
+            )
 
     @ArchTest
     val propertiesAreValidated =
@@ -55,7 +60,10 @@ class ArchitectureTest {
             .areMetaAnnotatedWith(Component::class.java)
             .should()
             .beFinal()
-            .because("a component receives its dependencies through its constructor, never through a field or lateinit")
+            .because(
+                "a component receives its dependencies through its constructor, " +
+                    "never through a field or lateinit",
+            )
 
     @ArchTest
     val modulesHaveLayers =
@@ -71,7 +79,10 @@ class ArchitectureTest {
                 "dev.nca.jjforge.*.client..",
                 "dev.nca.jjforge.api..",
                 "dev.nca.jjforge.*.v1..",
-            ).because("a module is its API and the layers web, application, domain, persistence, and client")
+            ).because(
+                "a module is its API and the layers web, application, domain, " +
+                    "persistence, and client",
+            )
 
     @ArchTest
     val layersPointInward =
@@ -129,7 +140,9 @@ class ArchitectureTest {
             .resideOutsideOfPackage("dev.nca.jjforge.api")
             .should()
             .beMetaAnnotatedWith(Component::class.java)
-            .because("a module's top-level package is its API, and its components belong in a layer")
+            .because(
+                "a module's top-level package is its API, and its components belong in a layer",
+            )
 
     @ArchTest
     val controllersLiveInWeb =
@@ -190,7 +203,9 @@ class ArchitectureTest {
             .beAnnotatedWith(EventListener::class.java)
             .orShould()
             .beAnnotatedWith(TransactionalEventListener::class.java)
-            .because("@ApplicationModuleListener runs after the commit, and the registry retries it")
+            .because(
+                "@ApplicationModuleListener runs after the commit, and the registry retries it",
+            )
 
     @ArchTest
     val modernClients =
@@ -211,8 +226,11 @@ class ArchitectureTest {
         noClasses()
             .should()
             .dependOnClassesThat()
-            .belongToAnyOf(java.util.Date::class.java, java.util.Calendar::class.java, java.sql.Timestamp::class.java)
-            .because("java.time holds every instant and date")
+            .belongToAnyOf(
+                java.util.Date::class.java,
+                java.util.Calendar::class.java,
+                java.sql.Timestamp::class.java,
+            ).because("java.time holds every instant and date")
 
     // A line written past SLF4J reaches no log store as JSON and carries no
     // trace.
@@ -230,5 +248,7 @@ class ArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage("io.micrometer.tracing..", "io.opentelemetry..")
-            .because("every request is traced by the telemetry module, so no other code touches a trace")
+            .because(
+                "every request is traced by the telemetry module, so no other code touches a trace",
+            )
 }

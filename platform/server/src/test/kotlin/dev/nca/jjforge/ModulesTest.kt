@@ -60,7 +60,9 @@ class ModulesTest {
             appendLine()
             appendLine("The modules of the server, as `ModulesTest` reads them from the code. An")
             appendLine("arrow points from a module to a module it depends on. Each module's")
-            appendLine("`ModuleMetadata` allows its dependencies, and `ModulesTest` rewrites this page")
+            appendLine(
+                "`ModuleMetadata` allows its dependencies, and `ModulesTest` rewrites this page",
+            )
             appendLine("when they change.")
             appendLine()
             appendLine("```mermaid")

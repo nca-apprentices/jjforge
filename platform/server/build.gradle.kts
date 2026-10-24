@@ -139,7 +139,12 @@ val compileSpec =
     tasks.register<Exec>("compileSpec") {
         onlyIf { !spec.exists() }
         workingDir = layout.projectDirectory.dir("../../contracts/openapi").asFile
-        commandLine("sh", "-c", "corepack pnpm install --frozen-lockfile && corepack pnpm exec redocly bundle openapi.yaml --output ../openapi.yaml")
+        commandLine(
+            "sh",
+            "-c",
+            "corepack pnpm install --frozen-lockfile && " +
+                "corepack pnpm exec redocly bundle openapi.yaml --output ../openapi.yaml",
+        )
     }
 
 tasks.openApiGenerate {
@@ -177,7 +182,10 @@ kover {
                     "dev.nca.jjforge.sync.v1",
                     "dev.nca.jjforge.source.v1",
                 )
-                classes("dev.nca.jjforge.JjforgeApplication", "dev.nca.jjforge.JjforgeApplicationKt")
+                classes(
+                    "dev.nca.jjforge.JjforgeApplication",
+                    "dev.nca.jjforge.JjforgeApplicationKt",
+                )
             }
         }
         verify {

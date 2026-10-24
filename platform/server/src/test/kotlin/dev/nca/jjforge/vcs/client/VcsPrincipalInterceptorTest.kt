@@ -33,7 +33,10 @@ class VcsPrincipalInterceptorTest {
                     headers: Metadata,
                 ) {
                     this.listener = listener
-                    authorization = headers.get(Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER))
+                    authorization =
+                        headers.get(
+                            Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER),
+                        )
                 }
 
                 override fun request(numMessages: Int) = Unit

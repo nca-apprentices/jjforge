@@ -44,7 +44,13 @@ class BodyLimitFilterTest {
 
     @Test
     fun `passes a body at the bound`() {
-        val chain = FilterChain { request, _ -> assertEquals(BOUND, request.inputStream.readAllBytes().size) }
+        val chain =
+            FilterChain {
+                request,
+                _,
+                ->
+                assertEquals(BOUND, request.inputStream.readAllBytes().size)
+            }
 
         filter.doFilter(request(BOUND), MockHttpServletResponse(), chain)
     }

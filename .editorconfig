@@ -10,10 +10,10 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 2
 
-# detekt's MaxLineLength, which ktlint wraps at.
+# detekt's MaxLineLength in platform/server/detekt.yml, which ktlint wraps at.
 [*.{kt,kts}]
 indent_size = 4
-max_line_length = 120
+max_line_length = 100
 
 # rustfmt's defaults.
 [*.rs]

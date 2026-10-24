@@ -82,7 +82,11 @@ class VcsClientTest
         companion object {
             private const val TRACE = "4bf92f3577b34da6a3ce929d0e0e4736"
 
-            private val TRACEPARENT = Metadata.Key.of("traceparent", Metadata.ASCII_STRING_MARSHALLER)
+            private val TRACEPARENT =
+                Metadata.Key.of(
+                    "traceparent",
+                    Metadata.ASCII_STRING_MARSHALLER,
+                )
 
             private val traceparents = CopyOnWriteArrayList<String>()
 

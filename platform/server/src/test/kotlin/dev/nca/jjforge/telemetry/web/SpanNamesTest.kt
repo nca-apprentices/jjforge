@@ -33,7 +33,9 @@ class SpanNamesTest
         private val provider: SdkTracerProvider,
     ) {
         @Test
-        fun `no span or line names an organization or repository of the path`(output: CapturedOutput) {
+        fun `no span or line names an organization or repository of the path`(
+            output: CapturedOutput,
+        ) {
             RestClient
                 .create("http://localhost:$port")
                 .get()
@@ -43,7 +45,11 @@ class SpanNamesTest
 
             val recorded =
                 spans.finishedSpanItems.flatMap { span ->
-                    listOf(span.name) + span.attributes.asMap().values.map(Any::toString)
+                    listOf(span.name) +
+                        span.attributes
+                            .asMap()
+                            .values
+                            .map(Any::toString)
                 }
             assertTrue(recorded.isNotEmpty())
             assertTrue(recorded.none { ORG in it || REPO in it }, recorded.toString())

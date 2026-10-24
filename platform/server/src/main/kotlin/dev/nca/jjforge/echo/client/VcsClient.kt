@@ -17,5 +17,6 @@ class VcsClient(
 ) {
     private val stub = EchoServiceGrpc.newBlockingStub(channels.createChannel(properties.target))
 
-    fun echo(message: String): String = stub.echo(EchoRequest.newBuilder().setMessage(message).build()).message
+    fun echo(message: String): String =
+        stub.echo(EchoRequest.newBuilder().setMessage(message).build()).message
 }

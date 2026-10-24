@@ -12,5 +12,6 @@ import org.springframework.stereotype.Component
  */
 @Component
 class RouteOnlyConvention : DefaultServerRequestObservationConvention() {
-    override fun getHighCardinalityKeyValues(context: ServerRequestObservationContext): KeyValues = KeyValues.empty()
+    override fun getHighCardinalityKeyValues(context: ServerRequestObservationContext): KeyValues =
+        KeyValues.empty()
 }

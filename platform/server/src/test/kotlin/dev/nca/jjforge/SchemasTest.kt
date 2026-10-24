@@ -25,7 +25,10 @@ class SchemasTest(
 
     @Test
     fun `a migration names only its own module's schema`() {
-        val migrations = PathMatchingResourcePatternResolver().getResources("classpath*:db/migration/*/*.sql")
+        val migrations =
+            PathMatchingResourcePatternResolver().getResources(
+                "classpath*:db/migration/*/*.sql",
+            )
 
         for (migration in migrations) {
             val folder =
@@ -57,11 +60,16 @@ class SchemasTest(
                 ).query { row, _ -> row.getString(1) to row.getString(2) }
                 .list()
 
-        val outside = tables.filterNot { (schema, table) -> schema in modules || (schema == "public" && shared(table)) }
+        val outside =
+            tables.filterNot { (schema, table) ->
+                schema in modules ||
+                    (schema == "public" && shared(table))
+            }
         assertEquals(emptyList(), outside)
     }
 
-    private fun shared(table: String) = table == "event_publication" || table.startsWith("flyway_schema_history")
+    private fun shared(table: String) =
+        table == "event_publication" || table.startsWith("flyway_schema_history")
 
     private companion object {
         const val ROOT = "__root"

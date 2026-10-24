@@ -40,6 +40,10 @@ class VcsPrincipalInterceptor(
     }
 
     private companion object {
-        val AUTHORIZATION: Metadata.Key<String> = Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER)
+        val AUTHORIZATION: Metadata.Key<String> =
+            Metadata.Key.of(
+                "authorization",
+                Metadata.ASCII_STRING_MARSHALLER,
+            )
     }
 }

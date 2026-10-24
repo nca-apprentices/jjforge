@@ -46,7 +46,8 @@ class EventPublicationTest(
         }
     }
 
-    private fun publications() = jdbc.sql("SELECT count(*) FROM event_publication").query(Long::class.java).single()
+    private fun publications() =
+        jdbc.sql("SELECT count(*) FROM event_publication").query(Long::class.java).single()
 
     @Test
     fun `keeps a publication until its listener completes`() {

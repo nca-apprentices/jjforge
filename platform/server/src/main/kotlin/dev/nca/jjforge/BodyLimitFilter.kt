@@ -42,7 +42,13 @@ class BodyLimitFilter : OncePerRequestFilter() {
 
         override fun getInputStream(): ServletInputStream = body
 
-        override fun getReader() = BufferedReader(InputStreamReader(body, characterEncoding ?: Charsets.UTF_8.name()))
+        override fun getReader() =
+            BufferedReader(
+                InputStreamReader(
+                    body,
+                    characterEncoding ?: Charsets.UTF_8.name(),
+                ),
+            )
     }
 
     private class BoundedStream(

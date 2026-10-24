@@ -40,7 +40,10 @@ class RequestLineTest
                     .lines()
                     .filter { "\"request\"" in it }
                     .map { jacksonObjectMapper().readTree(it) }
-                    .filter { it["message"].asText() == "request" && it["trace_id"]?.asText() == TRACE }
+                    .filter {
+                        it["message"].asText() == "request" &&
+                            it["trace_id"]?.asText() == TRACE
+                    }
             assertEquals(1, lines.size)
             val line = lines.single()
             assertEquals("GET", line["method"].asText())
