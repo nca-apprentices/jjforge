@@ -1,28 +1,31 @@
 //! The reads that the server makes through `source/v1`: history, trees,
-//! files, and diffs, each at `HEAD`, answered as the messages of
-//! shared/proto/source/v1/.
+//! files, and diffs, each at `HEAD` or at the operation a page token names,
+//! answered as the messages of shared/proto/source/v1/.
 //!
 //! A revision is a bookmark, a prefix of a commit ID in hex, or a prefix of
 //! a change ID in jj's reverse hex. An empty revision is the trunk bookmark.
+
+mod diff;
+mod file;
+mod watch;
+
+pub use diff::DiffPage;
+pub use file::FileRead;
+pub(crate) use watch::HeadSlot;
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
-use futures::AsyncReadExt as _;
 use futures::StreamExt as _;
 use futures::TryStreamExt as _;
 use jj_lib::backend::CommitId;
 use jj_lib::backend::Signature;
 use jj_lib::backend::TreeValue;
 use jj_lib::commit::Commit;
-use jj_lib::diff::ContentDiff;
-use jj_lib::diff::DiffHunkKind;
 use jj_lib::hex_util::encode_hex;
 use jj_lib::hex_util::encode_reverse_hex;
-use jj_lib::matchers::EverythingMatcher;
-use jj_lib::merge::Merge;
 use jj_lib::merged_tree::MergedTree;
 use jj_lib::object_id::HexPrefix;
 use jj_lib::object_id::ObjectId as _;
@@ -31,15 +34,11 @@ use jj_lib::op_store::OperationId as JjOperationId;
 use jj_lib::ref_name::RefName;
 use jj_lib::repo::ReadonlyRepo;
 use jj_lib::repo::Repo as _;
-use jj_lib::repo_path::RepoPath;
 use jj_lib::repo_path::RepoPathBuf;
 use jj_lib::revset::ResolvedRevsetExpression;
 use jjforge_proto::prost_types::Timestamp;
 use jjforge_proto::source::v1 as source;
-use jjforge_proto::source::v1::diff_response::Status;
-use jjforge_proto::source::v1::hunk;
 use jjforge_proto::source::v1::tree_entry::Kind;
-use prost::Message as _;
 
 use super::Repo;
 use super::RepoError;
@@ -49,23 +48,12 @@ use crate::ids::OperationId;
 /// The bookmarks that name trunk, in the order `trunk()` tries them.
 const TRUNK: [&str; 3] = ["main", "master", "trunk"];
 
-/// The most changes one log answers, since `Log` has no pages.
-const LOG_LIMIT: usize = 1000;
+/// The most candidates an ambiguous revision lists.
+const CANDIDATES: usize = 100;
 
 /// The page size of a list that names none, and the most it may name.
 const PAGE_SIZE: usize = 100;
 const MAX_PAGE_SIZE: usize = 1000;
-
-/// The lines of context around each change in a hunk, as `git diff` shows.
-const CONTEXT: usize = 3;
-
-/// The bytes that a file is checked for NUL in, as git does, to call it
-/// binary.
-const BINARY_PROBE: usize = 8000;
-
-/// The most bytes one file's diff takes before vcs drops its hunks, well
-/// below gRPC's default limit of 4 MiB per message.
-const DIFF_LIMIT: usize = 1 << 20;
 
 /// One page of a list.
 pub struct Page<T> {
@@ -75,20 +63,30 @@ pub struct Page<T> {
     pub next: String,
 }
 
-/// A file's bytes in the range a read asked for.
-pub struct FileRead {
-    /// The size of the whole file.
-    pub size: u64,
-    /// Whether the file holds a NUL byte near its start, as git decides.
-    pub binary: bool,
-    /// The bytes of the range.
-    pub bytes: Vec<u8>,
+/// Where a page starts. A token is `{operation}.{offset}`: the operation
+/// that the first page read at, and the offset of the page's first item.
+/// Every later page reads at that operation, so a push between two pages
+/// neither skips nor repeats an item.
+struct Cursor {
+    operation: Option<Vec<u8>>,
+    offset: usize,
 }
 
 impl Repo {
-    /// Runs `read` on jj-lib's repository at `HEAD`. jj-lib's futures aren't
-    /// Send, so it runs on a thread of its own, as a publish does.
+    /// Runs `read` on jj-lib's repository at `HEAD`.
     async fn at_head<T, F, Fut>(&self, read: F) -> Result<T, RepoError>
+    where
+        T: Send + 'static,
+        F: FnOnce(Arc<ReadonlyRepo>) -> Fut + Send + 'static,
+        Fut: Future<Output = Result<T, RepoError>>,
+    {
+        self.at(None, read).await
+    }
+
+    /// Runs `read` on jj-lib's repository at `operation`, or at `HEAD` without
+    /// one. jj-lib's futures aren't Send, so it runs on a thread of its own,
+    /// as a publish does.
+    async fn at<T, F, Fut>(&self, operation: Option<Vec<u8>>, read: F) -> Result<T, RepoError>
     where
         T: Send + 'static,
         F: FnOnce(Arc<ReadonlyRepo>) -> Fut + Send + 'static,
@@ -103,12 +101,16 @@ impl Repo {
                 span.in_scope(|| {
                     runtime.block_on(async {
                         let head = repo.head().await?;
+                        // The catalog holds every operation HEAD reaches, so
+                        // it holds the operation of any earlier page too.
                         repo.advance(head.as_bytes()).await?;
                         let loader = repo.loader(HashMap::new())?;
+                        let pinned = operation.is_some();
+                        let id = operation.unwrap_or_else(|| head.to_vec());
                         let operation = loader
-                            .load_operation(&JjOperationId::new(head.to_vec()))
+                            .load_operation(&JjOperationId::new(id))
                             .await
-                            .map_err(internal)?;
+                            .map_err(|err| if pinned { stale_token() } else { internal(err) })?;
                         let jj = loader.load_at(&operation).await.map_err(internal)?;
                         read(jj).await
                     })
@@ -136,28 +138,44 @@ impl Repo {
         .await
     }
 
-    /// The change that `rev` names.
+    /// The change that `rev` names, and the first page of the files it
+    /// touches against its parents, which [`Repo::changed_files`] continues.
     ///
     /// # Errors
     ///
     /// Fails as [`Repo::resolve`] does.
-    pub async fn change(&self, rev: &str) -> Result<source::Change, RepoError> {
+    pub async fn change(&self, rev: &str) -> Result<source::GetChangeResponse, RepoError> {
         let rev = rev.to_owned();
+        let this = self.clone();
         self.at_head(move |repo| async move {
             let commit = commit(&repo, &rev).await?;
-            Ok(change(&repo, &commit))
+            let before = parent_tree(&repo, &commit).await?;
+            let files =
+                diff::files_page(&this, &repo, &before, &commit.tree(), 0, PAGE_SIZE).await?;
+            Ok(source::GetChangeResponse {
+                change: Some(change(&repo, &commit)),
+                files: files.items,
+                files_next_page_token: files.next,
+            })
         })
         .await
     }
 
-    /// The changes that `rev` reaches, newest first, at most `LOG_LIMIT`.
+    /// One page of the changes that `rev` reaches, newest first.
     ///
     /// # Errors
     ///
-    /// Fails as [`Repo::resolve`] does.
-    pub async fn log(&self, rev: &str) -> Result<Vec<source::Change>, RepoError> {
-        let rev = rev.to_owned();
-        self.at_head(move |repo| async move {
+    /// Fails as [`Repo::resolve`] does, or on a page token this call didn't
+    /// give.
+    pub async fn log(
+        &self,
+        rev: &str,
+        token: &str,
+        size: i32,
+    ) -> Result<Page<source::Change>, RepoError> {
+        let (rev, cursor, size) = (rev.to_owned(), cursor(token)?, page_size(size));
+        let offset = cursor.offset;
+        self.at(cursor.operation, move |repo| async move {
             let start = commit(&repo, &rev).await?;
             // The root commit is no change anyone made, as `jj log` hides it.
             let revset = ResolvedRevsetExpression::commit(start.id().clone())
@@ -167,7 +185,8 @@ impl Repo {
                 .map_err(internal)?;
             let ids: Vec<CommitId> = revset
                 .stream()
-                .take(LOG_LIMIT)
+                .skip(offset)
+                .take(size + 1)
                 .try_collect()
                 .await
                 .map_err(internal)?;
@@ -176,7 +195,7 @@ impl Repo {
                 let commit = repo.store().get_commit_async(&id).await.map_err(internal)?;
                 changes.push(change(&repo, &commit));
             }
-            Ok(changes)
+            Ok(page(&repo, changes, offset, size))
         })
         .await
     }
@@ -193,8 +212,9 @@ impl Repo {
         token: &str,
         size: i32,
     ) -> Result<Page<source::Version>, RepoError> {
-        let (rev, offset, size) = (rev.to_owned(), offset(token)?, page_size(size));
-        self.at_head(move |repo| async move {
+        let (rev, cursor, size) = (rev.to_owned(), cursor(token)?, page_size(size));
+        let offset = cursor.offset;
+        self.at(cursor.operation, move |repo| async move {
             let start = commit(&repo, &rev).await?;
             let entries: Vec<_> =
                 jj_lib::evolution::walk_predecessors(&repo, &[start.id().clone()])
@@ -215,7 +235,7 @@ impl Repo {
                         .unwrap_or_default(),
                 })
                 .collect();
-            Ok(page(versions, offset, size))
+            Ok(page(&repo, versions, offset, size))
         })
         .await
     }
@@ -230,8 +250,9 @@ impl Repo {
         token: &str,
         size: i32,
     ) -> Result<Page<source::Operation>, RepoError> {
-        let (offset, size) = (offset(token)?, page_size(size));
-        self.at_head(move |repo| async move {
+        let (cursor, size) = (cursor(token)?, page_size(size));
+        let offset = cursor.offset;
+        self.at(cursor.operation, move |repo| async move {
             let operations: Vec<_> =
                 jj_lib::op_walk::walk_ancestors(std::slice::from_ref(repo.operation()))
                     // The root operation is no change anyone made, as a watch
@@ -259,7 +280,7 @@ impl Repo {
                     }
                 })
                 .collect();
-            Ok(page(operations, offset, size))
+            Ok(page(&repo, operations, offset, size))
         })
         .await
     }
@@ -274,8 +295,9 @@ impl Repo {
         token: &str,
         size: i32,
     ) -> Result<Page<source::Bookmark>, RepoError> {
-        let (offset, size) = (offset(token)?, page_size(size));
-        self.at_head(move |repo| async move {
+        let (cursor, size) = (cursor(token)?, page_size(size));
+        let offset = cursor.offset;
+        self.at(cursor.operation, move |repo| async move {
             let mut bookmarks = vec![];
             for (name, target) in repo.view().local_bookmarks().skip(offset).take(size + 1) {
                 let mut changes = vec![];
@@ -288,13 +310,14 @@ impl Repo {
                     target_change_ids: changes,
                 });
             }
-            Ok(page(bookmarks, offset, size))
+            Ok(page(&repo, bookmarks, offset, size))
         })
         .await
     }
 
-    /// The entries of the directory at `path` in the tree of `rev`, by name.
-    /// A conflicted directory lists the names of every side.
+    /// The entries of the directory at `path` in the tree of `rev`,
+    /// directories first, then by name. A conflicted directory lists the
+    /// names of every side.
     ///
     /// # Errors
     ///
@@ -307,10 +330,11 @@ impl Repo {
         token: &str,
         size: i32,
     ) -> Result<Page<source::TreeEntry>, RepoError> {
-        let (rev, offset, size) = (rev.to_owned(), offset(token)?, page_size(size));
+        let (rev, cursor, size) = (rev.to_owned(), cursor(token)?, page_size(size));
+        let offset = cursor.offset;
         let dir = repo_path(path)?;
         let page = self
-            .at_head(move |repo| async move {
+            .at(cursor.operation, move |repo| async move {
                 let commit = commit(&repo, &rev).await?;
                 let trees = commit.tree().trees().await.map_err(internal)?;
                 let mut names = BTreeMap::new();
@@ -333,6 +357,9 @@ impl Repo {
                     )));
                 }
 
+                let mut names: Vec<_> = names.into_iter().collect();
+                // The sort is stable, so each group keeps the order of names.
+                names.sort_by_key(|(_, value)| !is_directory(value));
                 let mut entries = vec![];
                 for (name, value) in names.into_iter().skip(offset).take(size + 1) {
                     let path = dir
@@ -350,7 +377,7 @@ impl Repo {
                     };
                     entries.push((entry, file));
                 }
-                Ok(page(entries, offset, size))
+                Ok(page(&repo, entries, offset, size))
             })
             .await?;
 
@@ -370,107 +397,6 @@ impl Repo {
             items,
             next: page.next,
         })
-    }
-
-    async fn file_size(&self, id: &[u8]) -> Option<u64> {
-        let catalog = self.catalog.read().await;
-        let range = &catalog.locations.get(id)?.range;
-        content_len(range.end - range.start)
-    }
-
-    /// The bytes of the file at `path` in the tree of `rev`, from `offset`,
-    /// `length` of them or all to the end when `length` is 0.
-    ///
-    /// # Errors
-    ///
-    /// Fails as [`Repo::resolve`] does, or when `path` is no file or a
-    /// conflicted one.
-    pub async fn file(
-        &self,
-        rev: &str,
-        path: &str,
-        offset: u64,
-        length: u64,
-    ) -> Result<FileRead, RepoError> {
-        let rev = rev.to_owned();
-        let path = repo_path(path)?;
-        // The read stops at the end of the range, or at the bytes that tell
-        // whether the file is binary, and the range is cut out in place, so a
-        // large file isn't copied again.
-        let end = match length {
-            0 => u64::MAX,
-            length => offset.saturating_add(length),
-        };
-        let probe = BINARY_PROBE as u64;
-        let (id, mut bytes) = self
-            .at_head(move |repo| async move {
-                let commit = commit(&repo, &rev).await?;
-                let value = commit.tree().path_value(&path).await.map_err(internal)?;
-                let Some(Some(TreeValue::File { id, .. })) = value.as_resolved() else {
-                    return Err(RepoError::NotFound(format!(
-                        "file {}",
-                        path.as_internal_file_string()
-                    )));
-                };
-                let mut reader = repo.store().read_file(&path, id).await.map_err(internal)?;
-                let mut bytes = vec![];
-                (&mut reader)
-                    .take(end.max(probe))
-                    .read_to_end(&mut bytes)
-                    .await
-                    .map_err(internal)?;
-                Ok((id.to_bytes(), bytes))
-            })
-            .await?;
-        let binary = is_binary(&bytes);
-        let size = match self.file_size(&id).await {
-            Some(size) => size,
-            None => bytes.len() as u64,
-        };
-        let clamp = |at: u64| usize::try_from(at).unwrap_or(usize::MAX).min(bytes.len());
-        let (start, end) = (clamp(offset), clamp(end));
-        bytes.truncate(end);
-        bytes.drain(..start.min(end));
-        Ok(FileRead {
-            size,
-            binary,
-            bytes,
-        })
-    }
-
-    /// One `DiffResponse` per changed file: of `rev` against its parents
-    /// when `rev` is set, otherwise from `from` to `to`. A conflicted side
-    /// shows no hunks.
-    ///
-    /// # Errors
-    ///
-    /// Fails as [`Repo::resolve`] does.
-    pub async fn diff(
-        &self,
-        rev: &str,
-        from: &str,
-        to: &str,
-    ) -> Result<Vec<source::DiffResponse>, RepoError> {
-        let (rev, from, to) = (rev.to_owned(), from.to_owned(), to.to_owned());
-        self.at_head(move |repo| async move {
-            let (before, after) = if rev.is_empty() {
-                let from = commit(&repo, &from).await?.tree();
-                let to = commit(&repo, &to).await?.tree();
-                (from, to)
-            } else {
-                let commit = commit(&repo, &rev).await?;
-                // A merge's parents merge without resolving, since resolving
-                // writes trees that a read never may. `contents` resolves each
-                // path that merges cleanly.
-                let parent = commit
-                    .parent_tree_no_resolve(repo.as_ref())
-                    .await
-                    .map_err(internal)?;
-                (parent, commit.tree())
-            };
-            diff(&repo, &before, &after).await
-        })
-        .await
     }
 }
 
@@ -522,8 +448,10 @@ impl Repo {
     }
 
     /// Each operation after `since`, oldest first, then each new one as it
-    /// lands, read from `HEAD` every `poll`, since another replica may move
-    /// it. The stream ends after its first error.
+    /// lands. Every watch of the repository on this replica shares one read
+    /// of `HEAD` every `poll`, since another replica may move it, and a push
+    /// through this replica wakes them at once. The stream ends after its
+    /// first error.
     pub fn watch(
         &self,
         since: Option<OperationId>,
@@ -533,6 +461,7 @@ impl Repo {
             repo: Repo,
             since: Option<OperationId>,
             pending: std::collections::VecDeque<source::Operation>,
+            moves: watch::Moves,
             first: bool,
             done: bool,
         }
@@ -540,6 +469,7 @@ impl Repo {
             repo: self.clone(),
             since,
             pending: std::collections::VecDeque::new(),
+            moves: self.head_poll.subscribe(self, poll),
             first: true,
             done: false,
         };
@@ -552,7 +482,7 @@ impl Repo {
                     return Some((Ok(operation), watch));
                 }
                 if !watch.first {
-                    tokio::time::sleep(poll).await;
+                    watch.moves.next().await;
                 }
                 watch.first = false;
                 match watch.repo.operations_after(watch.since).await {
@@ -595,13 +525,7 @@ async fn resolve(repo: &Arc<ReadonlyRepo>, rev: &str) -> Result<CommitId, RepoEr
     if bookmark.is_present() {
         return match bookmark.as_normal() {
             Some(id) => Ok(id.clone()),
-            None => Err(RepoError::Ambiguous(
-                rev.to_owned(),
-                bookmark
-                    .present_adds()
-                    .map(jj_lib::object_id::ObjectId::hex)
-                    .collect(),
-            )),
+            None => Err(ambiguous(repo, rev, bookmark.present_adds().cloned().collect()).await),
         };
     }
 
@@ -615,7 +539,7 @@ async fn resolve(repo: &Arc<ReadonlyRepo>, rev: &str) -> Result<CommitId, RepoEr
         {
             PrefixResolution::SingleMatch(id) => candidates.push(id),
             PrefixResolution::AmbiguousMatch => {
-                return Err(RepoError::Ambiguous(rev.to_owned(), vec![]));
+                return Err(ambiguous(repo, rev, matching(repo, rev).await?).await);
             }
             PrefixResolution::NoMatch => {}
         }
@@ -630,7 +554,7 @@ async fn resolve(repo: &Arc<ReadonlyRepo>, rev: &str) -> Result<CommitId, RepoEr
                 candidates.extend(targets.visible_with_offsets().map(|(_, id)| id.clone()));
             }
             PrefixResolution::AmbiguousMatch => {
-                return Err(RepoError::Ambiguous(rev.to_owned(), vec![]));
+                return Err(ambiguous(repo, rev, matching(repo, rev).await?).await);
             }
             PrefixResolution::NoMatch => {}
         }
@@ -638,14 +562,55 @@ async fn resolve(repo: &Arc<ReadonlyRepo>, rev: &str) -> Result<CommitId, RepoEr
     match candidates.len() {
         0 => Err(not_found()),
         1 => Ok(candidates.remove(0)),
-        _ => Err(RepoError::Ambiguous(
-            rev.to_owned(),
-            candidates
-                .iter()
-                .map(jj_lib::object_id::ObjectId::hex)
-                .collect(),
-        )),
+        _ => Err(ambiguous(repo, rev, candidates).await),
     }
+}
+
+/// The visible commits whose commit ID or change ID starts with `prefix`,
+/// at most `CANDIDATES` of them. It reads every visible commit, which only
+/// a revision that is already ambiguous pays for.
+async fn matching(repo: &ReadonlyRepo, prefix: &str) -> Result<Vec<CommitId>, RepoError> {
+    let revset = ResolvedRevsetExpression::visible_heads()
+        .ancestors()
+        .minus(&ResolvedRevsetExpression::root())
+        .evaluate(repo)
+        .map_err(internal)?;
+    revset
+        .commit_change_ids()
+        .try_filter(|(commit, change)| {
+            std::future::ready(
+                commit.hex().starts_with(prefix)
+                    || encode_reverse_hex(change.as_bytes()).starts_with(prefix),
+            )
+        })
+        .map_ok(|(commit, _)| commit)
+        .take(CANDIDATES)
+        .try_collect()
+        .await
+        .map_err(internal)
+}
+
+/// The error for a revision that names each of `ids`, with their changes
+/// by commit ID.
+async fn ambiguous(repo: &ReadonlyRepo, rev: &str, mut ids: Vec<CommitId>) -> RepoError {
+    ids.sort();
+    ids.dedup();
+    ids.truncate(CANDIDATES);
+    let mut candidates = Vec::with_capacity(ids.len());
+    for id in &ids {
+        match repo.store().get_commit_async(id).await {
+            Ok(commit) => candidates.push(change(repo, &commit)),
+            Err(err) => return internal(err),
+        }
+    }
+    RepoError::Ambiguous(rev.to_owned(), candidates)
+}
+
+/// The tree a change is compared with: its parents', merged without
+/// resolving, since resolving writes trees that a read never may.
+/// `contents` resolves each path that merges cleanly.
+async fn parent_tree(repo: &ReadonlyRepo, commit: &Commit) -> Result<MergedTree, RepoError> {
+    commit.parent_tree_no_resolve(repo).await.map_err(internal)
 }
 
 fn change(repo: &ReadonlyRepo, commit: &Commit) -> source::Change {
@@ -692,40 +657,35 @@ fn repo_path(path: &str) -> Result<RepoPathBuf, RepoError> {
         .map_err(|err| RepoError::Invalid(format!("path {path}: {err}")))
 }
 
-async fn read_all(
-    repo: &ReadonlyRepo,
-    path: &RepoPath,
-    id: &jj_lib::backend::FileId,
-) -> Result<Vec<u8>, RepoError> {
-    let mut reader = repo.store().read_file(path, id).await.map_err(internal)?;
-    let mut bytes = vec![];
-    reader.read_to_end(&mut bytes).await.map_err(internal)?;
-    Ok(bytes)
+fn is_directory(value: &TreeValue) -> bool {
+    matches!(value, TreeValue::Tree(_) | TreeValue::GitSubmodule(_))
 }
 
-/// The length of the content of a `StoredObject` of `encoded` bytes that
-/// holds one `File`: a tag and a length around the `File`, which is a tag and
-/// a length around the content, or nothing for an empty file.
-fn content_len(encoded: u64) -> Option<u64> {
-    let varint = |n: u64| u64::from(64 - n.max(1).leading_zeros()).div_ceil(7);
-    (encoded.saturating_sub(22)..=encoded).find(|&n| {
-        let file = if n == 0 { 0 } else { 1 + varint(n) + n };
-        1 + varint(file) + file == encoded
+fn cursor(token: &str) -> Result<Cursor, RepoError> {
+    if token.is_empty() {
+        return Ok(Cursor {
+            operation: None,
+            offset: 0,
+        });
+    }
+    let invalid = || RepoError::Invalid(format!("page token {token} is not one this call gave"));
+    let (operation, offset) = token.split_once('.').ok_or_else(invalid)?;
+    let operation: OperationId = operation.parse().map_err(|_| invalid())?;
+    Ok(Cursor {
+        operation: Some(operation.to_vec()),
+        offset: offset.parse().map_err(|_| invalid())?,
     })
 }
 
-fn is_binary(bytes: &[u8]) -> bool {
-    bytes[..bytes.len().min(BINARY_PROBE)].contains(&0)
+/// A token names an operation that the repository doesn't hold, such as one
+/// of a repository created again under the same IDs.
+fn stale_token() -> RepoError {
+    RepoError::Invalid("the page token names an operation the repository lacks".to_owned())
 }
 
-/// A page token is the offset of the page's first item, in decimal.
-fn offset(token: &str) -> Result<usize, RepoError> {
-    if token.is_empty() {
-        return Ok(0);
-    }
-    token
-        .parse()
-        .map_err(|_| RepoError::Invalid(format!("page token {token} is not one this call gave")))
+/// The token of the page at `offset`, read at the operation of `repo`.
+fn token(repo: &ReadonlyRepo, offset: usize) -> String {
+    format!("{}.{offset}", repo.operation().id().hex())
 }
 
 fn page_size(size: i32) -> usize {
@@ -737,270 +697,29 @@ fn page_size(size: i32) -> usize {
 
 /// The page of `items`, which holds one more than `size` when another page
 /// follows.
-fn page<T>(mut items: Vec<T>, offset: usize, size: usize) -> Page<T> {
+fn page<T>(repo: &ReadonlyRepo, mut items: Vec<T>, offset: usize, size: usize) -> Page<T> {
     let next = if items.len() > size {
         items.truncate(size);
-        (offset + size).to_string()
+        token(repo, offset + size)
     } else {
         String::new()
     };
     Page { items, next }
 }
 
-async fn diff(
-    repo: &ReadonlyRepo,
-    before: &MergedTree,
-    after: &MergedTree,
-) -> Result<Vec<source::DiffResponse>, RepoError> {
-    let entries: Vec<_> = before
-        .diff_stream(after, &EverythingMatcher)
-        .collect()
-        .await;
-    let mut files = vec![];
-    for entry in entries {
-        let values = entry.values.map_err(internal)?;
-        let before = resolved(&values.before);
-        let after = resolved(&values.after);
-        if before == after {
-            continue;
-        }
-        let status = match (before.is_absent(), after.is_absent()) {
-            (true, _) => Status::Added,
-            (_, true) => Status::Deleted,
-            _ => Status::Modified,
-        };
-        let old = contents(repo, &entry.path, &before).await?;
-        let new = contents(repo, &entry.path, &after).await?;
-        let (binary, hunks) = match (old, new) {
-            (Some(old), Some(new)) if is_binary(&old) || is_binary(&new) => (true, vec![]),
-            (Some(old), Some(new)) => (false, hunks(&old, &new)),
-            _ => (false, vec![]),
-        };
-        let mut file = source::DiffResponse {
-            path: entry.path.as_internal_file_string().to_owned(),
-            old_path: String::new(),
-            status: status.into(),
-            binary,
-            hunks,
-            truncated: false,
-        };
-        if file.encoded_len() > DIFF_LIMIT {
-            file.hunks.clear();
-            file.truncated = true;
-        }
-        files.push(file);
-    }
-    Ok(files)
-}
-
-/// A side of a diff with its trivial conflicts resolved, as a clean merge
-/// of the parents of a merge commit leaves them.
-fn resolved(value: &Merge<Option<TreeValue>>) -> Merge<Option<TreeValue>> {
-    value
-        .resolve_trivial(jj_lib::merge::SameChange::Accept)
-        .map_or_else(
-            || value.clone(),
-            |resolved| Merge::resolved(resolved.clone()),
-        )
-}
-
-/// The bytes of a side of a diff: empty when absent, `None` when it is no
-/// resolved file, such as a conflict or a symbolic link.
-async fn contents(
-    repo: &ReadonlyRepo,
-    path: &RepoPath,
-    value: &Merge<Option<TreeValue>>,
-) -> Result<Option<Vec<u8>>, RepoError> {
-    match value.as_resolved() {
-        Some(None) => Ok(Some(vec![])),
-        Some(Some(TreeValue::File { id, .. })) => read_all(repo, path, id).await.map(Some),
-        _ => Ok(None),
-    }
-}
-
-/// One line of a diff, before hunks group them.
-struct DiffLine {
-    kind: hunk::line::Kind,
-    text: String,
-}
-
-/// The unified hunks between `old` and `new`, with `CONTEXT` lines around
-/// each change. Changes closer than twice `CONTEXT` share a hunk.
-fn hunks(old: &[u8], new: &[u8]) -> Vec<source::Hunk> {
-    let mut lines = vec![];
-    for hunk in ContentDiff::by_line([old, new]).hunks() {
-        let text = |bytes: &[u8]| -> Vec<String> {
-            bytes
-                .split_inclusive(|byte| *byte == b'\n')
-                .map(|line| String::from_utf8_lossy(line).into_owned())
-                .collect()
-        };
-        match hunk.kind {
-            DiffHunkKind::Matching => {
-                lines.extend(text(hunk.contents[0]).into_iter().map(|text| DiffLine {
-                    kind: hunk::line::Kind::Context,
-                    text,
-                }));
-            }
-            DiffHunkKind::Different => {
-                lines.extend(text(hunk.contents[0]).into_iter().map(|text| DiffLine {
-                    kind: hunk::line::Kind::Removed,
-                    text,
-                }));
-                lines.extend(text(hunk.contents[1]).into_iter().map(|text| DiffLine {
-                    kind: hunk::line::Kind::Added,
-                    text,
-                }));
-            }
-        }
-    }
-
-    let changed: Vec<usize> = lines
-        .iter()
-        .enumerate()
-        .filter(|(_, line)| line.kind != hunk::line::Kind::Context)
-        .map(|(i, _)| i)
-        .collect();
-    let mut ranges: Vec<(usize, usize)> = vec![];
-    for i in changed {
-        let (start, end) = (
-            i.saturating_sub(CONTEXT),
-            (i + CONTEXT + 1).min(lines.len()),
-        );
-        match ranges.last_mut() {
-            Some(last) if start <= last.1 => last.1 = end,
-            _ => ranges.push((start, end)),
-        }
-    }
-
-    // Line numbers count from 1, and each kind of line moves one side.
-    let (mut old_line, mut new_line, mut at) = (1, 1, 0);
-    let mut hunks = vec![];
-    for (start, end) in ranges {
-        for line in &lines[at..start] {
-            step(line.kind, &mut old_line, &mut new_line);
-        }
-        let (old_start, new_start) = (old_line, new_line);
-        let mut out = vec![];
-        for line in &lines[start..end] {
-            step(line.kind, &mut old_line, &mut new_line);
-            out.push(source::hunk::Line {
-                kind: line.kind.into(),
-                text: line.text.clone(),
-            });
-        }
-        at = end;
-        // A side without lines starts at the line before the hunk, as git
-        // shows an added or a deleted file as `-0,0` or `+0,0`.
-        let start = |start: i32, lines: i32| if lines == 0 { start - 1 } else { start };
-        hunks.push(source::Hunk {
-            old_start: start(old_start, old_line - old_start),
-            old_lines: old_line - old_start,
-            new_start: start(new_start, new_line - new_start),
-            new_lines: new_line - new_start,
-            lines: out,
-        });
-    }
-    hunks
-}
-
-fn step(kind: hunk::line::Kind, old_line: &mut i32, new_line: &mut i32) {
-    match kind {
-        hunk::line::Kind::Removed => *old_line += 1,
-        hunk::line::Kind::Added => *new_line += 1,
-        _ => {
-            *old_line += 1;
-            *new_line += 1;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn kinds(hunk: &source::Hunk) -> String {
-        hunk.lines
-            .iter()
-            .map(|line| match line.kind() {
-                hunk::line::Kind::Added => '+',
-                hunk::line::Kind::Removed => '-',
-                _ => ' ',
-            })
-            .collect()
-    }
-
     #[test]
-    fn a_change_shows_with_three_lines_of_context() {
-        let old = b"1\n2\n3\n4\n5\n6\n7\n8\n9\n";
-        let new = b"1\n2\n3\n4\nfive\n6\n7\n8\n9\n";
+    fn a_token_names_the_operation_and_the_offset() {
+        let operation = "07".repeat(32);
 
-        let hunks = hunks(old, new);
+        let cursor = cursor(&format!("{operation}.12")).unwrap();
 
-        assert_eq!(hunks.len(), 1);
-        assert_eq!(kinds(&hunks[0]), "   -+   ");
-        assert_eq!((hunks[0].old_start, hunks[0].old_lines), (2, 7));
-        assert_eq!((hunks[0].new_start, hunks[0].new_lines), (2, 7));
-    }
-
-    #[test]
-    fn distant_changes_get_hunks_of_their_own() {
-        let old: Vec<u8> = (1..=20)
-            .flat_map(|n| format!("{n}\n").into_bytes())
-            .collect();
-        let new: Vec<u8> = (1..=20)
-            .flat_map(|n| match n {
-                2 => "two\n".to_owned().into_bytes(),
-                19 => "nineteen\n".to_owned().into_bytes(),
-                n => format!("{n}\n").into_bytes(),
-            })
-            .collect();
-
-        let hunks = hunks(&old, &new);
-
-        assert_eq!(hunks.len(), 2);
-        assert_eq!(hunks[1].old_start, 16);
-    }
-
-    #[test]
-    fn a_file_object_names_the_length_of_its_content() {
-        use jjforge_proto::store::v1::File;
-        use jjforge_proto::store::v1::StoredObject;
-        use jjforge_proto::store::v1::stored_object::Kind;
-        use prost::Message as _;
-
-        for size in [0, 1, 127, 128, 16_383, 16_384, 70_000_000] {
-            let object = StoredObject {
-                kind: Some(Kind::File(File {
-                    content: vec![0; size],
-                })),
-            };
-
-            let encoded = object.encoded_len() as u64;
-
-            assert_eq!(content_len(encoded), Some(size as u64), "{size}");
-        }
-    }
-
-    #[test]
-    fn an_added_file_starts_its_old_side_at_zero() {
-        let hunks = hunks(b"", b"one\n");
-
-        assert_eq!((hunks[0].old_start, hunks[0].old_lines), (0, 0));
-        assert_eq!((hunks[0].new_start, hunks[0].new_lines), (1, 1));
-    }
-
-    #[test]
-    fn a_nul_byte_marks_a_file_binary() {
-        assert!(is_binary(b"PNG\0"));
-        assert!(!is_binary(b"text\n"));
-    }
-
-    #[test]
-    fn a_page_holds_its_size_and_names_the_next() {
-        let page = page(vec![1, 2, 3], 10, 2);
-
-        assert_eq!(page.items, [1, 2]);
-        assert_eq!(page.next, "12");
+        assert_eq!(cursor.operation, Some(vec![7; 32]));
+        assert_eq!(cursor.offset, 12);
+        assert!(super::cursor("12").is_err());
+        assert!(super::cursor(&format!("{operation}.x")).is_err());
     }
 }

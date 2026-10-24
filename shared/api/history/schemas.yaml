@@ -63,7 +63,11 @@ Change:
       type: array
       items:
         $ref: schemas.yaml#/ChangedFile
-  description: A change with its committer and the files it touches.
+      description: The first page of the files the change touches, by path.
+    filesNext:
+      type: string
+      description: Set while more files follow. `listChangedFiles` takes it as its cursor.
+  description: A change with its committer and the first page of the files it touches.
 
 ChangePage:
   type: object
@@ -108,6 +112,19 @@ ChangeSummary:
       type: array
       items:
         type: string
+
+ChangedFilePage:
+  type: object
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      items:
+        $ref: schemas.yaml#/ChangedFile
+    next:
+      type: string
+  description: One page of a list. `next` is set while more pages exist.
 
 ChangedFile:
   type: object

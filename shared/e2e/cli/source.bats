@@ -82,3 +82,19 @@ call() {
   [ "$(jq -rs 'length' <watch.json)" = "1" ]
   [ "$(jq -rs '.[0].operation.parentIds[0]' <watch.json)" = "$head" ]
 }
+
+@test "a change lists its first files, and ListChangedFiles the rest" {
+  for n in $(seq -w 1 150); do echo "$n" >"owner/f$n"; done
+  copy acme_owner jf -R owner commit -m "many"
+  copy acme_owner jf -R owner bookmark set main -r @-
+  copy acme_owner jf -R owner push --bookmark main
+
+  first=$(call HistoryService/GetChange '"rev": "main"')
+  [ "$(jq '.files | length' <<<"$first")" = "100" ]
+  token=$(jq -r .filesNextPageToken <<<"$first")
+  run call DiffService/ListChangedFiles "\"rev\": \"main\", \"pageToken\": \"$token\""
+  [ "$status" -eq 0 ]
+  [ "$(jq '.files | length' <<<"$output")" = "50" ]
+  [ "$(jq -r '.files[0].path' <<<"$output")" = "f101" ]
+  [ "$(jq -r '.nextPageToken' <<<"$output")" = "null" ]
+}

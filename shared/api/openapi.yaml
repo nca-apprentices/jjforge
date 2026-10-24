@@ -86,6 +86,8 @@ paths:
     $ref: history/paths.yaml#/change
   /api/v1/orgs/{org}/repos/{repo}/changes/{rev}/evolution:
     $ref: history/paths.yaml#/evolution
+  /api/v1/orgs/{org}/repos/{repo}/changes/{rev}/files:
+    $ref: history/paths.yaml#/changedFiles
   /api/v1/orgs/{org}/repos/{repo}/contents:
     $ref: files/paths.yaml#/contents
   /api/v1/orgs/{org}/repos/{repo}/diff:
