@@ -82,3 +82,20 @@ call() {
   [ "$(jq -rs 'length' <watch.json)" = "1" ]
   [ "$(jq -rs '.[0].operation.parentIds[0]' <watch.json)" = "$head" ]
 }
+
+# grpcurl keeps gRPC's default limit of 4 MiB per message. 8,000 paths of
+# about 610 bytes take about 4.9 MB, so GetChange must list fewer. macOS
+# allows paths of 1,024 bytes, so the paths stay shorter.
+@test "the files of a change with long paths reach a client with the default limit" {
+  part=$(printf 'd%.0s' {1..200})
+  dir="owner/$part/$part/$part"
+  mkdir -p "$dir"
+  for n in $(seq -w 1 8000); do echo "$n" >"$dir/f$n"; done
+  copy acme_owner jf -R owner commit -m "many"
+  copy acme_owner jf -R owner bookmark set main -r @-
+  copy acme_owner jf -R owner push --bookmark main
+
+  run call HistoryService/GetChange '"rev": "main"'
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.filesTruncated' <<<"$output")" = "true" ]
+}

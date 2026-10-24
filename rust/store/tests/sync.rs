@@ -1470,6 +1470,28 @@ fn the_diff_of_a_file_over_four_mib_is_truncated_unread() {
 }
 
 #[test]
+fn the_files_of_a_change_with_long_paths_fit_in_one_grpc_message() {
+    use prost::Message as _;
+
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.commit(None, "main", "README", "one\n");
+    // 5,000 paths of about 970 bytes take about 4.9 MB.
+    let dir = vec!["d".repeat(240); 4].join("/");
+    let paths: Vec<_> = (0..5000).map(|n| format!("{dir}/f{n:04}")).collect();
+    let adds: Vec<_> = paths.iter().map(|path| (path.as_str(), "x\n")).collect();
+    ada.change("main", &[], &adds);
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let change = block_on_tokio(repo.change("main")).unwrap();
+
+    assert!(change.encoded_len() < GRPC_MESSAGE_LIMIT);
+    assert!(change.files_truncated);
+    assert!(change.files.len() > 3000, "{}", change.files.len());
+}
+
+#[test]
 fn watches_of_one_repository_share_a_poll_and_wake_on_a_push() {
     use futures::StreamExt as _;
 

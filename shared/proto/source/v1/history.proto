@@ -93,8 +93,9 @@ message GetChangeRequest {
 
 message GetChangeResponse {
   Change change = 1;
-  // The files the change touches against its parents, by path, at most
-  // 10,000 of them.
+  // The files the change touches against its parents, by path, as many as
+  // fit in 3 MiB, so the response stays below gRPC's default limit of
+  // 4 MiB.
   repeated ChangedFile files = 2;
   // Set when the change touches more files than `files` lists. Diff pages
   // through every one.
