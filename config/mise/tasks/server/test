@@ -6,9 +6,12 @@ set -euo pipefail
 # Testcontainers starts Postgres through the podman machine's
 # Docker-compatible socket when one runs, and through Docker otherwise, as in
 # CI. Ryuk, which removes the containers, mounts the socket inside the machine.
+# That socket is /run/podman/podman.sock on a rootful machine and
+# /run/user/<uid>/podman/podman.sock on a rootless one, so podman names it.
 if [[ -z ${DOCKER_HOST:-} ]] && socket=$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}' 2>/dev/null); then
   export DOCKER_HOST=unix://$socket
-  export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/run/podman/podman.sock
+  inside=$(podman info --format '{{.Host.RemoteSocket.Path}}')
+  export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=${inside#unix://}
 fi
 
 gradle -p platform/server build
