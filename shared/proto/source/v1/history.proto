@@ -42,8 +42,10 @@ message Change {
   string description = 3;
   Signature author = 4;
   Signature committer = 5;
+  // Bounded: one parent, or the few parents of a merge.
   repeated string parent_commit_ids = 6;
   bool conflicted = 7;
+  // Bounded: the few bookmarks that point at this commit.
   repeated string bookmarks = 8;
 }
 
@@ -105,6 +107,7 @@ message Operation {
   google.protobuf.Timestamp time = 2;
   string principal_id = 3;
   string description = 4;
+  // Bounded: vcs writes a log without merges, so one parent.
   repeated string parent_ids = 5;
 }
 
@@ -122,6 +125,8 @@ message ListBookmarksRequest {
 message Bookmark {
   string name = 1;
   // More than one target means the bookmark is conflicted.
+  //
+  // Bounded: one target, or the few sides of a conflict.
   repeated string target_change_ids = 2;
 }
 

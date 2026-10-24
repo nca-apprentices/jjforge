@@ -31,6 +31,7 @@ nav = [
       { "0003 Checked code rules" = "adr/0003-checked-code-rules.md" },
       { "0004 Specified, tested, built" = "adr/0004-specified-tested-built.md" },
       { "0005 Telemetry through OpenTelemetry" = "adr/0005-telemetry-through-opentelemetry.md" },
+      { "0006 Every response is bounded" = "adr/0006-bounded-responses.md" },
     ] },
   ] },
 ]

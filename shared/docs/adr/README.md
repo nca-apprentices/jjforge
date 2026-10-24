@@ -18,3 +18,4 @@ options, its rules, and what follows.
 | [0003](0003-checked-code-rules.md)              | Code rules are checked, not reviewed                               | Accepted |
 | [0004](0004-specified-tested-built.md)          | A requirement is specified, tested against twins, then built       | Accepted |
 | [0005](0005-telemetry-through-opentelemetry.md) | Logs, traces, and metrics through OpenTelemetry                    | Accepted |
+| [0006](0006-bounded-responses.md)               | Every response is bounded in items, bytes, and time                | Proposed |
