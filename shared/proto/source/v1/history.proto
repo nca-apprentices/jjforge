@@ -67,7 +67,8 @@ message ResolveResponse {
 // one change.
 message AmbiguousRevision {
   string rev = 1;
-  // At most 100 of the changes the revision matches, by commit ID.
+  // Bounded: at most 100 of the changes the revision matches, by commit
+  // ID.
   repeated Change candidates = 2;
 }
 

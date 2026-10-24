@@ -1,6 +1,7 @@
 //! The gRPC services that the server calls: `echo/v1`, and the
 //! services of `source/v1` when vcs has a store.
 
+mod deadline;
 mod echo;
 mod reads;
 mod repos;
@@ -22,6 +23,7 @@ use prost::Message as _;
 use tonic::Request;
 use tonic::Status;
 
+use self::deadline::Deadline;
 use crate::auth::Access;
 use crate::gate::Gate;
 use crate::gate::Refused;
@@ -32,10 +34,8 @@ use crate::telemetry::TraceGrpc;
 #[cfg(test)]
 pub(crate) use echo::Echo;
 
-/// The longest a call's handler runs before vcs answers `CANCELLED`, as ADR
-/// 0006 decides. A client's shorter `grpc-timeout` wins. A stream that waits
-/// for news runs on after its handler returns, so the deadline never ends a
-/// watch.
+/// The longest a call's handler runs before vcs answers `DEADLINE_EXCEEDED`,
+/// as ADR 0006 decides.
 const DEADLINE: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Serves gRPC on `addr` until the process gets Ctrl-C.
@@ -44,9 +44,9 @@ pub(crate) async fn serve(addr: SocketAddr, gate: Option<Gate>) -> anyhow::Resul
     // The trace layer wraps every service added here, so none needs code of
     // its own to be traced.
     tonic::transport::Server::builder()
-        .timeout(DEADLINE)
         .layer(Meter)
         .layer(TraceGrpc)
+        .layer(Deadline(DEADLINE))
         .add_service(EchoServiceServer::new(echo::Echo))
         .add_optional_service(
             gate.clone()

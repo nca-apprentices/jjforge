@@ -26,7 +26,7 @@ rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["net", "signal"] }
+tokio = { workspace = true, features = ["net", "signal", "time"] }
 tonic.workspace = true
 tower.workspace = true
 tracing.workspace = true
