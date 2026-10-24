@@ -21,7 +21,7 @@ service HistoryService {
   // first, without the root commit. The last change of the page names the
   // next page.
   rpc Log(LogRequest) returns (stream LogResponse);
-  // The change and the files it touches.
+  // The change and the first page of the files it touches.
   rpc GetChange(GetChangeRequest) returns (GetChangeResponse);
   // Lists the versions of a change, newest first: the current one, then each
   // earlier one.
@@ -93,13 +93,12 @@ message GetChangeRequest {
 
 message GetChangeResponse {
   Change change = 1;
-  // The files the change touches against its parents, by path, as many as
-  // fit in 3 MiB, so the response stays below gRPC's default limit of
-  // 4 MiB.
+  // The first page of the files the change touches against its parents, by
+  // path, as ListChangedFiles answers it with the default page size.
   repeated ChangedFile files = 2;
-  // Set when the change touches more files than `files` lists. Diff pages
-  // through every one.
-  bool files_truncated = 3;
+  // Set when more files follow. ListChangedFiles, with the same `rev`,
+  // answers the next page.
+  string files_next_page_token = 3;
 }
 
 message GetEvolutionRequest {

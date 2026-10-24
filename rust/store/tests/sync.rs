@@ -1470,25 +1470,62 @@ fn the_diff_of_a_file_over_four_mib_is_truncated_unread() {
 }
 
 #[test]
-fn the_files_of_a_change_with_long_paths_fit_in_one_grpc_message() {
-    use prost::Message as _;
-
+fn a_change_lists_its_first_files_and_a_token_for_the_rest() {
     let world = World::new();
     let mut ada = Clone::new(world.forge("ada"));
     ada.commit(None, "main", "README", "one\n");
-    // 5,000 paths of about 970 bytes take about 4.9 MB.
-    let dir = vec!["d".repeat(240); 4].join("/");
-    let paths: Vec<_> = (0..5000).map(|n| format!("{dir}/f{n:04}")).collect();
+    let paths: Vec<_> = (0..150).map(|n| format!("f{n:03}")).collect();
     let adds: Vec<_> = paths.iter().map(|path| (path.as_str(), "x\n")).collect();
     ada.change("main", &[], &adds);
     ada.push("main").unwrap();
     let repo = world.repos.get("acme", "forge").unwrap();
 
     let change = block_on_tokio(repo.change("main")).unwrap();
+    let rest = block_on_tokio(repo.changed_files("main", "", "", &change.files_next_page_token, 0))
+        .unwrap();
 
-    assert!(change.encoded_len() < GRPC_MESSAGE_LIMIT);
-    assert!(change.files_truncated);
-    assert!(change.files.len() > 3000, "{}", change.files.len());
+    let listed: Vec<_> = change
+        .files
+        .iter()
+        .chain(&rest.items)
+        .map(|file| file.path.clone())
+        .collect();
+    assert_eq!(change.files.len(), 100);
+    assert_eq!(listed, paths);
+    assert_eq!(rest.next, "");
+}
+
+#[test]
+fn a_page_of_changed_files_stays_within_one_grpc_message() {
+    use prost::Message as _;
+
+    let world = World::new();
+    let mut ada = Clone::new(world.forge("ada"));
+    ada.commit(None, "main", "README", "one\n");
+    // 1,000 paths of about 4,400 bytes take about 4.4 MB.
+    let dir = vec!["d".repeat(1100); 4].join("/");
+    let paths: Vec<_> = (0..1000).map(|n| format!("{dir}/f{n:03}")).collect();
+    let adds: Vec<_> = paths.iter().map(|path| (path.as_str(), "x\n")).collect();
+    ada.change("main", &[], &adds);
+    ada.push("main").unwrap();
+    let repo = world.repos.get("acme", "forge").unwrap();
+
+    let (mut listed, mut token) = (vec![], String::new());
+    loop {
+        let page = block_on_tokio(repo.changed_files("main", "", "", &token, 1000)).unwrap();
+        let response = jjforge_proto::source::v1::ListChangedFilesResponse {
+            files: page.items,
+            next_page_token: page.next,
+        };
+        assert!(response.encoded_len() < GRPC_MESSAGE_LIMIT);
+        listed.extend(response.files.into_iter().map(|file| file.path));
+        token = response.next_page_token;
+        if token.is_empty() {
+            break;
+        }
+    }
+
+    assert_eq!(listed, paths);
 }
 
 #[test]

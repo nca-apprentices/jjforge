@@ -143,6 +143,39 @@ evolution:
       "422":
         $ref: ../common/responses.yaml#/Ambiguous
 
+changedFiles:
+  get:
+    tags:
+      - history
+    operationId: listChangedFiles
+    summary: List the files a change touches, by path
+    description: The first page comes with the change, and its `filesNext` is the cursor of the second.
+    parameters:
+      - $ref: ../common/parameters.yaml#/Org
+      - $ref: ../common/parameters.yaml#/Repo
+      - $ref: ../common/parameters.yaml#/RevPath
+      - $ref: ../common/parameters.yaml#/Cursor
+      - $ref: ../common/parameters.yaml#/Limit
+    responses:
+      "200":
+        description: One page of changed files.
+        content:
+          application/json:
+            schema:
+              $ref: schemas.yaml#/ChangedFilePage
+            example:
+              items:
+                - path: rust/vcs/src/sync.rs
+                  status: added
+                  conflicted: false
+              next: Y2hhbmdlZDpydXN0
+      "401":
+        $ref: ../common/responses.yaml#/Unauthenticated
+      "404":
+        $ref: ../common/responses.yaml#/NotFound
+      "422":
+        $ref: ../common/responses.yaml#/Ambiguous
+
 operations:
   get:
     tags:

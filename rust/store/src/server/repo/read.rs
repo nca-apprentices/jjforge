@@ -39,7 +39,6 @@ use jj_lib::revset::ResolvedRevsetExpression;
 use jjforge_proto::prost_types::Timestamp;
 use jjforge_proto::source::v1 as source;
 use jjforge_proto::source::v1::tree_entry::Kind;
-use prost::Message as _;
 
 use super::Repo;
 use super::RepoError;
@@ -51,10 +50,6 @@ const TRUNK: [&str; 3] = ["main", "master", "trunk"];
 
 /// The most candidates an ambiguous revision lists.
 const CANDIDATES: usize = 100;
-
-/// The most bytes of files `GetChange` lists, well within gRPC's default
-/// limit of 4 MiB per message. `Diff` pages through any number.
-const CHANGED_FILES_SIZE: usize = 3 << 20;
 
 /// The page size of a list that names none, and the most it may name.
 const PAGE_SIZE: usize = 100;
@@ -143,8 +138,8 @@ impl Repo {
         .await
     }
 
-    /// The change that `rev` names, and the files it touches against its
-    /// parents, as many as fit in `CHANGED_FILES_SIZE`.
+    /// The change that `rev` names, and the first page of the files it
+    /// touches against its parents, which [`Repo::changed_files`] continues.
     ///
     /// # Errors
     ///
@@ -155,34 +150,12 @@ impl Repo {
         self.at_head(move |repo| async move {
             let commit = commit(&repo, &rev).await?;
             let before = parent_tree(&repo, &commit).await?;
-            let after = commit.tree();
-            let changes = diff::changes(&this, &repo, &before, &after).await?;
-            let mut changes = std::pin::pin!(changes);
-            let (mut files, mut size, mut files_truncated) = (vec![], 0, false);
-            while let Some(file) = changes.try_next().await? {
-                let file = source::ChangedFile {
-                    path: file.path.as_internal_file_string().to_owned(),
-                    old_path: file
-                        .old_path
-                        .map(|path| path.as_internal_file_string().to_owned())
-                        .unwrap_or_default(),
-                    status: file.status.into(),
-                    conflicted: !file.after.is_resolved(),
-                };
-                // A path's length bounds a file's bytes, not a count, so the
-                // list stops at a size. Each file takes a tag and a length too.
-                let len = file.encoded_len();
-                size += 1 + prost::length_delimiter_len(len) + len;
-                if size > CHANGED_FILES_SIZE {
-                    files_truncated = true;
-                    break;
-                }
-                files.push(file);
-            }
+            let files =
+                diff::files_page(&this, &repo, &before, &commit.tree(), 0, PAGE_SIZE).await?;
             Ok(source::GetChangeResponse {
                 change: Some(change(&repo, &commit)),
-                files,
-                files_truncated,
+                files: files.items,
+                files_next_page_token: files.next,
             })
         })
         .await

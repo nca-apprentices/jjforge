@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::hash::Hash as _;
 use std::hash::Hasher as _;
+use std::sync::Arc;
 
 use futures::StreamExt as _;
 use futures::TryStreamExt as _;
@@ -36,6 +37,7 @@ use super::file::is_binary;
 use super::page;
 use super::page_size;
 use super::parent_tree;
+use super::token;
 
 /// The lines of context around each change in a hunk, as `git diff` shows.
 const CONTEXT: usize = 3;
@@ -47,6 +49,10 @@ const DIFF_LIMIT: usize = 1 << 20;
 /// The largest side of a file that vcs compares. A larger file's diff is
 /// truncated without reading it, and a client reads both sides instead.
 const DIFF_INPUT: u64 = 4 << 20;
+
+/// The most bytes of files one page of changed files holds, well below
+/// gRPC's default limit of 4 MiB per message.
+const FILES_SIZE: usize = 3 << 20;
 
 /// The most added or deleted files a diff looks for renames among, as git's
 /// `diff.renameLimit` bounds its search.
@@ -138,14 +144,7 @@ impl Repo {
             next,
         } = self
             .at(cursor.operation, move |repo| async move {
-                let (before, after) = if rev.is_empty() {
-                    let from = commit(&repo, &from).await?.tree();
-                    let to = commit(&repo, &to).await?.tree();
-                    (from, to)
-                } else {
-                    let commit = commit(&repo, &rev).await?;
-                    (parent_tree(&repo, &commit).await?, commit.tree())
-                };
+                let (before, after) = trees(&repo, &rev, &from, &to).await?;
                 let paths: Vec<_> = changes(&this, &repo, &before, &after)
                     .await?
                     .skip(offset)
@@ -178,6 +177,32 @@ impl Repo {
             })
             .boxed();
         Ok(DiffPage { files, len, next })
+    }
+
+    /// One page of the paths that the diff of [`Repo::diff`] shows, by path,
+    /// without reading a file.
+    ///
+    /// # Errors
+    ///
+    /// Fails as [`Repo::resolve`] does, or on a page token this call didn't
+    /// give.
+    pub async fn changed_files(
+        &self,
+        rev: &str,
+        from: &str,
+        to: &str,
+        token: &str,
+        size: i32,
+    ) -> Result<Page<source::ChangedFile>, RepoError> {
+        let (rev, from, to) = (rev.to_owned(), from.to_owned(), to.to_owned());
+        let (cursor, size) = (cursor(token)?, page_size(size));
+        let offset = cursor.offset;
+        let this = self.clone();
+        self.at(cursor.operation, move |repo| async move {
+            let (before, after) = trees(&repo, &rev, &from, &to).await?;
+            files_page(&this, &repo, &before, &after, offset, size).await
+        })
+        .await
     }
 
     async fn file_diff(&self, pending: Pending) -> Result<source::DiffResponse, RepoError> {
@@ -233,6 +258,62 @@ impl Repo {
         }
         self.read_whole(&window).await.map(Content::Bytes)
     }
+}
+
+/// The trees a diff compares: of `rev` against its parents when `rev` is
+/// set, otherwise of `from` and `to`.
+async fn trees(
+    repo: &Arc<ReadonlyRepo>,
+    rev: &str,
+    from: &str,
+    to: &str,
+) -> Result<(MergedTree, MergedTree), RepoError> {
+    if rev.is_empty() {
+        let from = commit(repo, from).await?.tree();
+        let to = commit(repo, to).await?.tree();
+        return Ok((from, to));
+    }
+    let commit = commit(repo, rev).await?;
+    Ok((parent_tree(repo, &commit).await?, commit.tree()))
+}
+
+/// The page of changed files at `offset`, at most `size` of them and at most
+/// `FILES_SIZE` bytes, since a path's length has no limit of its own. A
+/// file larger than `FILES_SIZE` alone still makes a page.
+pub(super) async fn files_page(
+    this: &Repo,
+    repo: &ReadonlyRepo,
+    before: &MergedTree,
+    after: &MergedTree,
+    offset: usize,
+    size: usize,
+) -> Result<Page<source::ChangedFile>, RepoError> {
+    let changes = changes(this, repo, before, after).await?.skip(offset);
+    let mut changes = std::pin::pin!(changes);
+    let (mut files, mut bytes) = (vec![], 0);
+    while let Some(file) = changes.try_next().await? {
+        let file = source::ChangedFile {
+            path: file.path.as_internal_file_string().to_owned(),
+            old_path: file
+                .old_path
+                .map(|path| path.as_internal_file_string().to_owned())
+                .unwrap_or_default(),
+            status: file.status.into(),
+            conflicted: !file.after.is_resolved(),
+        };
+        // Each file takes a tag and a length besides its own bytes.
+        let len = file.encoded_len();
+        bytes += 1 + prost::length_delimiter_len(len) + len;
+        if files.len() == size || (bytes > FILES_SIZE && !files.is_empty()) {
+            let next = token(repo, offset + files.len());
+            return Ok(Page { items: files, next });
+        }
+        files.push(file);
+    }
+    Ok(Page {
+        items: files,
+        next: String::new(),
+    })
 }
 
 /// The paths that differ between `before` and `after`, by path, with each

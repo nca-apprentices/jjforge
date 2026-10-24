@@ -32,12 +32,19 @@ use crate::telemetry::TraceGrpc;
 #[cfg(test)]
 pub(crate) use echo::Echo;
 
+/// The longest a call's handler runs before vcs answers `CANCELLED`, as ADR
+/// 0006 decides. A client's shorter `grpc-timeout` wins. A stream that waits
+/// for news runs on after its handler returns, so the deadline never ends a
+/// watch.
+const DEADLINE: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Serves gRPC on `addr` until the process gets Ctrl-C.
 pub(crate) async fn serve(addr: SocketAddr, gate: Option<Gate>) -> anyhow::Result<()> {
     tracing::info!(%addr, "gRPC listening");
     // The trace layer wraps every service added here, so none needs code of
     // its own to be traced.
     tonic::transport::Server::builder()
+        .timeout(DEADLINE)
         .layer(Meter)
         .layer(TraceGrpc)
         .add_service(EchoServiceServer::new(echo::Echo))

@@ -12,6 +12,10 @@ service DiffService {
   // Streams one page of the changed files, by path, one DiffResponse per
   // file. The last file of the page names the next page.
   rpc Diff(DiffRequest) returns (stream DiffResponse);
+  // Lists one page of the changed files, by path, without reading a file.
+  // GetChange answers the first page of a change's files and the token that
+  // continues them here.
+  rpc ListChangedFiles(ListChangedFilesRequest) returns (ListChangedFilesResponse);
 }
 
 message DiffRequest {
@@ -52,6 +56,23 @@ message DiffResponse {
   bool conflicted = 7;
   // Set on the last file of a page when another page follows.
   string next_page_token = 8;
+}
+
+message ListChangedFilesRequest {
+  RepoRef repo = 1;
+  // Either `rev`, compared with its parents, or `from` and `to`.
+  string rev = 2;
+  string from = 3;
+  string to = 4;
+  string page_token = 5;
+  // At most 1,000. Zero means 100.
+  int32 page_size = 6;
+}
+
+message ListChangedFilesResponse {
+  // At most the page size, and at most 3 MiB.
+  repeated ChangedFile files = 1;
+  string next_page_token = 2;
 }
 
 // A file that a change touches, without its hunks.

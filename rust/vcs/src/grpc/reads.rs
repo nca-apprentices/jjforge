@@ -16,6 +16,8 @@ use jjforge_proto::source::v1::GetEvolutionRequest;
 use jjforge_proto::source::v1::GetEvolutionResponse;
 use jjforge_proto::source::v1::ListBookmarksRequest;
 use jjforge_proto::source::v1::ListBookmarksResponse;
+use jjforge_proto::source::v1::ListChangedFilesRequest;
+use jjforge_proto::source::v1::ListChangedFilesResponse;
 use jjforge_proto::source::v1::ListOperationsRequest;
 use jjforge_proto::source::v1::ListOperationsResponse;
 use jjforge_proto::source::v1::ListTreeRequest;
@@ -310,11 +312,7 @@ impl DiffService for Service {
             Access::Read,
         )?;
         let request = request.get_ref();
-        if request.rev.is_empty() == (request.from.is_empty() || request.to.is_empty()) {
-            return Err(Status::invalid_argument(
-                "a diff names either rev, or both from and to",
-            ));
-        }
+        compared(&request.rev, &request.from, &request.to)?;
         let page = repo
             .diff(
                 &request.rev,
@@ -340,6 +338,45 @@ impl DiffService for Service {
             .boxed();
         Ok(Response::new(files))
     }
+
+    async fn list_changed_files(
+        &self,
+        request: Request<ListChangedFilesRequest>,
+    ) -> Result<Response<ListChangedFilesResponse>, Status> {
+        let repo = open(
+            &self.0,
+            &request,
+            request.get_ref().repo.as_ref(),
+            Access::Read,
+        )?;
+        let request = request.get_ref();
+        compared(&request.rev, &request.from, &request.to)?;
+        let page = repo
+            .changed_files(
+                &request.rev,
+                &request.from,
+                &request.to,
+                &request.page_token,
+                request.page_size,
+            )
+            .await
+            .map_err(status)?;
+        Ok(Response::new(ListChangedFilesResponse {
+            files: page.items,
+            next_page_token: page.next,
+        }))
+    }
+}
+
+/// Refuses a diff that names neither `rev` nor both `from` and `to`, or
+/// names both.
+fn compared(rev: &str, from: &str, to: &str) -> Result<(), Status> {
+    if rev.is_empty() == (from.is_empty() || to.is_empty()) {
+        return Err(Status::invalid_argument(
+            "a diff names either rev, or both from and to",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
