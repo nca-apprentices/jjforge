@@ -6,4 +6,4 @@ set -euo pipefail
 # shows only after this task starts again.
 node site/scripts/sync-docs.mjs
 cd site
-exec zensical serve
+exec env PYTHONPATH=extensions zensical serve

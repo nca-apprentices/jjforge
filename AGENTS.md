@@ -28,3 +28,7 @@ time:
 - No em dash, en dash, or semicolon.
 - One word for one thing, the same word every time.
 - A comment says what its block does and why, never what a name says.
+
+A table wider than 100 columns goes in a `yaml table` fence, one list item
+per row, as in [Concepts](docs/concepts.md). The YAML wraps at 80 columns,
+and the site renders it as a table.

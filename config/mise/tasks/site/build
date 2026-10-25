@@ -5,4 +5,4 @@ set -euo pipefail
 # The build fails on a link to a page or heading that doesn't exist.
 node site/scripts/sync-docs.mjs
 cd site
-zensical build --strict
+env PYTHONPATH=extensions zensical build --strict
