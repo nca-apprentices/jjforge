@@ -5,10 +5,10 @@ each of its requirements does.
 [ADR 0004](../adr/0004-specified-tested-built.md) decides when a page is
 written and what holds it to this form.
 
-| Spec                                   | Epic                                                        |
-| -------------------------------------- | ----------------------------------------------------------- |
-| [Orgs and repos](23-orgs-and-repos.md) | [#23](https://github.com/nca-apprentices/jjforge/issues/23) |
-| [Push and clone](29-push-and-clone.md) | [#29](https://github.com/nca-apprentices/jjforge/issues/29) |
+| Spec                                   | Epic                                                          |
+| -------------------------------------- | ------------------------------------------------------------- |
+| [Orgs and repos](23-orgs-and-repos.md) | [#23](https://github.com/nca-apprentices/jjforge/issues/23)   |
+| [Push and clone](29-push-and-clone.md) | [#29](https://github.com/nca-apprentices/jjforge/issues/29)   |
 | [Review model](143-review-model.md)    | [#143](https://github.com/nca-apprentices/jjforge/issues/143) |
 
 ## Format

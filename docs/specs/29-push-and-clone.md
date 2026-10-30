@@ -181,11 +181,11 @@ Scenario: [97-survives-restart.bats](../../e2e/cli/97-survives-restart.bats).
 [#101](https://github.com/nca-apprentices/jjforge/issues/101) states the
 requirement.
 
-| ID    | Functional requirement                                                                                                            |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------- |
+| ID    | Functional requirement                                                                                                                                       |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 101.1 | `jf fetch` reads `GET {base}/head` and changes nothing when the head equals the last operation it fetched, and the view's `<name>@forge` bookmarks match it. |
-| 101.2 | Otherwise it fetches the operations since that one, merges them into its own, and sets each `<name>@forge` to the forge's target. |
-| 101.3 | A rewritten change shows its new commit under the same change ID, and the old commit is hidden, as `commit_predecessors` records. |
+| 101.2 | Otherwise it fetches the operations since that one, merges them into its own, and sets each `<name>@forge` to the forge's target.                            |
+| 101.3 | A rewritten change shows its new commit under the same change ID, and the old commit is hidden, as `commit_predecessors` records.                            |
 
 - Operations: `GET {base}/head` and `GET {base}/operations?since=`.
 - Types: `sync.v1.Head`, `sync.v1.ObjectBundle`, `store.v1.View` with its
@@ -201,7 +201,7 @@ requirement.
 
 | ID    | Functional requirement                                                                                                            |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 102.1 | vcs sets `Operation.username` to the request's principal and `Operation.hostname` to `jjforge`.                                  |
+| 102.1 | vcs sets `Operation.username` to the request's principal and `Operation.hostname` to `jjforge`.                                   |
 | 102.2 | vcs records the delegation chain in `Operation.attributes` under `jjforge.delegation`, empty until sign-in of #6 delegates.       |
 | 102.3 | vcs sets the start and end time from its own clock. `PublishRequest` carries no name and no time, so a client can't claim either. |
 
