@@ -17,9 +17,10 @@ hadolint = "2.15.1"
 helm = "4.3.0"
 lychee = "0.24.2"
 
-# Dependency checks in core:lint.
+# Dependency checks in core:lint, and rg for its module check.
 cargo-deny = "0.20.2"
 "github:bnjbvr/cargo-machete" = "0.9.2"
+ripgrep = "15.2.0"
 
 # Formatting and prose. dprint runs ktlint, rumdl, and shfmt for `mise run
 # fmt`, and vale checks the prose.

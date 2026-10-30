@@ -9,10 +9,16 @@ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace
 
 # A module keeps its submodules private, so a sibling reaches only its API,
 # as ADR 0003 decides. The generated code in proto/ is exempt, and so is the
-# store crate's root, which holds one module per crate that uses it.
-if rg --type rust --glob '!proto/**' --glob '!store/src/lib.rs' '^\s*pub(\([^)]*\))?\s+mod\s' .; then
+# store crate's root, which holds one module per crate that uses it. rg exits
+# 1 on no match and 2 on an error, so only 1 passes.
+status=0
+rg --type rust --glob '!proto/**' --glob '!store/src/lib.rs' '^\s*pub(\([^)]*\))?\s+mod\s' . || status=$?
+if ((status == 0)); then
   echo "error: declare submodules with \`mod\`, never \`pub mod\`" >&2
   exit 1
+fi
+if ((status != 1)); then
+  exit "$status"
 fi
 
 # Unused dependencies, then licenses, advisories, and sources per deny.toml.
