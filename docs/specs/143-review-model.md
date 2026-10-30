@@ -74,7 +74,7 @@ commit ID `3f9a1c2e` names this version of it.
 
 `acme_member` fetches, reads the round, comments on a line, and approves.
 Reading needs no network once fetched. The comment and the approval are
-signed with `acme_member`'s SSH key and pushed.
+signed with the key that the server certified at `jf login` and pushed.
 
 ```console
 $ jf fetch
@@ -194,9 +194,11 @@ what `jf diff -r` shows for the round's commit.
 - jj-lib's `op_store::View` has fixed fields, so the review view is a
   sibling of jj's view, never a field of it.
 - Each record carries the SSHSIG of the principal who wrote it, under the
-  namespace `jjforge-review`. vcs refuses a record whose signature doesn't
-  match the request's certificate. The server signs for a person of the
-  web app with its own key and names the person in the delegation chain.
+  namespace `jjforge-review`, as
+  [ADR 0007](../adr/0007-one-identity-for-access-and-signatures.md)
+  decides. vcs refuses a record whose certificate names another principal
+  than the request's token. The server signs for a person of the web app
+  with its own key and names the person in the delegation chain.
 
 ### Invariants
 
@@ -210,7 +212,7 @@ what `jf diff -r` shows for the round's commit.
 4. A verdict describes a tree, never a commit. Two commits with one tree
    share every verdict.
 5. Only vcs's queue moves a protected bookmark. vcs refuses a publish that
-   moves one, whatever the certificate.
+   moves one, whatever the token.
 6. The landed commits keep their change IDs and name the requested commits
    as predecessors.
 7. trunk only points at a tree with a passing verdict from every required
@@ -295,14 +297,14 @@ and `jf` refuses to write directly to a repository that has it.
 
 `jf review ready` by principal P, as one `POST {base}/publish`.
 
-1. Session: vcs checks the session from P's certificate. Refused: 401
+1. Session: vcs checks the session from P's token. Refused: 401
    `unauthenticated`. A principal outside the organization gets 404
    `not_found`.
 2. Owner: P owns the change. Refused: 403 `not_owner`.
 3. Commit: after the publish, C is the change's only visible commit.
    Refused: 409 `divergent` when the change has several.
-4. Signature: the round's signature matches P's certificate. Refused: 400
-   `bad_signature`.
+4. Signature: the round's signature is valid, and its certificate names P.
+   Refused: 400 `bad_signature`.
 5. Patch: vcs compares the patch of C with the previous round's, as
    `jj interdiff` does, and stores the answer on the round.
 6. Swap: vcs writes the operation and the review operation, then swaps
@@ -358,7 +360,8 @@ same step race safely and one of them reloads:
    request moves to `cancelled` with the reason.
 2. Policy: vcs reads `.jjforge/landing.toml` from trunk's target.
 3. Rebase: vcs rebases the stack onto trunk's target and writes the commits
-   and trees, without publishing them. A conflict moves the request to
+   and trees, without publishing them. vcs is the committer of each
+   rebased commit and signs it. A conflict moves the request to
    `conflicted` with the paths, and the queue takes the next request.
 4. Gates: for each required gate, the latest verdict on the top tree by the
    gate's principal. A missing one streams `VerdictNeeded` and moves the
@@ -402,7 +405,7 @@ it never sees `segment_ids`.
 ## Security
 
 - vcs decides ownership from the operation log, never from the request.
-- No certificate moves a protected bookmark. Only the queue does.
+- No token moves a protected bookmark. Only the queue does.
 - vcs counts a verdict only from the principal that the policy on trunk
   names for its gate, so a change can't relax its own gates.
 - A comment body is text. The web app renders it as Markdown without HTML.
@@ -506,6 +509,6 @@ Drawbacks of the chosen design:
 - Whether jj-lib 0.46 rebases local descendants when
   `RepoLoader::merge_operations` merges an operation that rewrote their
   parent. Reading jj-lib at the pinned version answers it.
-- The domain of the certificate extensions that carry scopes and the
-  delegation chain, and the Rust and Java libraries that parse and sign
-  certificates. The first requirement's Libraries section answers it.
+- How a certificate names the principal and the delegation chain, and the
+  Rust and Java libraries that parse and sign certificates. The first
+  requirement's Libraries section answers it.

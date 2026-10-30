@@ -32,6 +32,7 @@ nav = [
       { "0004 Specified, tested, built" = "adr/0004-specified-tested-built.md" },
       { "0005 Telemetry through OpenTelemetry" = "adr/0005-telemetry-through-opentelemetry.md" },
       { "0006 Every response is bounded" = "adr/0006-bounded-responses.md" },
+      { "0007 One identity for access and signatures" = "adr/0007-one-identity-for-access-and-signatures.md" },
     ] },
   ] },
 ]

@@ -241,6 +241,9 @@ Scenario: [103-change-history.bats](../../e2e/cli/103-change-history.bats).
   [review model](143-review-model.md) specifies.
 - Collecting unreachable objects. Nothing is collected, as
   [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) decides.
+- Checking the committer and the signature of each pushed commit, which
+  [ADR 0007](../adr/0007-one-identity-for-access-and-signatures.md)
+  decides. Its requirements aren't filed.
 
 ## Flow
 
@@ -489,6 +492,10 @@ own process, and one process serves it.
   deleting a repository through `RepoService` needs `sync:admin:{org}`,
   which a principal that pushes lacks. vcs ignores every name in the body of
   a publish, so an operation names the principal of the request.
+- vcs doesn't check the committer of a pushed commit, which is text from
+  the clone's configuration, until the requirements of
+  [ADR 0007](../adr/0007-one-identity-for-access-and-signatures.md) are
+  built.
 - vcs verifies the hash of every object it reads back, decodes every
   uploaded object, and computes each object's name itself, so a client
   can't store bytes under another object's name.

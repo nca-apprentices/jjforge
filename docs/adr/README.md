@@ -11,11 +11,26 @@ options, its rules, and what follows.
 - From 1.0.0 on, an accepted record is never edited. A new record
   supersedes it, and the old one's status names its successor.
 
-| ADR                                             | Decision                                                           | Status   |
-| ----------------------------------------------- | ------------------------------------------------------------------ | -------- |
-| [0001](0001-native-jj-without-git.md)           | Native jj without git: the format, the sync protocol, and `jf`     | Accepted |
-| [0002](0002-state-boundaries-and-tokens.md)     | Repositories and reviews in the object store, the rest in Postgres | Accepted |
-| [0003](0003-checked-code-rules.md)              | Code rules are checked, not reviewed                               | Accepted |
-| [0004](0004-specified-tested-built.md)          | A requirement is specified, tested against twins, then built       | Accepted |
-| [0005](0005-telemetry-through-opentelemetry.md) | Logs, traces, and metrics through OpenTelemetry                    | Accepted |
-| [0006](0006-bounded-responses.md)               | Every response is bounded in items, bytes, and time                | Proposed |
+```yaml table
+- ADR: "[0001](0001-native-jj-without-git.md)"
+  Decision: "Native jj without git: the format, the sync protocol, and `jf`"
+  Status: Accepted
+- ADR: "[0002](0002-state-boundaries-and-tokens.md)"
+  Decision: Repositories and reviews in the object store, the rest in Postgres
+  Status: Accepted
+- ADR: "[0003](0003-checked-code-rules.md)"
+  Decision: Code rules are checked, not reviewed
+  Status: Accepted
+- ADR: "[0004](0004-specified-tested-built.md)"
+  Decision: A requirement is specified, tested against twins, then built
+  Status: Accepted
+- ADR: "[0005](0005-telemetry-through-opentelemetry.md)"
+  Decision: Logs, traces, and metrics through OpenTelemetry
+  Status: Accepted
+- ADR: "[0006](0006-bounded-responses.md)"
+  Decision: Every response is bounded in items, bytes, and time
+  Status: Proposed
+- ADR: "[0007](0007-one-identity-for-access-and-signatures.md)"
+  Decision: One identity for access and signatures
+  Status: Accepted
+```

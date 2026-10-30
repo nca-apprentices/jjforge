@@ -166,6 +166,9 @@ modules add.
   so repository reads keep working while sign-in is down.
 - The web app's calls go through the server, which calls vcs with its own
   token and names the person in the delegation chain.
+- The server also certifies a short-lived signing key for each token, as
+  [ADR 0007](0007-one-identity-for-access-and-signatures.md) decides. The
+  token authenticates a request, and the key signs commits and records.
 - A standalone vcs has no sign-in yet. A later decision gives it one.
 - jjforge stores no passwords. Cedar holds the server's policy, and every
   decision is recorded with the policy that made it. The landing rules live
