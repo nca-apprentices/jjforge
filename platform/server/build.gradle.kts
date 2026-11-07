@@ -3,7 +3,7 @@ import org.springframework.boot.gradle.plugin.SpringBootPlugin
 plugins {
     kotlin("jvm") version "2.4.21"
     kotlin("plugin.spring") version "2.4.21"
-    id("org.springframework.boot") version "4.1.1"
+    id("org.springframework.boot") version "4.1.2"
     id("com.google.protobuf") version "0.10.0"
     id("org.openapi.generator") version "7.26.0"
     id("dev.detekt") version "2.0.0-alpha.6"
@@ -15,7 +15,7 @@ version = "0.1.0"
 description = "jjforge server, reduced to an echo endpoint"
 
 val protobufVersion = "4.36.2"
-val grpcVersion = "1.84.2"
+val grpcVersion = "1.85.1"
 
 repositories {
     mavenCentral()
@@ -23,7 +23,7 @@ repositories {
 
 dependencies {
     implementation(platform(SpringBootPlugin.BOM_COORDINATES))
-    implementation(platform("org.springframework.modulith:spring-modulith-bom:2.1.1"))
+    implementation(platform("org.springframework.modulith:spring-modulith-bom:2.1.2"))
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")

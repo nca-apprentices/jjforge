@@ -1,20 +1,20 @@
 [tools]
 java = "25.0.4"
-gradle = "9.8.1"
-node = "24.21.0"
-pnpm = "12.11.2"
-rust = { version = "1.99.0", components = "clippy,rustfmt" }
+gradle = "9.8.2"
+node = "26.13.0"
+pnpm = "12.17.0"
+rust = { version = "1.99.1", components = "clippy,rustfmt" }
 
 # Contracts: `buf lint` in repo:lint and the OpenAPI diff in api:breaking.
-buf = "1.73.0"
-"github:oasdiff/oasdiff" = "1.33.0"
+buf = "1.75.0"
+"github:oasdiff/oasdiff" = "1.35.0"
 
 # Static checks in repo:lint: workflows, scripts, Dockerfiles, the chart,
 # and Markdown links.
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
 hadolint = "2.15.1"
-helm = "4.3.0"
+helm = "4.3.1"
 lychee = "0.24.2"
 
 # Dependency checks in core:lint, and rg for its module check.
@@ -24,20 +24,20 @@ ripgrep = "15.2.0"
 
 # Formatting and prose. dprint runs ktlint, rumdl, and shfmt for `mise run
 # fmt`, and vale checks the prose.
-dprint = "0.61.1"
+dprint = "0.64.3"
 ktlint = "1.8.0"
-rumdl = "0.2.79"
+rumdl = "0.3.2"
 shfmt = "3.14.1"
-vale = "3.24.0"
+vale = "3.25.1"
 
 # The docs site in site:build. mise installs zensical with uv.
-uv = "0.13.0"
-"pipx:zensical" = "0.0.69"
+uv = "0.13.6"
+"pipx:zensical" = "0.0.74"
 
 # The local stack and its scenarios. `mise run up` drives podman through its
 # Docker-compatible socket, and `mise run e2e` runs e2e/.
-docker-compose = "5.6.0"
-hurl = "8.0.1"
+docker-compose = "5.6.1"
+hurl = "8.1.0"
 bats = "1.14.0"
 # The CLI scenarios create repositories through vcs's gRPC until the server
 # does.
