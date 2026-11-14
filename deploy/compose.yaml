@@ -82,7 +82,7 @@ services:
 
   # Creates the bucket of vcs once seaweedfs answers, and exits.
   bucket:
-    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    image: chrislusf/seaweedfs:4.52@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59
     depends_on:
       - seaweedfs
     entrypoint: ["/bin/sh", "-c"]
@@ -109,7 +109,7 @@ services:
   # The object store of ADR 0002, through its S3 API on port 8333. Without a
   # signing key, SeaweedFS logs an error that its unused STS service has none.
   seaweedfs:
-    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    image: chrislusf/seaweedfs:4.52@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59
     command: server -dir=/data -s3
     environment:
       WEED_JWT_FILER_SIGNING_KEY: twin-only-key-that-signs-nothing-real
@@ -132,7 +132,7 @@ services:
   # A trace ID waits 20 seconds for the index by default, longer than the
   # check waits.
   traces:
-    image: victoriametrics/victoria-traces:v0.12.0@sha256:80919fcc85cc6dd87f598d20ccf42d0ab1120de8f25d4dcf08c5ea2515a496ba
+    image: victoriametrics/victoria-traces:v0.13.0@sha256:3018df8f99429d7d3029167ab9f70848bf0a778c31c49dff16c86c7e34759fbd
     command: -insert.indexFlushInterval=1s
     ports:
       - "${JJFORGE_TRACES_PORT:-10428}:10428"
