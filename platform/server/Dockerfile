@@ -4,7 +4,7 @@
 
 # The SPA is served by the server, so it is built into the jar rather than
 # deployed as a second thing to keep in sync.
-FROM node:24.21.0-slim AS web
+FROM node:26.13.0-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS web
 RUN corepack enable
 # The web install generates the API client from the bundled contract, so the
 # contract is bundled first. Corepack reads the pinned pnpm version from the
@@ -16,7 +16,7 @@ WORKDIR /src/platform/web
 COPY platform/web ./
 RUN pnpm install --frozen-lockfile && pnpm build
 
-FROM gradle:9.8.1-jdk25@sha256:e4f9e3d037cc0c7d8fc42cd97edb976dfd19a5b7314212b88b6de3807d13cd47 AS build
+FROM gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898 AS build
 WORKDIR /src
 COPY contracts/proto contracts/proto
 COPY --from=web /src/contracts/openapi.yaml contracts/openapi.yaml

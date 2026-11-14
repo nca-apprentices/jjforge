@@ -74,7 +74,7 @@ jobs:
         if: steps.pr.outputs.fork != 'true'
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         if: steps.pr.outputs.fork != 'true'
       # The scrub needs bubblewrap, which the action installs only for
       # users without write access. Ubuntu 24.04 blocks the user namespaces
@@ -87,7 +87,7 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # No github_token, so the action pushes and comments as the Claude App.
       # It commits through the API, so the App's token stays out of .git/config.
-      - uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
+      - uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1.0.269
         if: steps.pr.outputs.fork != 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
