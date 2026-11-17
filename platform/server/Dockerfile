@@ -4,7 +4,7 @@
 
 # The SPA is served by the server, so it is built into the jar rather than
 # deployed as a second thing to keep in sync.
-FROM node:26.13.0-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS web
+FROM node:26.13.1-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS web
 # Node 25 stopped bundling Corepack, so it comes from npm.
 RUN npm install --global corepack@0.36.0 && corepack enable
 # The web install generates the API client from the bundled contract, so the
