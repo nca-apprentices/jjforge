@@ -110,7 +110,10 @@ jobs:
   # jobs that already build them, which run in parallel.
   e2e:
     name: E2E
-    runs-on: ubuntu-latest
+    # The hurl release binary links libxml2.so.2, which Ubuntu 26.04, the
+    # image behind ubuntu-latest, no longer ships. Back to ubuntu-latest once
+    # https://github.com/Orange-OpenSource/hurl/issues/5426 ships a build.
+    runs-on: ubuntu-24.04
     needs: [images, core]
     env:
       COMPOSE_FILE: deploy/compose.yaml
