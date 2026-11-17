@@ -17,8 +17,8 @@ checked.
 The store crate serves two crates, `jf` and vcs, and its flat root mixed
 the API of each. Each crate couldn't tell which items were its own.
 
-The REST contract, written by hand in `contracts/openapi.yaml`, repeated every
-page schema and error response. An operation that no controller served
+The hand-written REST contract in `contracts/openapi.yaml` repeated every page
+schema and error response. An operation that no controller served
 answered 404, which looks like a typo, not like work to do.
 
 | Option                                              | Cost                                                                                                             |

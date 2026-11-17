@@ -414,9 +414,9 @@ on vcs.
 
 ## Libraries
 
-### jj-lib and jj-cli 0.46.0
+### jj-lib and jj-cli 0.47.1
 
-Both are pinned to `=0.46.0` and built without git or watchman, as
+Both are pinned to `=0.47.1` and built without git or watchman, as
 [ADR 0001](../adr/0001-native-jj-without-git.md) decides. Only `jf` and the
 store crate depend on them, as
 [ADR 0003](../adr/0003-checked-code-rules.md) decides.

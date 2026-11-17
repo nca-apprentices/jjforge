@@ -374,8 +374,8 @@ same step race safely and one of them reloads:
 
 The object store holds everything, under the repository's prefix, as
 [ADR 0002](../adr/0002-state-boundaries-and-tokens.md) lays it out. Review
-operations and review views are objects in the segments, next to
-operations and views. Text sits outside the segments, one object each, so a
+operations and review views sit beside operations and views as objects in
+the segments. Text sits outside the segments, one object each, so a
 redaction can delete it. Postgres holds nothing of review.
 
 `store.v1` gains `ReviewOperation`, `ReviewView`, and one message per
@@ -506,7 +506,7 @@ Drawbacks of the chosen design:
 - How vcs finds repositories with pending requests after a restart without
   listing every repository. An index object per organization is the likely
   answer.
-- Whether jj-lib 0.46 rebases local descendants when
+- Whether jj-lib rebases local descendants when
   `RepoLoader::merge_operations` merges an operation that rewrote their
   parent. Reading jj-lib at the pinned version answers it.
 - How a certificate names the principal and the delegation chain, and the

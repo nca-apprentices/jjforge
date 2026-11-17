@@ -610,7 +610,10 @@ async fn ambiguous(repo: &ReadonlyRepo, rev: &str, mut ids: Vec<CommitId>) -> Re
 /// resolving, since resolving writes trees that a read never may.
 /// `contents` resolves each path that merges cleanly.
 async fn parent_tree(repo: &ReadonlyRepo, commit: &Commit) -> Result<MergedTree, RepoError> {
-    commit.parent_tree_no_resolve(repo).await.map_err(internal)
+    commit
+        .parent_tree_no_resolve(repo.index())
+        .await
+        .map_err(internal)
 }
 
 fn change(repo: &ReadonlyRepo, commit: &Commit) -> source::Change {

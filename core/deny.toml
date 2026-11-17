@@ -41,7 +41,7 @@ allow-wildcard-paths = true
 # Each layer reaches jj-lib and the object store only through the one above
 # it, as ADR 0003 decides.
 deny = [
-  { crate = "jj-lib", wrappers = ["jj-cli", "jjforge-store"] },
+  { crate = "jj-lib", wrappers = ["jj-cli", "jj-frontend", "jjforge-store"] },
   { crate = "object_store", wrappers = ["jjforge-store"] },
 ]
 

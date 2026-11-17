@@ -184,7 +184,7 @@ pub(crate) fn signed_data(commit: &Commit) -> Vec<u8> {
 }
 
 /// The IDs of the objects that an object needs: a commit's parents and
-/// trees, and a tree's entries. A copy ID isn't one, because jj 0.46 leaves
+/// trees, and a tree's entries. A copy ID isn't one, because jj 0.47 leaves
 /// it a placeholder. The root commit and the empty tree are virtual, so
 /// callers skip them.
 pub(crate) fn references(object: &Object) -> Vec<Vec<u8>> {

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
   "files": {
     "includes": [
       "app/**",
@@ -157,12 +157,9 @@
             }
           },
           "nursery": {
-            "useSortedClasses": {
+            "useTailwindSortedClasses": {
               "level": "error",
-              "fix": "safe",
-              "options": {
-                "functions": ["cn"]
-              }
+              "fix": "safe"
             }
           }
         }

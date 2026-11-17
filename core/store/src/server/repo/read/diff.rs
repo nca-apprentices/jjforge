@@ -350,7 +350,7 @@ fn changed(
     after: &MergedTree,
 ) -> impl futures::Stream<Item = Result<ChangedPath, RepoError>> {
     before
-        .diff_stream(after, &EverythingMatcher)
+        .diff(after, &EverythingMatcher)
         .map(|entry| {
             let values = entry.values.map_err(internal)?;
             let before = resolved(&values.before);
