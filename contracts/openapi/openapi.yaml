@@ -4,7 +4,7 @@
 #
 # Each aspect keeps its path items in <aspect>/paths.yaml and its schemas in
 # <aspect>/schemas.yaml. The common/ files hold what every aspect shares.
-# config/redocly.yaml checks the conventions.
+# .mise/redocly.yaml checks the conventions.
 #
 # The spec page of an epic in docs/specs/ names the operations each
 # requirement adds. An operation that isn't built yet answers 501, see

@@ -24,8 +24,8 @@ awk '
 
 # Workflows, Dockerfiles, task scripts, and CLI scenarios.
 actionlint
-hadolint --config config/hadolint.yaml platform/server/Dockerfile core/vcs/Dockerfile
-find config/mise/tasks -type f -exec shellcheck {} +
+hadolint --config .mise/hadolint.yaml platform/server/Dockerfile core/vcs/Dockerfile
+find .mise/tasks -type f -exec shellcheck {} +
 find e2e/cli -name '*.bats' -exec shellcheck {} +
 
 # The chart requires the secret a release names, so the checks name one.
@@ -34,7 +34,7 @@ helm template jjforge deploy/chart --set server.database.secretName=jjforge-db-a
 
 # The web formatter needs the web packages installed.
 pnpm --dir platform/web install --frozen-lockfile
-dprint check --config config/dprint.json
+dprint check --config .mise/dprint.json
 mise run prose
 
 # Every relative link and anchor in the Markdown. Offline, so a remote site

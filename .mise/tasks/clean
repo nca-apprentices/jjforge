@@ -13,7 +13,7 @@ rm -rf \
   platform/web/shared/api/src/contract.gen.ts \
   contracts/openapi.yaml \
   site/dist site/.cache site/docs \
-  config/vale/styles/Google \
+  .mise/vale/styles/Google \
   .rumdl_cache \
   .claude/tmp .claude/.cc-writes
 

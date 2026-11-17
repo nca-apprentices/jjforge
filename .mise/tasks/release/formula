@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Print the Homebrew formula for jf from a release's binaries"
+#MISE hide=true
 #USAGE arg "<version>" help="The release tag, such as v0.2.0"
 #USAGE arg "<dir>" help="The directory that holds the jf-<target> binaries"
 set -euo pipefail

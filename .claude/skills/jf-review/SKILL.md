@@ -47,7 +47,7 @@ and its summary says so.
    reach. The job has built its `jf` as `JF_BIN` and started the stack from
    its images. `review/build/` holds the build logs, `review/up.log` the
    start, and `review/stack.log` grows with the logs. Run the scenarios from
-   `pr/` with `bash ../config/mise/tasks/e2e`, and reach the database
+   `pr/` with `bash ../.mise/tasks/e2e`, and reach the database
    with `psql -h localhost -U postgres`. Read every log line
    at warning level or higher, and check that the rows and objects the
    spec's Persistence section names exist after the scenarios run. Done

@@ -1,4 +1,4 @@
-# Deliberate exceptions to config/redocly.yaml.
+# Deliberate exceptions to .mise/redocly.yaml.
 ../contracts/openapi/auth/paths.yaml:
   # A browser sign-in only ever redirects.
   operation-2xx-response:

@@ -43,11 +43,9 @@ bats = "1.14.0"
 # does.
 grpcurl = "1.9.4"
 
-# Tool configuration and the tasks live under config/. `mise tasks` lists
-# the tasks. CI runs each namespace, such as server:lint and server:test, as
-# a job.
-[task_config]
-includes = ["config/mise/tasks"]
+# The tool configuration lives beside this file, and mise finds the tasks
+# in .mise/tasks/. `mise tasks` lists the tasks. CI runs each namespace,
+# such as server:lint and server:test, as a job.
 
 [env]
-VALE_CONFIG_PATH = "{{config_root}}/config/vale/vale.ini"
+VALE_CONFIG_PATH = "{{config_root}}/.mise/vale/vale.ini"

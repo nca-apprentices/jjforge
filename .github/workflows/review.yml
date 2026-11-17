@@ -111,7 +111,7 @@ jobs:
       COMPOSE_FILE: pr/deploy/compose.yaml:review/compose.yaml
       JF_BIN: ${{ github.workspace }}/review/build/jf
       # Only main's config, so a mise call in pr/ doesn't trust the PR's.
-      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/.mise/config.toml
       # Hides the tokens from Claude's commands and their process IDs, so a
       # prompt injection in an issue or comment can't hand one to a command.
       CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
