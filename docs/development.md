@@ -1,8 +1,15 @@
 # Development
 
-Run these from the repository root. `mise install` provides the whole
-toolchain, and `mise trust` once lets mise read `mise.toml`. The tasks live in
-`config/mise/tasks/`, and `mise tasks` lists them.
+Run these from the repository root. `mise install` provides the toolchain
+that `.mise/config.toml` pins and `.mise/mise.lock` locks, and `mise trust`
+once lets mise read that file. The tasks live in `.mise/tasks/`, and
+`mise tasks` lists them. `mise tasks --hidden` also lists the tasks that
+other tasks and CI run, such as `api:build`.
+
+mise doesn't install podman, which `mise run up`, `mise run twins`, and
+`mise run server:test` need. Install it yourself, such as with
+`brew install podman` on macOS, then create and start its machine with
+`podman machine init` and `podman machine start`.
 
 ```text
 mise run setup  # toolchain, dependencies, and the generated files the IDE needs
@@ -38,7 +45,7 @@ The REST contract has its own tasks:
 
 ```text
 mise run api:build     # bundle contracts/openapi/ into contracts/openapi.yaml
-mise run api:lint      # Redocly, with the rules in config/redocly.yaml
+mise run api:lint      # Redocly, with the rules in .mise/redocly.yaml
 mise run api:redocly   # the pinned Redocly CLI with this config, as in `api:redocly lint`
 mise run api:breaking  # compare the REST contract with main using oasdiff
 ```

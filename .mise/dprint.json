@@ -16,10 +16,10 @@
   },
   "exec": {
     // The exec globs resolve from this directory, not the repository root, so
-    // a path outside config/ starts with **/.
+    // a path outside .mise/ starts with **/.
     "associations": [
       "**/*.{kt,kts,md,proto}",
-      "**/mise/tasks/**/*",
+      "tasks/**/*",
       "**/*.bats",
       "platform/web/**/*.{ts,tsx,json}"
     ],
@@ -29,7 +29,7 @@
         "associations": ["**/*.{kt,kts}"]
       },
       {
-        "command": "rumdl fmt --config config/rumdl.toml --stdin --stdin-filename {{file_path}} --silent",
+        "command": "rumdl fmt --config .mise/rumdl.toml --stdin --stdin-filename {{file_path}} --silent",
         "associations": ["**/*.md"]
       },
       {
@@ -40,7 +40,7 @@
       },
       {
         "command": "shfmt --indent=2 --filename {{file_path}}",
-        "associations": ["**/mise/tasks/**/*"]
+        "associations": ["tasks/**/*"]
       },
       {
         // Bats files format as the task scripts do. A command takes one glob.

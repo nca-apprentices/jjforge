@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Bundle the OpenAPI files in contracts/openapi into contracts/openapi.yaml"
+#MISE hide=true
 set -euo pipefail
 
 pnpm --dir contracts/openapi install --frozen-lockfile

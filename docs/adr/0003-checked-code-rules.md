@@ -69,7 +69,7 @@ flowchart LR
   and its schemas in `<aspect>/schemas.yaml`. The parameters, the error
   responses, and the schemas every aspect shares stay in `common/`.
 - `mise run api:lint` runs Redocly's strict rules and the rules of
-  `config/redocly.yaml`: one tag per operation, operation IDs in
+  `.mise/redocly.yaml`: one tag per operation, operation IDs in
   camel case, kebab-case paths, failures that reference `common/responses.yaml`,
   JSON bodies with named schemas, lists that answer a page with `items` and
   `next`, a 401 on every operation that takes a token, and an example on
