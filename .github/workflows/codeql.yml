@@ -49,7 +49,7 @@ jobs:
       - if: matrix.build-mode == 'manual'
         uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          install_args: java gradle node
+          install_args: java gradle node pnpm
       # CodeQL traces the compiler, so the build runs without a daemon.
       - if: matrix.build-mode == 'manual'
         run: gradle --no-daemon -p platform/server testClasses

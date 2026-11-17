@@ -142,8 +142,8 @@ val compileSpec =
         commandLine(
             "sh",
             "-c",
-            "corepack pnpm install --frozen-lockfile && " +
-                "corepack pnpm exec redocly bundle openapi.yaml --output ../openapi.yaml",
+            "pnpm install --frozen-lockfile && " +
+                "pnpm exec redocly bundle openapi.yaml --output ../openapi.yaml",
         )
     }
 
