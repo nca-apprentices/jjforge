@@ -58,7 +58,7 @@ CI runs each namespace as a job.
 With podman, which builds both images from the repository root:
 
 ```text
-mise run up      # server on :8080, vcs and the twins of ADR 0004 behind it
+mise run up      # server on :8080, vcs and the twins of ADR 0004 behind it, --detach to run in the background
 mise run e2e     # in a second terminal: web, server, vcs and cli
 mise run compose logs   # or any other docker-compose command, such as ps or down
 ```
