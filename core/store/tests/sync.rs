@@ -17,8 +17,10 @@ use jj_lib::backend::TreeValue;
 use jj_lib::config::ConfigLayer;
 use jj_lib::config::ConfigSource;
 use jj_lib::config::StackedConfig;
+use jj_lib::conflict_labels::ConflictLabels;
 use jj_lib::default_backend_factories::default_backend_factories;
 use jj_lib::merge::Merge;
+use jj_lib::merged_tree::MergedTree;
 use jj_lib::merged_tree_builder::MergedTreeBuilder;
 use jj_lib::object_id::ObjectId as _;
 use jj_lib::op_store::RefTarget;
@@ -226,7 +228,7 @@ impl Clone {
         let mut builder = MergedTreeBuilder::new(parent.tree());
         builder.set_or_remove(
             RepoPathBuf::from_internal_string(path).unwrap(),
-            Merge::normal(TreeValue::File {
+            Some(TreeValue::File {
                 id: file,
                 executable: false,
                 copy_id: CopyId::placeholder(),
@@ -269,7 +271,7 @@ impl Clone {
         let mut builder = MergedTreeBuilder::new(old.tree());
         builder.set_or_remove(
             RepoPathBuf::from_internal_string(path).unwrap(),
-            Merge::normal(TreeValue::File {
+            Some(TreeValue::File {
                 id: file,
                 executable: false,
                 copy_id: CopyId::placeholder(),
@@ -430,7 +432,7 @@ impl Clone {
         let mut builder = MergedTreeBuilder::new(original.tree());
         builder.set_or_remove(
             RepoPathBuf::from_internal_string(path).unwrap(),
-            Merge::normal(TreeValue::File {
+            Some(TreeValue::File {
                 id: file,
                 executable: false,
                 copy_id: CopyId::placeholder(),
@@ -467,10 +469,7 @@ impl Clone {
             .unwrap();
         let mut builder = MergedTreeBuilder::new(parent.tree());
         for path in removes {
-            builder.set_or_remove(
-                RepoPathBuf::from_internal_string(*path).unwrap(),
-                Merge::absent(),
-            );
+            builder.set_or_remove(RepoPathBuf::from_internal_string(*path).unwrap(), None);
         }
         for (path, content) in adds {
             let file = block_on(repo.store().write_file(
@@ -480,7 +479,7 @@ impl Clone {
             .unwrap();
             builder.set_or_remove(
                 RepoPathBuf::from_internal_string(*path).unwrap(),
-                Merge::normal(TreeValue::File {
+                Some(TreeValue::File {
                     id: file,
                     executable: false,
                     copy_id: CopyId::placeholder(),
@@ -521,8 +520,16 @@ impl Clone {
         };
         let value = Merge::from_vec(vec![file(ours), file(base), file(theirs)]);
         let root = repo.store().root_commit();
-        let mut builder = MergedTreeBuilder::new(root.tree());
-        builder.set_or_remove(RepoPathBuf::from_internal_string(path).unwrap(), value);
+        // jj 0.47 sets a conflict only on a base with as many sides.
+        let base = MergedTree::new(
+            repo.store().clone(),
+            value.map(|_| repo.store().empty_tree_id().clone()),
+            ConflictLabels::unlabeled(),
+        );
+        let mut builder = MergedTreeBuilder::new(base);
+        builder
+            .set_or_remove_merge(RepoPathBuf::from_internal_string(path).unwrap(), value)
+            .unwrap();
         let tree = block_on(builder.write_tree()).unwrap();
         let mut tx = repo.start_transaction();
         let commit = block_on(
@@ -548,7 +555,7 @@ fn load(repo_path: &Path, forge: &Arc<Forge>) -> Arc<ReadonlyRepo> {
         Ok(Some(forge.clone() as Arc<dyn Fetch>))
     })));
     let loader = RepoLoader::init_from_file_system(&settings(), repo_path, &factories).unwrap();
-    block_on(loader.load_at_head()).unwrap()
+    block_on(loader.load_at_head(None)).unwrap()
 }
 
 #[test]
@@ -1180,7 +1187,7 @@ impl Clone {
         let mut builder = MergedTreeBuilder::new(merged);
         builder.set_or_remove(
             RepoPathBuf::from_internal_string(path).unwrap(),
-            Merge::normal(TreeValue::File {
+            Some(TreeValue::File {
                 id: file,
                 executable: false,
                 copy_id: CopyId::placeholder(),

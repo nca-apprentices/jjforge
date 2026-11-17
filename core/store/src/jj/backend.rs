@@ -2,6 +2,7 @@
 //! decides.
 
 use std::pin::Pin;
+use std::time::SystemTime;
 
 use async_trait::async_trait;
 use futures::AsyncRead;
@@ -272,6 +273,12 @@ impl Backend for Store {
         _head: &CommitId,
     ) -> BackendResult<BoxStream<'_, BackendResult<CopyRecord>>> {
         Ok(stream::empty().boxed())
+    }
+
+    // Keeps every object, as jj-lib's `SimpleBackend` does. jj 0.47 added gc
+    // to the trait, and no jjforge store has a collector yet.
+    async fn gc(&self, _heads: &[CommitId], _keep_newer: SystemTime) -> BackendResult<()> {
+        Ok(())
     }
 }
 

@@ -13,7 +13,7 @@ export function Page({
 }) {
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
-      <h1 className="font-semibold text-2xl">{title}</h1>
+      <h1 className="text-2xl font-semibold">{title}</h1>
       {children}
     </main>
   );

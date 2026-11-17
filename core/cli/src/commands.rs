@@ -226,7 +226,7 @@ async fn clone_into(
     let mut workspace = helper.load_workspace_at(root, helper.settings())?;
     let repo = workspace
         .repo_loader()
-        .load_at_head()
+        .load_at_head(Some(workspace.workspace_name()))
         .await
         .map_err(user_error)?;
     let repo_path = workspace.repo_path().to_owned();

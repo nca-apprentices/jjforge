@@ -7,7 +7,10 @@ use std::sync::Arc;
 use jj_lib::backend::BackendLoadError;
 use jj_lib::config::ConfigLayer;
 use jj_lib::config::ConfigSource;
+use jj_lib::default_backend_factories::default_index_store_initializer;
+use jj_lib::default_backend_factories::default_submodule_store_initializer;
 use jj_lib::default_backend_factories::default_working_copy_factory;
+use jj_lib::default_backend_factories::default_workspace_store_initializer;
 use jj_lib::ref_name::WorkspaceName;
 use jj_lib::repo::ReadonlyRepo;
 use jj_lib::repo::StoreFactories;
@@ -73,15 +76,15 @@ pub async fn init(
     Workspace::init_with_factories(
         settings,
         root,
+        WorkspaceName::DEFAULT,
         &|_, dir| Ok(Box::new(local_backend(dir, None))),
         signer_from_settings(settings)?,
-        ReadonlyRepo::default_workspace_store_initializer(),
+        default_workspace_store_initializer(),
         &|_, dir, _| Ok(Box::new(OperationStore::new(Box::new(Disk::new(dir))))),
         &|_, dir, root_operation_id| Ok(Box::new(OperationHeads::init(dir, root_operation_id)?)),
-        ReadonlyRepo::default_index_store_initializer(),
-        ReadonlyRepo::default_submodule_store_initializer(),
+        default_index_store_initializer(),
+        default_submodule_store_initializer(),
         &*default_working_copy_factory(),
-        WorkspaceName::DEFAULT.to_owned(),
     )
     .await
 }

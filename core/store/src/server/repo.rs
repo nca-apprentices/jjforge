@@ -42,7 +42,6 @@ use jj_lib::repo::RepoLoader;
 use jj_lib::settings::UserSettings;
 use jj_lib::signing_factory::signer_from_settings;
 use jj_lib::simple_workspace_store::SimpleWorkspaceStore;
-use jj_lib::tree_merge::MergeOptions;
 use jjforge_proto::store::v1::CommitIds;
 use jjforge_proto::store::v1::Head as StoredHead;
 use jjforge_proto::sync::v1::PublishRequest;
@@ -607,7 +606,7 @@ impl Repo {
         let store = jj_lib::store::Store::new(
             Box::new(Backend::new(Box::new(pool), CONCURRENCY)),
             signer_from_settings(&self.settings).map_err(internal)?,
-            MergeOptions::from_settings(&self.settings).map_err(internal)?,
+            self.settings.merge_options().map_err(internal)?,
         );
         let op_store: Arc<dyn OpStore> = Arc::new(OperationStore::new(Box::new(Operations {
             bucket: self.bucket.clone(),
