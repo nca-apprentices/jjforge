@@ -4,6 +4,12 @@
 [advisories]
 # A crate with a known vulnerability, or one that was yanked, fails the check.
 yanked = "deny"
+# object_store 0.14.2, the latest release, needs chrono and humantime, so no
+# upgrade removes them. Both are unmaintained, with no known vulnerability.
+ignore = [
+  { id = "RUSTSEC-2026-0543", reason = "object_store needs chrono, and no release drops it" },
+  { id = "RUSTSEC-2026-0542", reason = "object_store needs humantime, and no release drops it" },
+]
 
 [licenses]
 # Permissive licenses only, so jf and vcs stay Apache-2.0.
