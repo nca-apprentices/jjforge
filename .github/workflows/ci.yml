@@ -96,8 +96,23 @@ jobs:
         run: mise run core:lint
       - name: Test
         run: mise run core:test
-      # The E2E job runs this jf, so it needs no Rust toolchain of its own.
-      - name: Build jf
+
+  # The E2E job runs this jf, so it needs no Rust toolchain of its own. A job
+  # apart from Core lets E2E start without waiting for Core's lint and test.
+  jf:
+    name: jf
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          install_args: rust
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: core
+      - name: Build
         run: cargo build --manifest-path core/Cargo.toml --bin jf
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -114,7 +129,7 @@ jobs:
     # image behind ubuntu-latest, no longer ships. Back to ubuntu-latest once
     # https://github.com/Orange-OpenSource/hurl/issues/5426 ships a build.
     runs-on: ubuntu-24.04
-    needs: [images, core]
+    needs: [images, jf]
     env:
       COMPOSE_FILE: deploy/compose.yaml
     steps:
