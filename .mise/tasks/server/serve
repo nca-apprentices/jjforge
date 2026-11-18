@@ -10,5 +10,7 @@ export SPRING_DATASOURCE_USERNAME=postgres
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:${JJFORGE_TRACES_PORT:-10428}/insert/opentelemetry/v1/traces
 # The principal of deploy/twins/principals that the server calls vcs as.
 export JJFORGE_VCS_PRINCIPAL=server
+# vcs serves sync/v1 on 8081, the actuator's port in the cluster.
+export MANAGEMENT_SERVER_PORT=8082
 
 exec gradle -p platform/server bootRun

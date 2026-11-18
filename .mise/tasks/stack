@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Build vcs and run it with the twins in podman, for a server or web app run outside the containers"
+set -euo pipefail
+
+# The image builds from this tree, so vcs answers the contract that the
+# server here was generated from.
+podman build --tag ghcr.io/nca-apprentices/jjforge-vcs:latest --file core/vcs/Dockerfile .
+
+# vcs pulls in seaweedfs, its bucket, and traces.
+exec mise run compose up vcs postgres oidc "$@"
