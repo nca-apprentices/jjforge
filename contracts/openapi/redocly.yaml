@@ -1,0 +1,7 @@
+# `mise run api:redocly preview` serves this directory and reads this file.
+# Linting uses .mise/redocly.yaml instead.
+#
+# Preview parses every YAML file it finds, and pnpm writes its lockfile as
+# two YAML documents, which the parser rejects.
+ignore:
+  - pnpm-lock.yaml

@@ -1,4 +1,8 @@
 # Deliberate exceptions to .mise/redocly.yaml.
+../contracts/openapi/openapi.yaml:
+  # The local stack of `mise run up`, so the docs can send requests to it.
+  no-server-example.com:
+    - "#/servers/0/url"
 ../contracts/openapi/auth/paths.yaml:
   # A browser sign-in only ever redirects.
   operation-2xx-response:

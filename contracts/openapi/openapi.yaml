@@ -28,10 +28,15 @@ info:
     A list answers one page and a `next` cursor while more pages exist. Every
     failure answers `application/problem+json` with a stable `code`.
 
+# The try-it console of `mise run api:redocly preview` offers each server as
+# an environment.
 servers:
-  - url: /
-    description: The host that serves the web app
-    variables: {}
+  - url: http://localhost:8080
+    description: Local, from `mise run up`
+  - url: https://jjforge-dev.nca-apprentices.dev
+    description: jjforge-dev
+  - url: https://jjforge.nca-apprentices.dev
+    description: jjforge
 
 security:
   - bearer: []

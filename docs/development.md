@@ -51,6 +51,12 @@ mise run api:redocly   # the pinned Redocly CLI with this config, as in `api:red
 mise run api:breaking  # compare the REST contract with main using oasdiff
 ```
 
+`mise run api:redocly preview` serves the reference docs at
+<http://127.0.0.1:4000>, with a mock server to send requests to. Preview
+takes `contracts/openapi/` as its project and reads
+`contracts/openapi/redocly.yaml`, not `.mise/redocly.yaml`. That file
+says which files in the directory preview skips.
+
 CI runs each namespace as a job.
 [ADR 0003](adr/0003-checked-code-rules.md) lists the rules they enforce.
 
