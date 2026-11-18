@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Generate the code the IDE needs from contracts/, after a change to the contract"
+#MISE depends=["api:build"]
+set -euo pipefail
+
+pnpm --dir platform/web generate
+
+# The server's controllers implement interfaces generated from
+# contracts/openapi.yaml, and its gRPC clients use stubs generated from
+# contracts/proto. Both land in platform/server/build/generated/.
+gradle -p platform/server openApiGenerate generateProto

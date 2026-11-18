@@ -13,6 +13,7 @@ mise doesn't install podman, which `mise run up`, `mise run twins`, and
 
 ```text
 mise run setup  # toolchain, dependencies, and the generated files the IDE needs
+mise run gen    # the generated files again, after a change in contracts/
 mise run clean  # delete build output, dependencies, generated files, and
                 # agent scratch files, but not local state such as .idea/
 ```
@@ -88,12 +89,21 @@ echo page. The twin of the trace store shows that trace at
 `http://localhost:10428/select/vmui`, from the server through vcs.
 `JJFORGE_TRACES_PORT` moves the twin to another port.
 
-Without building the images, each in a terminal of its own:
+To work on the server or the web app, run vcs and the twins in containers,
+and the rest from the tree, each in a terminal of its own:
+
+```text
+mise run stack         # vcs on :50052 and sync/v1 on :8081, with the twins in podman
+mise run server:serve  # server on :8080, actuator on :8082
+mise run web:serve     # web app on :5173, /api proxied to :8080
+```
+
+To work on vcs too, run it from the tree instead of `mise run stack`:
 
 ```text
 mise run twins         # postgres on :5432, seaweedfs, oidc, and traces on :10428
 mise run core:serve    # vcs on :50052 and sync/v1 on :8081, repositories in deploy/.dev/store
-mise run server:serve  # server on :8080, actuator on :8081
+mise run server:serve  # server on :8080, actuator on :8082
 mise run web:serve     # web app on :5173, /api proxied to :8080
 mise run site:serve    # docs site on :8000
 gradle -p platform/server bootTestRun  # or the server with Postgres in a container
@@ -101,7 +111,7 @@ gradle -p platform/server bootTestRun  # or the server with Postgres in a contai
 curl -X POST localhost:8080/api/v1/echo -H 'content-type: application/json' -d '{"message":"hi"}'
 ```
 
-`JJFORGE_POSTGRES_PORT` moves Postgres off 5432 for `twins` and `server:serve`.
+`JJFORGE_POSTGRES_PORT` moves Postgres off 5432 for `twins`, `stack`, and `server:serve`.
 
 `JJFORGE_ENDPOINT` points the CLI at another forge, such as
 `https://jjforge.example.com`.

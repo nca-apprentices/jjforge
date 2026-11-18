@@ -130,15 +130,17 @@ tasks.compileKotlin {
 }
 
 // /contracts/openapi.yaml is bundled from /contracts/openapi and not
-// committed. A build that starts without it, such as CodeQL's, bundles it
-// here with the pnpm that /contracts/openapi pins. The image copies it in
-// and `mise run api:build` keeps a local copy fresh, so this is skipped in
-// both cases.
-val spec = layout.projectDirectory.file("../../contracts/openapi.yaml").asFile
+// committed. Gradle bundles it again whenever a source file changes, so an
+// IDE build never generates the interfaces from a stale bundle. The image
+// copies in only the bundle, without its sources, so this is skipped there.
+val specSources = layout.projectDirectory.dir("../../contracts/openapi")
 val compileSpec =
     tasks.register<Exec>("compileSpec") {
-        onlyIf { !spec.exists() }
-        workingDir = layout.projectDirectory.dir("../../contracts/openapi").asFile
+        val sources = specSources.asFile
+        onlyIf { sources.exists() }
+        inputs.files(specSources.asFileTree.matching { exclude("node_modules/**") })
+        outputs.file(layout.projectDirectory.file("../../contracts/openapi.yaml"))
+        workingDir = sources
         commandLine(
             "sh",
             "-c",

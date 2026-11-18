@@ -20,6 +20,7 @@ Session.vim
 target/
 build/
 .gradle/
+.kotlin/
 node_modules/
 .pnpm-store/
 dist/

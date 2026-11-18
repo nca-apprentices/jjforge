@@ -4,7 +4,11 @@ set -euo pipefail
 
 # Vale exits nonzero only on errors. Warnings fail here too, and suggestions
 # stay advice.
-vale sync >/dev/null
+# The style package downloads once. `mise run clean` deletes it, so a new
+# version in vale.ini arrives on the next run after a clean.
+if [[ ! -d .mise/vale/styles/Google ]]; then
+  vale sync >/dev/null
+fi
 alerts=$(
   git ls-files -z --cached --others --exclude-standard '*.md' |
     xargs -0 vale --no-global --output=line --minAlertLevel=warning || true
