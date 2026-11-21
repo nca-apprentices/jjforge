@@ -9,9 +9,9 @@ server:
     repository: ghcr.io/nca-apprentices/jjforge-server
     tag: ""
   replicas: 1
-  # The app secret of the CloudNativePG cluster that the infra repository runs
-  # for this release, such as jjforge-db-app. No default, so a release never
-  # migrates a database it wasn't given.
+  # A secret with the keys host, port, dbname, username, and password, such
+  # as the app secret of a CloudNativePG cluster. No default, so a release
+  # never migrates a database it wasn't given.
   database:
     secretName: ""
   resources:
@@ -50,18 +50,17 @@ telemetry:
 
 ingress:
   enabled: true
-  className: traefik
+  # Empty uses the cluster's default IngressClass.
+  className: ""
   host: jjforge.example.com
-  # Traefik Middlewares in the release's namespace that every request passes,
-  # such as [github-login].
-  middlewares: []
-  # The Middlewares of /sync/v1, which jf reaches with a bearer token and no
-  # login page, such as [no-cookies].
-  syncMiddlewares: []
+  # The annotations of every Ingress, such as
+  # cert-manager.io/cluster-issuer: letsencrypt to issue the certificate into
+  # tls.secretName, or the ingress controller's own settings.
+  annotations: {}
+  # The annotations of /sync/v1 in place of annotations, since jf reaches it
+  # with a bearer token and no login page. A certificate issuer goes in
+  # annotations alone.
+  syncAnnotations: {}
   tls:
     enabled: true
     secretName: jjforge-tls
-    # A cert-manager ClusterIssuer, such as letsencrypt, that issues the
-    # certificate into secretName and deletes it along with the Ingress. Empty
-    # leaves the secret to someone else.
-    issuer: ""

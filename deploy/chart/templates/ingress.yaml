@@ -5,16 +5,14 @@ metadata:
   name: {{ include "jjforge.fullname" . }}
   labels:
     {{- include "jjforge.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    {{- with .Values.ingress.middlewares }}
-    traefik.ingress.kubernetes.io/router.middlewares: {{ range $i, $name := . }}{{ if $i }},{{ end }}{{ $.Release.Namespace }}-{{ $name }}@kubernetescrd{{ end }}
-    {{- end }}
-    {{- with .Values.ingress.tls.issuer }}
-    cert-manager.io/cluster-issuer: {{ . }}
-    {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  ingressClassName: {{ .Values.ingress.className }}
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
   {{- if .Values.ingress.tls.enabled }}
   tls:
     - hosts:
@@ -35,23 +33,26 @@ spec:
 {{- end }}
 {{- if and .Values.ingress.enabled .Values.vcs.sync.store }}
 ---
-# sync/v1 on the same host, with syncMiddlewares in place of the middlewares,
-# since jf sends a bearer token that vcs verifies itself and passes no login
-# page. Traefik routes the
-# longer path here and the rest to the server.
+# sync/v1 on the same host, in an Ingress of its own with syncAnnotations in
+# place of annotations, since jf sends a bearer token that vcs verifies itself
+# and passes no login page. Only the other Ingress names a certificate issuer,
+# so cert-manager issues the shared secret once. Controllers that merge the
+# Ingresses of a host, such as Traefik and ingress-nginx, route the longer path
+# here and the rest to the server.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "jjforge.fullname" . }}-sync
   labels:
     {{- include "jjforge.labels" . | nindent 4 }}
+  {{- with .Values.ingress.syncAnnotations }}
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    {{- with .Values.ingress.syncMiddlewares }}
-    traefik.ingress.kubernetes.io/router.middlewares: {{ range $i, $name := . }}{{ if $i }},{{ end }}{{ $.Release.Namespace }}-{{ $name }}@kubernetescrd{{ end }}
-    {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  ingressClassName: {{ .Values.ingress.className }}
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
   {{- if .Values.ingress.tls.enabled }}
   tls:
     - hosts:

@@ -30,9 +30,9 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{/*
-The connection to Postgres, from the app secret that CloudNativePG keeps for
-the database. The URL leaves out the password, so a log line that names the
-URL never shows it.
+The connection to Postgres, from a secret in the shape of the app secret that
+CloudNativePG keeps for a database. The URL leaves out the password, so a log
+line that names the URL never shows it.
 */}}
 {{- define "jjforge.database" -}}
 {{- $secret := required "server.database.secretName is required" .Values.server.database.secretName -}}
