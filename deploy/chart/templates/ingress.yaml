@@ -22,8 +22,31 @@ spec:
   rules:
     - host: {{ .Values.ingress.host }}
       http:
+        # Traefik routes each request by its longest matching path, so the
+        # server's paths reach the server, and every other path the web app.
         paths:
           - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "jjforge.fullname" . }}-web
+                port:
+                  name: http
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "jjforge.fullname" . }}
+                port:
+                  name: http
+          - path: /oauth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "jjforge.fullname" . }}
+                port:
+                  name: http
+          - path: /.well-known
             pathType: Prefix
             backend:
               service:
