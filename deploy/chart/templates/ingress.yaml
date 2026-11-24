@@ -22,8 +22,8 @@ spec:
   rules:
     - host: {{ .Values.ingress.host }}
       http:
-        # Traefik routes each request by its longest matching path, so the
-        # server's paths reach the server, and every other path the web app.
+        # The longest matching path wins, so the server's paths reach the
+        # server, and every other path the web app.
         paths:
           - path: /
             pathType: Prefix
