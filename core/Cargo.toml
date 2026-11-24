@@ -61,7 +61,7 @@ tonic = "0.14.9"
 tonic-prost = "0.14.9"
 tonic-prost-build = "0.14.9"
 tower = "0.5.3"
-url = "2.5.8"
+url = "2.5.9"
 tracing = "0.1.44"
 tracing-opentelemetry = { version = "0.34.0", default-features = false }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["env-filter", "fmt", "std"] }
