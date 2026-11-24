@@ -15,7 +15,7 @@ WORKDIR /src/platform/web
 COPY platform/web ./
 RUN pnpm install --frozen-lockfile && pnpm build
 
-FROM nginxinc/nginx-unprivileged:1.30.4-alpine@sha256:adf5042a17f4ecdd200c595fa9ffd1be37efb18f89a830bd1a00e4ab4d59d42c
+FROM nginxinc/nginx-unprivileged:1.30.6-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03
 COPY platform/web/app/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /src/platform/web/app/dist /usr/share/nginx/html
 EXPOSE 8080
