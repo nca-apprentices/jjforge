@@ -1,11 +1,11 @@
 name: Preview
 
-# Pushes the server and vcs images of a PR labeled preview, tagged with its
-# head commit. The jjforge-preview ApplicationSet in nca-apprentices/infra
-# then runs them at jjforge-pr-<number>.nca-apprentices.dev and records a
-# GitHub deployment once the commit is live. It removes the preview when the
-# PR merges, closes, or loses the label. A fork PR gets no token to push with,
-# so it gets no preview.
+# Pushes the server, vcs, and web images of a PR labeled preview, tagged
+# with its head commit. The jjforge-preview ApplicationSet in
+# nca-apprentices/infra then runs them at
+# jjforge-pr-<number>.nca-apprentices.dev and records a GitHub deployment once
+# the commit is live. It removes the preview when the PR merges, closes, or
+# loses the label. A fork PR gets no token to push with, so it gets no preview.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
@@ -31,13 +31,15 @@ jobs:
       packages: write
     strategy:
       matrix:
-        component: [server, vcs]
+        component: [server, vcs, web]
         arch: [amd64, arm64]
         include:
           - component: server
             dockerfile: platform/server/Dockerfile
           - component: vcs
             dockerfile: core/vcs/Dockerfile
+          - component: web
+            dockerfile: platform/web/app/Dockerfile
           - arch: amd64
             runner: ubuntu-latest
           - arch: arm64
@@ -89,7 +91,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        component: [server, vcs]
+        component: [server, vcs, web]
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
