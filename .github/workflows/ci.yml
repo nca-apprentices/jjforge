@@ -146,6 +146,7 @@ jobs:
         run: |
           docker load --input "$RUNNER_TEMP/artifacts/image-server/server.tar"
           docker load --input "$RUNNER_TEMP/artifacts/image-vcs/vcs.tar"
+          docker load --input "$RUNNER_TEMP/artifacts/image-web/web.tar"
           chmod +x "$RUNNER_TEMP/artifacts/jf/jf"
       - name: Start
         run: docker-compose up --no-build --detach
@@ -187,6 +188,8 @@ jobs:
             dockerfile: platform/server/Dockerfile
           - component: vcs
             dockerfile: core/vcs/Dockerfile
+          - component: web
+            dockerfile: platform/web/app/Dockerfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
