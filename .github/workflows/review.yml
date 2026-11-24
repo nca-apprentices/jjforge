@@ -142,7 +142,7 @@ jobs:
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           install_args: docker-compose hurl bats grpcurl
-      # Waits until CI on the PR has uploaded jf and both images, or has
+      # Waits until CI on the PR has uploaded jf and all three images, or has
       # finished without them. A build that fails leaves CI's failed log for
       # the review.
       - name: Wait for CI
@@ -155,7 +155,7 @@ jobs:
         run: |
           run=
           count=0
-          until [[ $count == 3 ]]; do
+          until [[ $count == 4 ]]; do
             sleep 10
             run=${run:-$(gh run list --workflow ci.yml --commit "$SHA" --event pull_request \
               --limit 1 --json databaseId --jq '.[0].databaseId // empty')}
@@ -163,13 +163,13 @@ jobs:
               continue
             fi
             count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts" \
-              --jq '[.artifacts[].name | select(IN("jf", "image-server", "image-vcs"))] | length')
+              --jq '[.artifacts[].name | select(IN("jf", "image-server", "image-vcs", "image-web"))] | length')
             if [[ $(gh run view "$run" --json status --jq .status) == completed ]]; then
               break
             fi
           done
           echo "run=$run" >>"$GITHUB_OUTPUT"
-          if [[ $count != 3 ]]; then
+          if [[ $count != 4 ]]; then
             gh run view "$run" --log-failed > review/build.log
           fi
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -177,7 +177,7 @@ jobs:
         with:
           run-id: ${{ steps.ci.outputs.run }}
           github-token: ${{ github.token }}
-          pattern: "{jf,image-server,image-vcs}"
+          pattern: "{jf,image-server,image-vcs,image-web}"
           merge-multiple: true
           path: review/build
       # Claude's commands can't reach Docker, so the job starts the stack from
