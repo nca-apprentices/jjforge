@@ -53,6 +53,7 @@ provenance = "github-attestations"
 version = "1.14.0"
 backend = "aqua:bats-core/bats-core"
 specifiers = ["1.14.0"]
+unsupported_platforms = ["windows-x64"]
 
 [tools.bats."platforms.linux-arm64"]
 checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
@@ -588,7 +589,7 @@ url = "https://github.com/Orange-OpenSource/hurl/releases/download/8.1.0/hurl-8.
 url_api = "https://api.github.com/repos/Orange-OpenSource/hurl/releases/assets/681974595"
 
 [[tools.java]]
-version = "temurin-25.0.4+101.0.LTS"
+version = "temurin-25.0.4.1+1.0.LTS"
 backend = "core:java"
 specifiers = ["temurin-25.0.4"]
 
