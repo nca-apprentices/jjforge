@@ -2,4 +2,3 @@
 **/target
 **/node_modules
 platform/web/app/dist
-platform/server/src/main/resources/static
