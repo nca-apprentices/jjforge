@@ -22,7 +22,7 @@ services:
       server:
         condition: service_started
     volumes:
-      - ./web.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./web.conf:/etc/nginx/routes/server.conf:ro
     ports:
       - "${JJFORGE_PORT:-8080}:8080"
 
