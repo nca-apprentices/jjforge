@@ -32,27 +32,15 @@ spec:
                 name: {{ include "jjforge.fullname" . }}-web
                 port:
                   name: http
-          - path: /api
+          {{- range list "/api" "/oauth" "/.well-known" }}
+          - path: {{ . }}
             pathType: Prefix
             backend:
               service:
-                name: {{ include "jjforge.fullname" . }}
+                name: {{ include "jjforge.fullname" $ }}
                 port:
                   name: http
-          - path: /oauth
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "jjforge.fullname" . }}
-                port:
-                  name: http
-          - path: /.well-known
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "jjforge.fullname" . }}
-                port:
-                  name: http
+          {{- end }}
 {{- end }}
 {{- if and .Values.ingress.enabled .Values.vcs.sync.store }}
 ---
