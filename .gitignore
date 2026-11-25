@@ -27,6 +27,3 @@ dist/
 platform/web/shared/api/src/contract.gen.ts
 # Bundled from contracts/openapi by `mise run api:build`
 contracts/openapi.yaml
-
-# Generated: the release copies the web build into the server jar
-platform/server/src/main/resources/static/

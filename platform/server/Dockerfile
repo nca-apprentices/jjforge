@@ -1,28 +1,21 @@
 # Built from the repository root: the server compiles the stubs from
-# contracts/proto/ and contracts/openapi/ and serves the web build, so the
-# context has to include all three.
+# contracts/proto/ and contracts/openapi/, so the context has to include
+# both.
 
-# The SPA is served by the server, so it is built into the jar rather than
-# deployed as a second thing to keep in sync.
-FROM node:26.13.1-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS web
+FROM node:26.13.1-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS contract
 # Node 25 stopped bundling Corepack, so it comes from npm.
 RUN npm install --global corepack@0.36.0 && corepack enable
-# The web install generates the API client from the bundled contract, so the
-# contract is bundled first. Corepack reads the pinned pnpm version from the
-# working directory, so each package is built from its own.
+# Bundles the contract that the server compiles its stubs from. Corepack
+# reads the pinned pnpm version from the working directory.
 WORKDIR /src/contracts/openapi
 COPY contracts/openapi ./
 RUN pnpm install --frozen-lockfile && pnpm exec redocly bundle openapi.yaml --output ../openapi.yaml
-WORKDIR /src/platform/web
-COPY platform/web ./
-RUN pnpm install --frozen-lockfile && pnpm build
 
 FROM gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898 AS build
 WORKDIR /src
 COPY contracts/proto contracts/proto
-COPY --from=web /src/contracts/openapi.yaml contracts/openapi.yaml
+COPY --from=contract /src/contracts/openapi.yaml contracts/openapi.yaml
 COPY platform/server platform/server
-COPY --from=web /src/platform/web/app/dist platform/server/src/main/resources/static
 RUN --mount=type=cache,target=/cache/gradle \
     GRADLE_USER_HOME=/cache/gradle gradle --no-daemon -p platform/server bootJar
 

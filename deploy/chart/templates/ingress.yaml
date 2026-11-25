@@ -22,14 +22,25 @@ spec:
   rules:
     - host: {{ .Values.ingress.host }}
       http:
+        # The longest matching path wins, so the server's paths reach the
+        # server, and every other path the web app.
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ include "jjforge.fullname" . }}
+                name: {{ include "jjforge.fullname" . }}-web
                 port:
                   name: http
+          {{- range list "/api" "/oauth" "/.well-known" }}
+          - path: {{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "jjforge.fullname" $ }}
+                port:
+                  name: http
+          {{- end }}
 {{- end }}
 {{- if and .Values.ingress.enabled .Values.vcs.sync.store }}
 ---

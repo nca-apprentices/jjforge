@@ -24,7 +24,7 @@ awk '
 
 # Workflows, Dockerfiles, task scripts, and CLI scenarios.
 actionlint
-hadolint --config .mise/hadolint.yaml platform/server/Dockerfile core/vcs/Dockerfile
+hadolint --config .mise/hadolint.yaml platform/server/Dockerfile core/vcs/Dockerfile platform/web/app/Dockerfile
 find .mise/tasks -type f -exec shellcheck {} +
 find e2e/cli -name '*.bats' -exec shellcheck {} +
 

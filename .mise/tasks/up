@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Build the images and run server and vcs with podman, such as `mise run up --detach`"
+#MISE description="Build the images and run server, vcs, and the web app with podman, such as `mise run up --detach`"
 set -euo pipefail
 
 # podman builds the images itself. Compose's own builder goes through the
@@ -8,6 +8,7 @@ set -euo pipefail
 # pulls nothing.
 podman build --tag ghcr.io/nca-apprentices/jjforge-server:latest --file platform/server/Dockerfile .
 podman build --tag ghcr.io/nca-apprentices/jjforge-vcs:latest --file core/vcs/Dockerfile .
+podman build --tag ghcr.io/nca-apprentices/jjforge-web:latest --file platform/web/app/Dockerfile .
 
-# JJFORGE_PORT moves the server off 8080 when something else holds it.
+# JJFORGE_PORT moves the web app off 8080 when something else holds it.
 exec mise run compose up "$@"

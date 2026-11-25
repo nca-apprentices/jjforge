@@ -11,6 +11,21 @@ x-database: &database
   SPRING_DATASOURCE_USERNAME: postgres
 
 services:
+  # Serves the web app on JJFORGE_PORT, and forwards the server's paths
+  # through deploy/web.conf, as the chart's ingress does.
+  web:
+    image: ghcr.io/nca-apprentices/jjforge-web:${JJFORGE_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: platform/web/app/Dockerfile
+    depends_on:
+      server:
+        condition: service_started
+    volumes:
+      - ./web.conf:/etc/nginx/routes/server.conf:ro
+    ports:
+      - "${JJFORGE_PORT:-8080}:8080"
+
   server:
     image: ghcr.io/nca-apprentices/jjforge-server:${JJFORGE_VERSION:-latest}
     build:
@@ -32,8 +47,6 @@ services:
       # The principal of twins/principals that the server calls vcs as.
       JJFORGE_VCS_PRINCIPAL: server
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://traces:10428/insert/opentelemetry/v1/traces
-    ports:
-      - "${JJFORGE_PORT:-8080}:8080"
 
   # Migrates the database and exits before the server starts, as the chart's
   # migration Job does.
