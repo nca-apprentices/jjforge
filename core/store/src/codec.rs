@@ -410,7 +410,8 @@ fn copy_history_from_proto(message: proto::CopyHistory) -> Result<CopyHistory, E
     })
 }
 
-/// Leaves `segment_ids` empty, since the store sets them, not jj-lib.
+/// Leaves `segment_ids` and `signature` empty, since the store and vcs set
+/// them, not jj-lib.
 fn operation_to_proto(operation: &Operation) -> proto::Operation {
     let metadata = &operation.metadata;
     let commit_predecessors = operation
@@ -442,6 +443,7 @@ fn operation_to_proto(operation: &Operation) -> proto::Operation {
         start_tz_offset_minutes: metadata.time.start.tz_offset,
         end_tz_offset_minutes: metadata.time.end.tz_offset,
         stores_commit_predecessors: operation.commit_predecessors.is_some(),
+        signature: vec![],
     }
 }
 
