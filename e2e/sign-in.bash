@@ -58,3 +58,12 @@ confirm_device() {
   location=$(location_of -d "username=$login" "$location") || return
   location_of "$location"
 }
+
+# Declines a device sign-in at the provider in place of the person, such as
+# `decline_device WDJB-MJHT`, and prints where it ends.
+decline_device() {
+  local user_code=$1 location state
+  location=$(location_of "$sign_in_endpoint/oauth/device/confirm" -d "user_code=$user_code") || return
+  state=$(query_param "$location" state) || return
+  location_of -G "$sign_in_endpoint/oauth/callback" -d "state=$state" -d error=access_denied
+}

@@ -39,3 +39,35 @@ teardown() {
   JJFORGE_TOKEN=$token jf -R member fetch
   [ "$(jf -R member log -r main@forge --no-graph -T change_id)" = "$change" ]
 }
+
+@test "12.4 a token signed under a key ID that the server never published gets 401" {
+  local header claims signature
+  header=$(printf '{"alg":"EdDSA","typ":"at+jwt","kid":"never-published"}' |
+    openssl base64 -A | tr '+/' '-_' | tr -d '=')
+  IFS=. read -r _ claims signature <<<"$token"
+  run curl -sS -o /dev/null -w '%{http_code}' \
+    -H "Authorization: Bearer $header.$claims.$signature" "$url/head"
+  [ "$output" = 401 ]
+}
+
+@test "12.5 a vcs that starts while the server is down waits for the keys" {
+  # A fresh token, so it outlives the restarts below.
+  mise run compose start server
+  until curl -fsS "$JJFORGE_ENDPOINT/actuator/health" >/dev/null; do sleep 1; done
+  token=$(sign_in acme-member acme)
+  mise run compose stop server
+
+  mise run compose restart vcs
+  until curl -fsS "${url%%/sync/v1/*}/sync/v1/keys" >/dev/null; do sleep 1; done
+  run curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "$url/head"
+  [ "$output" = 401 ]
+
+  mise run compose start server
+  local status_code=""
+  for _ in $(seq 30); do
+    status_code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "$url/head")
+    [ "$status_code" = 200 ] && break
+    sleep 1
+  done
+  [ "$status_code" = 200 ]
+}

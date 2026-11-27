@@ -532,6 +532,9 @@ requirement.
     A poll after 15 minutes answers 400 `expired_token`.
 ```
 
+A scenario can't wait 15 minutes, so a test of the
+[Tests](#tests) section checks 9.13.
+
 - Operations: `authorizeDevice`, `authorizeDeviceConfirm`, `authorizeCallback`, and
   `token`.
 - Types: `DeviceAuthorizationRequest`, `DeviceAuthorization`,
@@ -658,6 +661,9 @@ requirement.
     seconds until it gets them.
 ```
 
+A scenario can't see when vcs fetches, so a test of the [Tests](#tests)
+section checks 12.3.
+
 - Operations: `GET {base}/head`, `GET {base}/operations`, `POST
   {base}/objects/fetch`, and `getKeys`.
 - Types: `KeySet`, and vcs's `auth::Keys` and `auth::Tokens`.
@@ -708,7 +714,14 @@ requirement.
   Functional requirement: >
     `jf login` exits 5 when the person declines at the provider or the code
     expires, and saves nothing.
+- ID: "161.9"
+  Functional requirement: >
+    Without a saved session and without `JJFORGE_TOKEN`, a command that
+    calls the forge prints `Run jf login --org <org>.` and exits 5.
 ```
+
+A scenario can't wait 12 hours, so a test of the [Tests](#tests) section
+checks 161.5.
 
 - Operations: `authorizeDevice`, `token`, `revoke`, and the sync/v1 routes
   of a push and a clone.
@@ -748,9 +761,13 @@ requirement.
     `unsigned` or `invalid` and exit 1.
 - ID: "163.5"
   Functional requirement: >
-    `jf` keeps each fetched operation as the bytes that vcs served, so the
-    signature and the operation ID survive in the clone.
+    `jf` keeps each fetched operation as the bytes that vcs served, and the
+    store crate's `decode` accepts them, so the signature and the operation
+    ID survive in the clone.
 ```
+
+No request can make vcs serve an unsigned operation, so the unit tests of
+the [Tests](#tests) section check 163.4 and 163.5.
 
 - Operations: `POST {base}/publish`, `GET /sync/v1/keys`, and `jf op
   verify`.
@@ -775,9 +792,10 @@ requirement.
   Functional requirement: >
     A bearer name, such as `acme-owner`, gets 401 `unauthenticated`. The
     file of `VCS_PRINCIPALS` no longer proves who sent a request. It only
-    grants scopes to a verified name, until
-    [#13](https://github.com/nca-apprentices/jjforge/issues/13) moves them
-    into the token.
+    grants scopes to the principal ID in a verified token's `sub`, never to
+    its `name`, because a GitHub login picks the name. This holds until
+    [#13](https://github.com/nca-apprentices/jjforge/issues/13) moves the
+    scopes into the token.
 - ID: "164.3"
   Functional requirement: A request without a token gets 401 `unauthenticated`.
 - ID: "164.4"
@@ -803,8 +821,10 @@ requirement.
     vcs sets `jjforge.principal` of each operation to the token's `name`.
 - ID: "164.10"
   Functional requirement: >
-    The server calls vcs with a token it signs for itself, with the name
-    `server`, for 5 minutes, renewed a minute before it expires.
+    The server calls vcs with a token it signs for itself, with `sub` set
+    to the ID of the component principal `server`, `0199c9a1-7c00-7000-8000-00000000f001`, for
+    5 minutes, renewed a minute before it expires. The seed holds that
+    principal, so no person can take the name `server`.
 - ID: "164.11"
   Functional requirement: >
     vcs logs why it refused a token, and never logs the token.
@@ -847,9 +867,9 @@ flowchart LR
   addresses, the signing keys, and the sign-in of each person in
   `mise run e2e`, which every other scenario needs.
 - #164 changes `as`, `copy`, and `vcs_repo` in `e2e/cli/forge.bash` to send
-  a token from `sign_in`, and renames the principals of
-  `deploy/twins/principals` to `acme-owner`, `acme-member`, and
-  `other-owner`, so every Bats scenario keeps passing.
+  a token from `sign_in`, and keys each line of `deploy/twins/principals`
+  by the principal's ID from the seed, so every Bats scenario keeps
+  passing.
 - #163 touches only vcs, the store crate, and `jf`, so it starts at once.
 
 ## Out of scope
@@ -1064,8 +1084,9 @@ sequenceDiagram
    `VCS_TOKEN_ISSUER`, `aud` against `jjforge`, and `nbf` and `exp` with a
    leeway of 5 seconds. Refused: 401 `unauthenticated`. vcs logs the
    reason.
-4. Scopes: the scopes that `VCS_PRINCIPALS` lists for the token's `name`,
-   or none. The checks of each route follow, as the
+4. Scopes: the scopes that `VCS_PRINCIPALS` lists for the principal ID in
+   the token's `sub`, or none. vcs never grants scopes by `name`, because a
+   GitHub login picks the name of a new principal. The checks of each route follow, as the
    [push and clone](29-push-and-clone.md) page gives them.
 
 ### Connect a provider
@@ -1089,6 +1110,12 @@ operations. jj's root operation has a fixed ID, so it stays unsigned.
    namespace `jjforge-operation` with SHA-512, and set `signature` to the
    encoded SSHSIG.
 3. Encode again and hash, which gives the operation ID, as before.
+   `encode_operation` in the store crate takes the signature next to the
+   segments.
+4. Read back: the store crate's `decode` re-encodes each object and
+   refuses bytes that differ. jj-lib's `Operation` has no `signature`, so
+   `decode` carries `signature` over into that check, as it carries
+   `segment_ids`, and an operation that vcs signed reads back.
 
 `jf op verify` undoes the steps: it clears `signature`, encodes, and checks
 the SSHSIG against the key in the set that it names.
@@ -1164,6 +1191,10 @@ erDiagram
   ID: 0199c9a1-7c00-7000-8000-0000000007e1
   GitHub ID: "2001"
   Member of: other, as owner
+- Principal: server, of the kind `component`
+  ID: 0199c9a1-7c00-7000-8000-00000000f001
+  GitHub ID: none
+  Member of: none
 ```
 
 The connections are `acme-jjforge` with the secret `acme-twin-secret`, and
@@ -1235,7 +1266,7 @@ operation in the operation itself, in the object store.
   Kind: struct
   Role: >
     Fetch and cache the key set, verify a token, and grant the scopes of a
-    verified name.
+    verified `sub`.
 - Binary: vcs
   Module or crate: sign
   Item: OperationSigner
@@ -1413,6 +1444,9 @@ vcs signs operations and the store crate verifies them, with the features
   most until its owner refreshes.
 - vcs accepts only `EdDSA` and only published keys, so `none` and a key
   that the token names itself never verify.
+- vcs grants scopes by `sub`, the principal's ID, which the server
+  assigns. A person picks their GitHub login, and so the `name` of a new
+  principal, so a name grants nothing.
 - A user code is 8 letters of 20, so a guess succeeds once in 25 billion.
   The server limits `authorizeDeviceConfirm` to 10 tries a minute per client
   address.
@@ -1455,7 +1489,14 @@ because an unsigned operation would fail `jf op verify`.
   wrong `iss` and `aud`, a missing `exp`, and an `HS256` token signed with
   the public key as its secret.
 - A unit test of `verify_operation` changes one byte of a signed operation
-  and gets `invalid`, as 163.4 requires.
+  and gets `invalid`, and one without a signature gets `unsigned`, as 163.4
+  requires. vcs signs every operation it writes, so no scenario can fetch
+  an unsigned one, and a changed byte in a clone fails the hash check of
+  the local store before `jf op verify` reads it.
+- A unit test of the codec decodes a signed operation and gets the same
+  bytes back, as 163.5 requires.
+- An integration test of vcs's `Keys` with a server twin that answers once
+  and then fails keeps the first keys, as 12.3 requires.
 
 ## Alternatives
 
