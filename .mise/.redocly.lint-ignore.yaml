@@ -4,10 +4,9 @@
   no-server-example.com:
     - "#/servers/0/url"
 ../contracts/openapi/auth/paths.yaml:
-  # A browser sign-in only ever redirects.
+  # A browser sign-in, its callback, and a device confirmation only ever
+  # redirect.
   operation-2xx-response:
     - "#/authorize/get/responses"
-  # Takes the bearer token but lists no 401. Open until #11 says whether
-  # revocation needs a token.
-  rule/authenticated-answers-401:
-    - "#/revoke/post/responses"
+    - "#/callback/get/responses"
+    - "#/deviceConfirm/post/responses"

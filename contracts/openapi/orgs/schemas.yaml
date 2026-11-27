@@ -59,7 +59,10 @@ IdentityProvider:
       type: string
       writeOnly: true
       maxLength: 1024
-  description: The OpenID Connect provider that signs in the organization's members.
+  description: |-
+    The identity provider that signs in the organization's members. The
+    issuer names it. `https://github.com` is the only one the server
+    supports so far.
 
 Member:
   type: object

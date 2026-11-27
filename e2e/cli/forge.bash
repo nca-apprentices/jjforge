@@ -4,6 +4,11 @@
 
 # shellcheck source=../http/vars.env
 source "$BATS_TEST_DIRNAME/../http/vars.env"
+# sign_in and confirm_device, which the scenarios of #6 call. The build PR of
+# #164 makes `as`, `copy`, and `vcs_repo` send a token from sign_in, because
+# from then on vcs refuses a bare name.
+# shellcheck source=../sign-in.bash
+source "$BATS_TEST_DIRNAME/../sign-in.bash"
 
 # The scenarios read no jj configuration of the machine they run on, such as
 # `ui.log-word-wrap`, which wraps the lines a scenario parses. `copy` sets

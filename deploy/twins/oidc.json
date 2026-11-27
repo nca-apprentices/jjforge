@@ -2,6 +2,66 @@
   "interactiveLogin": true,
   "tokenCallbacks": [
     {
+      "issuerId": "github",
+      "requestMappings": [
+        {
+          "requestParam": "subject",
+          "match": "acme-member-renamed",
+          "claims": {
+            "sub": "acme-member-renamed",
+            "id": 1002,
+            "login": "acme-member-new",
+            "name": "Acme Member",
+            "email": "acme-member-new@example.com"
+          }
+        },
+        {
+          "requestParam": "subject",
+          "match": "squatter",
+          "claims": {
+            "sub": "squatter",
+            "id": 3001,
+            "login": "acme-owner",
+            "name": "Someone Else",
+            "email": "acme-owner@example.com"
+          }
+        },
+        {
+          "requestParam": "subject",
+          "match": "acme-owner",
+          "claims": {
+            "sub": "acme-owner",
+            "id": 1001,
+            "login": "acme-owner",
+            "name": "Acme Owner",
+            "email": "acme-owner@example.com"
+          }
+        },
+        {
+          "requestParam": "subject",
+          "match": "acme-member",
+          "claims": {
+            "sub": "acme-member",
+            "id": 1002,
+            "login": "acme-member",
+            "name": "Acme Member",
+            "email": "acme-member@example.com"
+          }
+        },
+        {
+          "requestParam": "subject",
+          "match": "other-owner",
+          "claims": {
+            "sub": "other-owner",
+            "id": 2001,
+            "login": "other-owner",
+            "name": "Other Owner",
+            "email": "other-owner@example.com"
+          }
+        }
+      ]
+    },
+    {
       "issuerId": "acme",
       "requestMappings": [
         {
@@ -9,7 +69,9 @@
           "match": "acme-owner",
           "claims": {
             "sub": "${subject}",
-            "aud": ["jjforge"],
+            "aud": [
+              "jjforge"
+            ],
             "email": "${subject}@acme.example",
             "preferred_username": "${subject}",
             "scope": "sync:write:0199c9a0-0000-7000-8000-00000000ac3e sync:admin:0199c9a0-0000-7000-8000-00000000ac3e"
@@ -20,7 +82,9 @@
           "match": "acme-member",
           "claims": {
             "sub": "${subject}",
-            "aud": ["jjforge"],
+            "aud": [
+              "jjforge"
+            ],
             "email": "${subject}@acme.example",
             "preferred_username": "${subject}",
             "scope": "sync:write:0199c9a0-0000-7000-8000-00000000ac3e"
@@ -36,7 +100,9 @@
           "match": "other-owner",
           "claims": {
             "sub": "${subject}",
-            "aud": ["jjforge"],
+            "aud": [
+              "jjforge"
+            ],
             "email": "${subject}@other.example",
             "preferred_username": "${subject}",
             "scope": "sync:write:0199c9a0-0000-7000-8000-0000000007e2 sync:admin:0199c9a0-0000-7000-8000-0000000007e2"

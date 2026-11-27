@@ -127,9 +127,10 @@ services:
     environment:
       WEED_JWT_FILER_SIGNING_KEY: twin-only-key-that-signs-nothing-real
 
-  # The OpenID Connect provider of each organization, one issuer per
-  # organization, such as http://oidc:8080/acme, for the server's sign-in
-  # of #6.
+  # The identity providers of #6. The issuer `github` stands in for GitHub:
+  # its people carry GitHub's `id` and `login` at /github/userinfo, and the
+  # server reaches it at the addresses of docs/specs/6-human-login.md. The
+  # issuers `acme` and `other` wait for the OpenID Connect kind.
   oidc:
     image: ghcr.io/navikt/mock-oauth2-server:6.0.5
     environment:

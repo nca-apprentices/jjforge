@@ -65,10 +65,24 @@ DeviceAuthorizationRequest:
     client_id:
       type: string
       maxLength: 256
+    org:
+      type: string
+      pattern: ^[a-z0-9][a-z0-9-]{0,38}$
+      description: The organization whose provider confirms the sign-in. Missing, the request fails with `invalid_request`.
     scope:
       type: string
       maxLength: 256
   description: The client that starts a device sign-in.
+
+DeviceConfirmation:
+  type: object
+  required:
+    - user_code
+  properties:
+    user_code:
+      type: string
+      pattern: ^[A-Za-z-]{8,9}$
+  description: The code that a person typed to confirm a device sign-in.
 
 KeySet:
   type: object
@@ -167,6 +181,14 @@ Session:
       format: date-time
     current:
       type: boolean
+    org:
+      type: string
+      description: The organization whose provider signed the session in.
+    expiresAt:
+      type: string
+      format: date-time
+      description: When the session ends, 12 hours after sign-in.
+  description: One sign-in of a principal, and the client that holds it.
 
 SessionPage:
   type: object

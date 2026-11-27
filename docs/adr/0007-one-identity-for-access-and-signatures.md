@@ -74,7 +74,9 @@ with SSHSIG, and needs a key that belongs to the same principal.
   namespace `git`.
 - `jf` signs each review record under the namespace `jjforge-review`.
 - vcs signs the operations and the landed commits it writes with its own
-  certified key.
+  certified key. Until the authority exists, vcs publishes the key itself,
+  as [ADR 0008](0008-sign-in-through-a-provider-sessions-from-the-forge.md)
+  decides.
 - The token authenticates the request, and the certificate authenticates
   the signature. vcs refuses a new commit or a record whose signature isn't
   valid, or whose certificate names another principal than the token.

@@ -8,9 +8,10 @@ option java_package = "dev.nca.jjforge.source.v1";
 // The internal contract between the server and vcs. Nothing outside the
 // cluster calls it: see docs/adr/0001-native-jj-without-git.md.
 //
-// Every call names its principal in the `authorization` metadata, as
-// `Bearer {name}`, until sign-in exists, as #6 plans. A RepoRef routes the
-// call to the repository's storage.
+// Every call proves its principal in the `authorization` metadata, as
+// `Bearer {token}`, a token that the server signs for itself, as
+// docs/specs/6-human-login.md decides. A RepoRef routes the call to the
+// repository's storage.
 //
 // A list reads at `HEAD` and answers a page token that names the operation it
 // read at. Every later page reads at that operation, so a push between two
