@@ -19,6 +19,7 @@ metadata:
               device_authorization_endpoint: https://jjforge.example/oauth/device
               revocation_endpoint: https://jjforge.example/oauth/revoke
               keys_uri: https://jjforge.example/oauth/keys
+              sync_endpoint: https://jjforge.example/sync/v1
               scopes_supported:
                 - read
                 - write

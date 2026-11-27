@@ -50,8 +50,8 @@ teardown() {
   [ "$output" = 401 ]
 }
 
-@test "12.5 a vcs that starts while the server is down waits for the keys" {
-  # A fresh token, so it outlives the restarts below.
+@test "12.5 a vcs that restarts while the server is down verifies with its cached keys" {
+  # A fresh token, so it outlives the restart below.
   mise run compose start server
   until curl -fsS "$JJFORGE_ENDPOINT/actuator/health" >/dev/null; do sleep 1; done
   token=$(sign_in acme-member acme)
@@ -60,14 +60,5 @@ teardown() {
   mise run compose restart vcs
   until curl -fsS "${url%%/sync/v1/*}/sync/v1/keys" >/dev/null; do sleep 1; done
   run curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "$url/head"
-  [ "$output" = 401 ]
-
-  mise run compose start server
-  local status_code=""
-  for _ in $(seq 30); do
-    status_code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "$url/head")
-    [ "$status_code" = 200 ] && break
-    sleep 1
-  done
-  [ "$status_code" = 200 ]
+  [ "$output" = 200 ]
 }

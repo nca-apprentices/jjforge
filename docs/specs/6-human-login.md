@@ -656,13 +656,18 @@ requirement.
     most once a minute, before it answers 401 `unauthenticated`.
 - ID: "12.5"
   Functional requirement: >
-    A vcs without keys, because the server was down when it started,
-    answers 401 `unauthenticated` to every request and fetches every 10
-    seconds until it gets them.
+    vcs writes each `KeySet` it fetches to `{VCS_CACHE}/keys.json`, and a
+    vcs that starts while the server is down verifies tokens with the keys
+    of that file.
+- ID: "12.6"
+  Functional requirement: >
+    A vcs with neither fetched keys nor the file answers 401
+    `unauthenticated` to every request, and fetches every 10 seconds until
+    it gets them.
 ```
 
-A scenario can't see when vcs fetches, so a test of the [Tests](#tests)
-section checks 12.3.
+A scenario can't see when vcs fetches, and compose keeps vcs's cache across
+a restart, so tests of the [Tests](#tests) section check 12.3 and 12.6.
 
 - Operations: `GET {base}/head`, `GET {base}/operations`, `POST
   {base}/objects/fetch`, and `getKeys`.
@@ -687,7 +692,8 @@ requirement.
   Functional requirement: >
     `jf` keeps one entry per forge in
     `$XDG_CONFIG_HOME/jjforge/credentials.toml`, with the mode 0600: the
-    organization, the refresh token, the access token, and its expiry.
+    organization, the `sync_endpoint` of the forge's metadata, the refresh
+    token, the access token, and its expiry.
 - ID: "161.3"
   Functional requirement: >
     Each command that calls the forge sends the saved access token. When
@@ -718,6 +724,11 @@ requirement.
   Functional requirement: >
     Without a saved session and without `JJFORGE_TOKEN`, a command that
     calls the forge prints `Run jf login --org <org>.` and exits 5.
+- ID: "161.10"
+  Functional requirement: >
+    `jf` sends a saved token only to the origin of the forge it signed in
+    to and to the origin of its `sync_endpoint`. A clone address at another
+    origin gets no token, so vcs refuses it and `jf` exits 5.
 ```
 
 A scenario can't wait 12 hours, so a test of the [Tests](#tests) section
@@ -1199,7 +1210,9 @@ erDiagram
 
 The connections are `acme-jjforge` with the secret `acme-twin-secret`, and
 `other-jjforge` with `other-twin-secret`. vcs stores the signature of each
-operation in the operation itself, in the object store.
+operation in the operation itself, in the object store, and the last
+`KeySet` it fetched in `{VCS_CACHE}/keys.json`, which it replaces through a
+rename so that a crash leaves the old file or the new one.
 
 ## Architecture
 
@@ -1307,6 +1320,12 @@ ADR 0003 decides.
   Default: none
   Compose: http://localhost:8080
   Meaning: The address of the forge in a browser, and the tokens' `iss`.
+- Setting: JJFORGE_SYNC_URL
+  Default: none
+  Compose: http://localhost:8081/sync/v1
+  Meaning: >
+    The base of every clone address, which the metadata names as
+    `sync_endpoint`.
 - Setting: JJFORGE_TOKEN_KEYS
   Default: none
   Compose: /etc/jjforge/keys, from deploy/twins/keys/server
@@ -1408,8 +1427,13 @@ vcs signs operations and the store crate verifies them, with the features
   helpers of `e2e/cli/forge.bash`, and `deploy/twins/principals` in one PR.
 - An older `jf` sends `JJFORGE_TOKEN` as a name, and a vcs after #164
   refuses it with 401. Nothing older is deployed.
-- `store.v1.Operation` gains `signature` as field 16. An older `jf` keeps
-  the field it doesn't know, because it stores the bytes vcs served.
+- `store.v1.Operation` gains `signature` as field 16. A `jf` from before
+  the build of #163 refuses a signed operation. Its `codec::decode`
+  re-encodes every object it reads, through the op store and on fetch, and
+  answers `NotCanonical` when the bytes differ, and the bytes lack the
+  field it doesn't know. The build of #163 carries the field in `decode`
+  in the same PR that makes vcs sign, so a `jf` from an earlier release
+  upgrades, as it must for #164.
 - The REST contract changes by addition: `org` on `authorize` and on
   `DeviceAuthorizationRequest`, `org` and `expiresAt` on `Session`, and
   the operations `authorizeCallback` and `authorizeDeviceConfirm`. `revoke` needs no
@@ -1444,6 +1468,10 @@ vcs signs operations and the store crate verifies them, with the features
   most until its owner refreshes.
 - vcs accepts only `EdDSA` and only published keys, so `none` and a key
   that the token names itself never verify.
+- `jf` sends a saved token only to the forge it signed in to and to the
+  `sync_endpoint` that the forge's metadata names. A clone address that
+  names another host gets no token, so a crafted address can't collect
+  one.
 - vcs grants scopes by `sub`, the principal's ID, which the server
   assigns. A person picks their GitHub login, and so the `name` of a new
   principal, so a name grants nothing.
@@ -1471,6 +1499,10 @@ commands never race.
 A server that loses its signing keys signs nobody in until they return,
 and vcs keeps verifying tokens with its cached keys meanwhile.
 
+A vcs replica that starts while the server is down verifies with the keys
+in its cache directory. A replica on a new node has an empty cache, and
+refuses every request until the server answers.
+
 A vcs that loses its signing key writes no operation until it returns,
 because an unsigned operation would fail `jf op verify`.
 
@@ -1497,6 +1529,9 @@ because an unsigned operation would fail `jf op verify`.
   bytes back, as 163.5 requires.
 - An integration test of vcs's `Keys` with a server twin that answers once
   and then fails keeps the first keys, as 12.3 requires.
+- A unit test of vcs's `Keys` starts with an empty cache directory and an
+  unreachable server, refuses a valid token, and accepts it once the server
+  answers, as 12.6 requires.
 
 ## Alternatives
 

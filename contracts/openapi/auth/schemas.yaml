@@ -26,6 +26,10 @@ AuthorizationServerMetadata:
     keys_uri:
       type: string
       format: uri
+    sync_endpoint:
+      type: string
+      format: uri
+      description: The base of every clone address. `jf` sends its token there and to the issuer, and nowhere else.
     scopes_supported:
       type: array
       items:

@@ -72,6 +72,12 @@ saved_refresh_token() {
   [ "$(cat "$(credentials)")" != "$before" ]
 }
 
+@test "161.10 jf sends no token to an origin that the forge doesn't name" {
+  run jf clone "${url/localhost/127.0.0.1}" elsewhere
+  [ "$status" -eq 5 ]
+  [ ! -e elsewhere ]
+}
+
 @test "161.6 jf logout ends the session and deletes it" {
   local refresh
   refresh=$(saved_refresh_token)
