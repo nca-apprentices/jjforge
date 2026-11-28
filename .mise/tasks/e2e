@@ -5,11 +5,13 @@ set -euo pipefail
 # REST: the requests in e2e/http/, with their asserts. `run` makes the
 # names a scenario creates unique, so the suite runs twice on one server.
 server="http://localhost:${JJFORGE_PORT:-8080}"
+# vcs's sync/v1, which the scenarios of #6 call with and without a token.
+sync="http://localhost:${JJFORGE_SYNC_PORT:-8081}"
 run=$(date +%s)
 # shellcheck disable=SC2329 # check calls it.
 hurl_run() {
-  hurl --test --variable server="$server" --variable run="$run" \
-    --variables-file e2e/http/vars.env "$@"
+  hurl --test --variable server="$server" --variable sync="$sync" \
+    --variable run="$run" --variables-file e2e/http/vars.env "$@"
 }
 
 # CLI: the scenarios in e2e/cli/ run the first jf on PATH, so they test

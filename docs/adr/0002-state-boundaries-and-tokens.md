@@ -157,8 +157,9 @@ modules add.
 
 - The server issues every token. A person signs in through the
   organization's provider, in a browser or with `jf login` in a terminal.
-  On a machine without a browser, `jf login` uses the device flow of
-  RFC 8628.
+  `jf login` uses the device flow of RFC 8628, as
+  [ADR 0008](0008-sign-in-through-a-provider-sessions-from-the-forge.md)
+  decides, with the lifetime of each credential.
 - A token is a JWT that the server signs. Its subject names the principal,
   its expiry bounds the access, and its claims carry the scopes and the
   delegation chain. An agent gets a narrower token for minutes.

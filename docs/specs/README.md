@@ -7,6 +7,7 @@ written and what holds it to this form.
 
 | Spec                                   | Epic                                                          |
 | -------------------------------------- | ------------------------------------------------------------- |
+| [Human login](6-human-login.md)        | [#6](https://github.com/nca-apprentices/jjforge/issues/6)     |
 | [Orgs and repos](23-orgs-and-repos.md) | [#23](https://github.com/nca-apprentices/jjforge/issues/23)   |
 | [Push and clone](29-push-and-clone.md) | [#29](https://github.com/nca-apprentices/jjforge/issues/29)   |
 | [Review model](143-review-model.md)    | [#143](https://github.com/nca-apprentices/jjforge/issues/143) |

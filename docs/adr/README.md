@@ -33,4 +33,7 @@ options, its rules, and what follows.
 - ADR: "[0007](0007-one-identity-for-access-and-signatures.md)"
   Decision: One identity for access and signatures
   Status: Accepted
+- ADR: "[0008](0008-sign-in-through-a-provider-sessions-from-the-forge.md)"
+  Decision: Sign-in through a provider, sessions from the forge
+  Status: Proposed
 ```

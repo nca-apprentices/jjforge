@@ -9,8 +9,9 @@ option java_package = "dev.nca.jjforge.sync.v1";
 // gRPC, so a cache can serve immutable reads. See
 // docs/adr/0001-native-jj-without-git.md.
 //
-// Every request names its principal as `Authorization: Bearer {name}`,
-// until sign-in exists, as #6 plans. Bodies are these messages, encoded, as
+// Every request proves its principal with `Authorization: Bearer {token}`,
+// an access token from the server's `/oauth/token`, as
+// docs/specs/6-human-login.md decides. Bodies are these messages, encoded, as
 // `application/x-protobuf`. Errors are
 // `application/problem+json` with the problem codes of the REST API. IDs in a
 // path are hexadecimal. `{base}` is a repository's clone address:
@@ -27,11 +28,27 @@ option java_package = "dev.nca.jjforge.sync.v1";
 //   POST {base}/publish               PublishRequest -> PublishResponse,
 //                                        with `If-Match` naming the expected
 //                                        head
+//   GET  /sync/v1/keys                -> KeySet, without a token
 //
 // A publish whose expected head is stale answers 412 with
 // `precondition_failed` and the current head. `jf` fetches, merges, and tries
 // again or reports the conflict. A repository that vcs hasn't created
 // answers 404 `not_found` on every route.
+
+// The public keys that verify the signatures of operations, current first.
+// A key stays listed after it signs nothing new, so old operations still
+// verify.
+message KeySet {
+  // Bounded: a forge keeps a few keys, one per rotation.
+  repeated ForgeKey keys = 1;
+}
+
+message ForgeKey {
+  // Such as `2026-11`, which no other key of this forge carries.
+  string id = 1;
+  // The key in the OpenSSH format, such as `ssh-ed25519 AAAAC3Nza...`.
+  string public_key = 2;
+}
 
 // The repository's head. The `ETag` names the operation only.
 message Head {

@@ -205,7 +205,7 @@ rules:
           type: Operation
           property: operationId
         assertions:
-          pattern: /^(?!(authorize|authorizeDevice|token|revoke|getKeys|getAuthorizationServerMetadata)$)/
+          pattern: /^(?!(authorize|authorizeCallback|authorizeDevice|authorizeDeviceConfirm|token|revoke|getKeys|getAuthorizationServerMetadata)$)/
     subject:
       type: SchemaProperties
     assertions:

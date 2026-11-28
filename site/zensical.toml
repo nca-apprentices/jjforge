@@ -20,6 +20,7 @@ nav = [
   { "Reference" = [
     { "Specs" = [
       "specs/README.md",
+      "specs/6-human-login.md",
       "specs/23-orgs-and-repos.md",
       "specs/29-push-and-clone.md",
       "specs/143-review-model.md",
@@ -33,6 +34,7 @@ nav = [
       { "0005 Telemetry through OpenTelemetry" = "adr/0005-telemetry-through-opentelemetry.md" },
       { "0006 Every response is bounded" = "adr/0006-bounded-responses.md" },
       { "0007 One identity for access and signatures" = "adr/0007-one-identity-for-access-and-signatures.md" },
+      { "0008 Sign-in through a provider, sessions from the forge" = "adr/0008-sign-in-through-a-provider-sessions-from-the-forge.md" },
     ] },
   ] },
 ]

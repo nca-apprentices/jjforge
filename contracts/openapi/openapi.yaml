@@ -104,8 +104,12 @@ paths:
     $ref: files/paths.yaml#/tree
   /oauth/authorize:
     $ref: auth/paths.yaml#/authorize
+  /oauth/callback:
+    $ref: auth/paths.yaml#/callback
   /oauth/device:
     $ref: auth/paths.yaml#/device
+  /oauth/device/confirm:
+    $ref: auth/paths.yaml#/deviceConfirm
   /oauth/keys:
     $ref: auth/paths.yaml#/keys
   /oauth/revoke:

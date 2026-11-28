@@ -159,6 +159,12 @@ message Operation {
   int32 end_tz_offset_minutes = 14;
   // False when the operation was written before jj recorded predecessors.
   bool stores_commit_predecessors = 15;
+  // The SSHSIG that vcs made with its key under the namespace
+  // `jjforge-operation`, over this message encoded with the field empty, as
+  // docs/specs/6-human-login.md decides. Empty on an operation that `jf`
+  // wrote locally, on the root operation, and on one older than #163. jj-lib
+  // never sees it.
+  bytes signature = 16;
 }
 
 // What `HEAD` holds: the latest operation and the latest review operation,

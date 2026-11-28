@@ -123,19 +123,19 @@ identity-provider:
           schema:
             $ref: schemas.yaml#/IdentityProvider
           example:
-            issuer: https://login.acme.example
-            clientId: jjforge
-            clientSecret: s3cr3t
+            issuer: https://github.com
+            clientId: acme-jjforge
+            clientSecret: acme-twin-secret
     responses:
       "200":
-        description: Verified and saved.
+        description: Saved. The answer never holds the secret.
         content:
           application/json:
             schema:
               $ref: schemas.yaml#/IdentityProvider
             example:
-              issuer: https://login.acme.example
-              clientId: jjforge
+              issuer: https://github.com
+              clientId: acme-jjforge
       "400":
         $ref: ../common/responses.yaml#/Invalid
       "401":
